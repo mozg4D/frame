@@ -252,7 +252,7 @@ export async function verifyLiveRegions(){
       const shift=math.cross(pivot,r.forceWorld);
       regions.push({corners,pivot,cells:r.cells,steps:r.steps,time:r.physicalTimeS,
         force:r.forceWorld,torqueAtPivot:r.torque,momentAtOrigin:r.torque.map((v,i)=>v+shift[i]),
-        divergence:r.validity.maxDivergencePerS,probes});
+        divergence:r.validity.maxDivergencePerS,profiles:r.profiles,probes});
     }finally{await op('stop');}
   }
   const [full,lo,hi]=regions;

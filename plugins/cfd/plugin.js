@@ -267,28 +267,98 @@ export async function controlVolumeRegion(gpu,f,region){
 
 // Store the reaction and moment in the fixed box axes. For a rotating
 // partial region, clip each physical step before accumulating its shaft phase.
-export async function regionalWallLoads(gpu,f,force,loads,roi){
+export async function regionalWallLoads(gpu,f,force,loads,roi,profiles=null){
   const n=countOf(f.dims),sum=gpu.buffer('CFD wall reactions inside the results region',32*n);
   const phase=gpu.buffer('CFD regional load phase',new Float32Array([1,0,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  const kernel=await gpu.kernel('CFD integrated regional wrench',`
+  const histogram=f.rotatingFrame&&profiles;
+  const kernel=await gpu.kernel('CFD integrated regional wrench',(histogram?profiles.phaseShader(5):'')+`
     @group(0) @binding(0) var<storage,read> axial:array<f32>;@group(0) @binding(1) var<storage,read> load:array<vec4f>;
     @group(0) @binding(2) var<storage,read> weights:array<f32>;@group(0) @binding(3) var<storage,read_write> out:array<vec4f>;
     @group(0) @binding(4) var<uniform> phase:vec4f;
     fn fixed(v:vec2f)->vec2f{return vec2f(phase.x*v.x-phase.y*v.y,phase.y*v.x+phase.x*v.y);}
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=${n}u){return;}let w=weights[i];let l=load[i];let t=load[${n}u+i];
+      ${histogram?'addPhaseLift(i,phase.xy,w*fixed(l.zw).x);':''}
       out[i]${f.rotatingFrame?'+=':'='}w*vec4f(axial[i],l.y,fixed(l.zw));out[${n}u+i]${f.rotatingFrame?'+=':'='}w*vec4f(0.,0.,fixed(t.zw));
     }`);
-  const group=gpu.bind(kernel,[force,loads,roi.mask,sum,phase]),grid=[Math.ceil(n/128)];
+  const group=gpu.bind(kernel,[force,loads,roi.mask,sum,phase,...histogram?[profiles.phaseBins]:[]],histogram?metricBuffer(gpu,f):null),grid=[Math.ceil(n/128)];
   return {sum,begin:e=>e.clearBuffer(sum),clearStep(e){e.clearBuffer(force);e.clearBuffer(loads);},
     angle(a){roi.angle(a);gpu.device.queue.writeBuffer(phase,0,new Float32Array([Math.cos(a),Math.sin(a)]));},
     encode:e=>gpu.dispatch(e,kernel,group,grid)};
 }
 
+const profileCount=32;
+// Accumulate signed loads, including the rounding residual of every successful
+// atomic update. A near-zero side force can contain large opposing reactions.
+function profileHistogram(binding){
+  return `@group(0) @binding(${binding}) var<storage,read_write> hist:array<atomic<u32>>;
+    fn addProfile(bin:u32,x:f32){
+      if(x==0.){return;}let k=2u*bin;var old=atomicLoad(&hist[k]);var tail=0.;
+      loop{let a=bitcast<f32>(old);let sum=a+x;let r=atomicCompareExchangeWeak(&hist[k],old,bitcast<u32>(sum));
+        if(r.exchanged){tail=select((x-sum)+a,(a-sum)+x,abs(a)>=abs(x));break;}old=r.old_value;}
+      if(tail!=0.){old=atomicLoad(&hist[k+1u]);loop{let r=atomicCompareExchangeWeak(&hist[k+1u],old,bitcast<u32>(bitcast<f32>(old)+tail));
+        if(r.exchanged){break;}old=r.old_value;}}
+    }`;
+}
+export async function nativeLoadProfiles(gpu,f,domain,diameter){
+  const count=profileCount,n=countOf(f.dims),coords=metricBuffer(gpu,f),rows=f.rotor?4:2,bytes=8*count*rows;
+  const radius=diameter/2,limits=[0,1].map(a=>{
+    const pad=2*(f.minPitch?.[a]??f.h),swept=f.rotor&&a===1;
+    const lo=Math.max(domain.box.min[a],(swept?-radius:domain.bodies.min[a])-pad);
+    const hi=Math.min(domain.box.max[a],(swept?radius:domain.bodies.max[a])+pad);
+    return lo<hi?[lo,hi]:[domain.box.min[a],domain.box.max[a]];
+  });
+  if(f.rotor)limits.push([0,radius+2*Math.max(...(f.minPitch??[f.h]))]);
+  const axis=(a,x)=>`u32(clamp(floor((${x}-(${limits[a][0]}))*${count/(limits[a][1]-limits[a][0])}),0.,${count-1}.))`;
+  const base=gridWGSL(f)+metricWGSL(f)+`
+    fn position(i:u32)->vec3f{return vec3f(${f.origin.join(',')})+cellCenters(point(i))*${f.h};}`;
+  const phaseBins=f.rotor?gpu.buffer('CFD phase-resolved lift by fixed height',8*count):null;
+  const phaseShader=binding=>base+profileHistogram(binding)+`
+    fn addPhaseLift(i:u32,phase:vec2f,lift:f32){if(i>=CELLS||lift==0.){return;}
+      let p=position(i);let y=phase.x*p.y-phase.y*p.z;addProfile(${axis(1,'y')},lift);}`;
+  const bins=gpu.buffer('CFD signed load distributions',bytes),stage=gpu.staging('CFD bounded profile readback',bytes);
+  const shader=await gpu.kernel('CFD axial, vertical and radial wall-load profiles',base+profileHistogram(2)+`
+    @group(0) @binding(0) var<storage,read> force:array<f32>;@group(0) @binding(1) var<storage,read> load:array<vec4f>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}let l=load[i];let drag=${f.regionalLoads?'l.x':'force[i]'};let p=position(i);
+      addProfile(${axis(0,'p.x')},drag);
+      ${f.rotor?`let r=length(p.yz);let bin=${axis(2,'r')};addProfile(${2*count}u+bin,drag);addProfile(${3*count}u+bin,l.y);`:
+        `addProfile(${count}u+${axis(1,'p.y')},l.z);`}
+    }`);
+  let group,previous=null,previousSteps=0;
+  function bind(force,loads){
+    // A partial region already carries total axial load in its first word.
+    const buffers=f.regionalLoads?[{binding:1,resource:{buffer:loads}},{binding:2,resource:{buffer:bins}},
+      ...coords?[{binding:12,resource:{buffer:coords}}]:[]]:null;
+    group=buffers?gpu.device.createBindGroup({layout:shader.getBindGroupLayout(0),entries:buffers}):gpu.bind(shader,[force,loads,bins],coords);
+  }
+  async function measure(steps,complete,scale){
+    const e=gpu.device.createCommandEncoder();e.clearBuffer(bins);
+    if(phaseBins)e.copyBufferToBuffer(phaseBins,0,bins,count*8,count*8);
+    gpu.dispatch(e,shader,group,[Math.ceil(n/128)]);gpu.device.queue.submit([e.finish()]);
+    const raw=await gpu.read(bins,stage,2*count*rows);
+    const sample=Array.from({length:count*rows},(_,i)=>(raw[2*i]+raw[2*i+1])*scale);
+    const denom=steps+previousSteps,at=i=>(sample[i]+(previous?.[i]??0))/denom;
+    const range=(a,i)=>{const [lo,hi]=limits[a],width=(hi-lo)/count;return {lo:lo+i*width,hi:lo+(i+1)*width,width};};
+    const linear=(a,key)=>Array.from({length:count},(_,i)=>{const r=range(a,i),force=at(a*count+i);
+      return {[key]:(r.lo+r.hi)*.5,lowerM:r.lo,upperM:r.hi,value:force/r.width,forceN:force};});
+    const profiles={coordinateUnit:'m',densityUnit:'N/m',dDragDx:linear(0,'x'),dLiftDy:linear(1,'y')};
+    if(f.rotor)profiles.rotorRadial=Array.from({length:count},(_,i)=>{
+      const r=range(2,i),thrust=at(2*count+i),torque=at(3*count+i);
+      return {r:(r.lo+r.hi)*.5,innerRadiusM:r.lo,outerRadiusM:r.hi,dTdr:thrust/r.width,dQdr:torque/r.width,
+        thrustN:thrust,torqueNm:torque,shaftPowerToFluidW:-torque*f.omega};});
+    if(complete){previous=sample;previousSteps=steps;}return profiles;
+  }
+  return {phaseBins,phaseShader,coords,bind,begin(e){if(phaseBins)e.clearBuffer(phaseBins);},measure};
+}
+
+function physicalOrigin(world,axes,motion){
+  return world.slice(12,15).map((x,k)=>.001*x+(motion?motion.axisOriginM.reduce((s,v,a)=>s+v*axes[a][k],0):0));
+}
 function wallMotionReport(context,owner,points){
   const result=frozenWallMotion(context.device,context,owner,{allowStationary:true});
   const {motion,capture}=result,world=context.document.world(owner),axes=boxAxes(world);
-  const origin=world.slice(12,15).map((x,k)=>.001*x+(motion?motion.axisOriginM.reduce((s,v,a)=>s+v*axes[a][k],0):0));
+  const origin=physicalOrigin(world,axes,motion);
   const angularVelocity=axes[0].map(v=>v*(motion?.omega??0));
   const velocities=points.map(p=>context.math.cross(angularVelocity,p.map((v,k)=>v-origin[k])));
   result.assertCurrent();
@@ -413,10 +483,12 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     if(!(dt>0&&Number.isFinite(dt)))throw failure('INVALID_TIMESTEP','The evaluated fluid domain has no positive stable timestep.');
     const force=gpu.buffer('CFD integrated axial wall reaction',4*count);
     const fields=await nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response,domain);
+    const profiles=fields.profiles=await nativeLoadProfiles(gpu,f,domain,diameter);
     display.draw=await nativeFieldOverlay(ctx,display);check();
     const solver=await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,null,fields);check();
     const roi=f.regionalLoads?await controlVolumeRegion(gpu,f,domain.region):null;
-    const regional=roi?await regionalWallLoads(gpu,f,force,solver.loads,roi):null;
+    const regional=roi?await regionalWallLoads(gpu,f,force,solver.loads,roi,profiles):null;
+    profiles.bind(force,regional?.sum??solver.loads);
     if(roi){solver.forceMask=roi.mask;if(!motion){const e=device.createCommandEncoder();roi.encode(e);device.queue.submit([e.finish()]);}}
     const reduceForce=regional?null:await sumForce(gpu,force,count),reduceLoads=await sumForce(gpu,regional?.sum??solver.loads,count,4);
     const fixed=regional?.sum??solver.transverseImpulse??solver.loads,reduceMoment=await sumForce(gpu,fixed,count,4,count);
@@ -425,7 +497,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     let step=0;
     for(let window=0;window<budget.windows;window++){
       check();const e=device.createCommandEncoder();for(const b of [force,solver.loads,solver.transverseImpulse])if(b)e.clearBuffer(b);
-      regional?.begin(e);fields.begin(e);device.queue.submit([e.finish()]);
+      regional?.begin(e);profiles.begin(e);fields.begin(e);device.queue.submit([e.finish()]);
       const first=step,end=Math.max(first+1,Math.round((window+1)*period/dt));
       while(step<end){
         if(regional&&motion){regional.angle(omega*(step+.5)*dt);const e=device.createCommandEncoder();regional.clearStep(e);device.queue.submit([e.finish()]);}
@@ -446,6 +518,9 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
         const stationary=step===end&&settledPeriods(windows);
         const baseDefect=stationary&&geom.shape?await solver.steadyDefect():null;
         const physical=physicalLoads(ctx,source,fluid,diameter,step===end?windows:[value]);
+        physical.profiles=await profiles.measure(step-first,step===end,f.rho*f.h**4/dt**2);
+        physical.profiles.originWorldM=physicalOrigin(ctx.document.world(source.owner),source.axes,source.motion);
+        physical.profiles.axesWorld=source.axes;
         check();await fields.publish(step-first,step===end,physical.forceLocal.drag,check);check();
         const result={...physical,
           solver:'cartesian-fvm',fidelity,occurrences:capture.meshes.length,medium:fluid,cells:count,dims:f.dims,minCellWidthM:f.minPitch,
@@ -1194,7 +1269,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const linear=await linearCutPressure(gpu,f,mobility,centers,wall,mg.p,s0,force,loads);
     mergeState.unshift(phase('integrate linear wall pressure',linear));
   }
-  const spin=f.rotatingFrame&&!f.regionalLoads?await rotatingLoads(gpu,loads):null;
+  const spin=f.rotatingFrame&&!f.regionalLoads?await rotatingLoads(gpu,loads,fields?.profiles):null;
   if(spin)mergeState.push(phase('integrate fixed-frame transverse reaction',spin.encode));
   const grouped=f.groupTransport?await groupTransport(gpu,f,dt,pred,flux,fluxTail,groups):null;
   const outer=f.implicitRadiusM&&!grouped?await outerTransport(gpu,f,dt,pred,flux,fluxTail):null;
@@ -2696,19 +2771,20 @@ export async function linearCutPressure(gpu,f,mu,centers,wall,pressure,state,for
 
 // Integrate each physical step in both the rotating basis and the fixed box
 // axes. Rotating a mean transverse load after a revolution loses its phase.
-export async function rotatingLoads(gpu,loads){
+export async function rotatingLoads(gpu,loads,profiles=null){
   const phase=gpu.buffer('CFD angle at the impulse midpoint',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
   const sums=gpu.buffer('CFD rotating and fixed transverse impulses',loads.size);
-  const pipe=await gpu.kernel('CFD phase-resolved transverse reaction',`
+  const pipe=await gpu.kernel('CFD phase-resolved transverse reaction',(profiles?profiles.phaseShader(3):'')+`
     @group(0) @binding(0) var<storage,read_write> load:array<vec4f>;
     @group(0) @binding(1) var<storage,read_write> sum:array<vec4f>;
     @group(0) @binding(2) var<uniform> phase:vec4f;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=arrayLength(&load)){return;}let q=load[i];let f=q.zw;
+      ${profiles?'addPhaseLift(i,phase.xy,phase.x*f.x-phase.y*f.y);':''}
       sum[i]+=vec4f(f,phase.x*f.x-phase.y*f.y,phase.y*f.x+phase.x*f.y);
       load[i]=vec4f(q.xy,0.,0.);
     }`);
-  const group=gpu.bind(pipe,[loads,sums,phase]),grid=[Math.ceil(loads.size/(16*128))];
+  const group=gpu.bind(pipe,[loads,sums,phase,...profiles?[profiles.phaseBins]:[]],profiles?.coords),grid=[Math.ceil(loads.size/(16*128))];
   return {sums,angle(value){gpu.device.queue.writeBuffer(phase,0,new Float32Array([Math.cos(value),Math.sin(value)]));},
     encode:e=>gpu.dispatch(e,pipe,group,grid)};
 }
