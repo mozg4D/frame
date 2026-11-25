@@ -288,7 +288,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const partiallyContained=capture.meshes.some(mesh=>mesh.bounds.min.some((x,a)=>x<domain.box.min[a]-1e-8||mesh.bounds.max[a]>domain.box.max[a]+1e-8));
   const f=gradeCapturedDomain({origin:domain.origin,h:domain.h,dims:domain.dims,U,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
-    rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,wallModeled,fullMoment:true,
+    rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
     sweptDiameterM:diameter,groupTransport:!!motion,implicitRadiusM:motion?.625*diameter:0,
@@ -343,9 +343,10 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
         if([...value.force,...value.moment].some(v=>!Number.isFinite(v)))throw failure('NONFINITE_LOAD','The physical wall reaction is nonfinite.');
         if(step===end)windows.push(value);
         const stationary=step===end&&settledPeriods(windows);
+        const baseDefect=stationary&&geom.shape?await solver.steadyDefect():null;
         const physical=physicalLoads(ctx,source,fluid,diameter,step===end?windows:[value]);
         check();await fields.publish(step-first,step===end,physical.forceLocal.drag,check);check();
-        publish({...physical,
+        const result={...physical,
           solver:'cartesian-fvm',fidelity,occurrences:capture.meshes.length,medium:fluid,cells:count,dims:f.dims,minCellWidthM:f.minPitch,
           steps:step,dtS:dt,completeWindows:windows.length,reynolds,referenceMach:maxSpeed/fluid.soundSpeedMps,
           surfaceFields:display.description,
@@ -353,8 +354,36 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
             temporalConvergence:stationary?'window-stationary':step===end&&window+1===budget.windows?'window-limit':'sampling',
             spatialConvergence:'single-grid',partiallyContained,loadScope:'complete-participating-occurrences',
-            ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'});
-        if(stationary)return true;
+            ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
+            ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'};
+        publish(result);
+        if(stationary){
+          if(!geom.shape)return true;
+          if(baseDefect>.025){
+            if(window+1<budget.windows)continue;
+            publish({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
+          }
+          publish({...result,shape:{state:'solving',objective:'drag'}});
+          const adj=await steadyForceAdjoint(gpu,f,dt,solver);check();
+          await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
+          const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
+          const limit=Math.min(12000,Math.max(1200,4*step));let iterations=0,defects;
+          while(iterations<limit){
+            const block=Math.min(24,limit-iterations);
+            await scheduler.perform(Array(block).fill(phase),check);iterations+=block;
+            defects=[...await adj.defects()];check();if(defects.some(v=>!Number.isFinite(v))||Math.max(...defects)<4e-6)break;
+          }
+          await scheduler.perform([{kind:'restore primal pressure',encode:adj.restore}],check);
+          const resolved=defects.every(v=>Number.isFinite(v)&&v<4e-6);
+          const sensitivity={state:resolved?'ready':'iteration-limit',objective:'drag',method:'steady-discrete-laminar',
+            geometry:'native-fixed-topology',samples:geom.shape.samples,iterations,momentumDefect:defects[0],pressureDefect:defects[1],
+            stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
+          if(resolved){
+            await publishNativeShape(gpu,display,geom.shape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
+            display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
+          }
+          check();publish({...result,shape:sensitivity,surfaceFields:display.description});return true;
+        }
       }
     }
     return false;
@@ -447,6 +476,37 @@ export async function activate(context){
     verify(job);if(job.result!==result)throw failure('STALE_CFD_RESULT','The surface averaging window changed during the probe.');
     return {frame:result.frame,physicalTimeS:result.physicalTimeS,...value};
   }
+  async function shapeGradient(hash,{occurrence,firstVertex,count}){
+    find(hash);
+    if(![occurrence,firstVertex,count].every(Number.isSafeInteger)||occurrence<0||firstVertex<0||count<1||count>128)
+      throw failure('INVALID_ARGUMENT','Specify an occurrence and one to 128 consecutive logical vertices.');
+    const job=current(hash),result=job?.result,parts=job?.display?.shapeVertices;
+    if(!parts||result?.shape?.state!=='ready')throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no stationary shape gradient.');
+    const selected=parts.filter(p=>p.occurrence===occurrence&&p.firstVertex<firstVertex+count&&p.firstVertex+p.count>firstVertex);
+    const end=firstVertex+count;
+    if(!selected.length||end>selected.at(-1).firstVertex+selected.at(-1).count)
+      throw failure('INVALID_ARGUMENT','The logical vertex range exceeds the solved occurrence.');
+    const device=job.device,read=device.createBuffer({label:'CFD requested physical shape derivatives',size:28*count,
+      usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    try{
+      const e=device.createCommandEncoder();
+      for(const p of selected){
+        const v=Math.max(firstVertex,p.firstVertex),n=Math.min(end,p.firstVertex+p.count)-v;
+        e.copyBufferToBuffer(p.vector,12*(v-p.firstVertex),read,12*(v-firstVertex),12*n);
+        e.copyBufferToBuffer(p.area,16*(v-p.firstVertex),read,12*count+16*(v-firstVertex),16*n);
+      }
+      device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);verify(job);
+      const data=new Float32Array(read.getMappedRange()),axes=job.source.axes;
+      const world=v=>[0,1,2].map(k=>v.reduce((s,x,a)=>s+x*axes[a][k],0));
+      const vertices=Array.from({length:count},(_,i)=>{
+        const d=Array.from(data.subarray(3*i,3*i+3),v=>v*.001),k=3*count+4*i,n=[data[k],data[k+1],data[k+2]];
+        const length=Math.hypot(...n),normal=length?n.map(x=>x/length):null;
+        return {vertex:firstVertex+i,areaM2:data[k+3],gradientWorldNPerMm:world(d),
+          outwardNormalWorld:normal?world(normal):null,normalNPerMm:normal?normal.reduce((s,x,a)=>s+x*d[a],0):null};
+      });
+      return {frame:result.frame,objective:result.shape.objective,occurrence,vertices};
+    }finally{read.destroy();}
+  }
   context.operations.register([
     {id:'status',description:'Inspect CFD Box inputs and available capabilities.',inputSchema:emptySchema,readOnly:true,run:status},
     {id:'wall-motion',description:'Evaluate the frozen velocity field of the stationary or verified rotating surfaces intersecting this box. Optional probe points are in world metres.',
@@ -460,11 +520,14 @@ export async function activate(context){
       inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:start},
     {id:'stop',description:'Stop the calculation for this CFD box.',inputSchema:emptySchema,readOnly:false,run:stop},
     {id:'results',description:'Read source-current measured force, torque, units and numerical convergence.',inputSchema:emptySchema,readOnly:true,run:results},
-    {id:'probe',description:'Read the averaged pressure, reversal fraction and allocated loss density at a native triangle.',
+    {id:'probe',description:'Read averaged pressure, reversal fraction, allocated loss density and any resolved signed shape sensitivity at a native triangle.',
       inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},triangle:{type:'integer',minimum:0}},required:['occurrence','triangle'],additionalProperties:false},readOnly:true,run:probe},
-    ...['Drag','Pressure','Separation'].map(mode=>({id:mode.toLowerCase()+'-map',description:'Display the computed '+mode+' field of this CFD box.',
+    {id:'shape-gradient',description:'Read the signed world-space drag derivative for physical displacements of logical mesh vertices.',
+      inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},firstVertex:{type:'integer',minimum:0},count:{type:'integer',minimum:1,maximum:128}},
+        required:['occurrence','firstVertex','count'],additionalProperties:false},readOnly:true,run:shapeGradient},
+    ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',description:'Display the computed '+mode+' field of this CFD box.',
       inputSchema:emptySchema,readOnly:false,run:hash=>{
-        const job=current(hash);if(!job?.result?.surfaceFields)throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no measured surface field.');
+        const job=current(hash);if(!job?.result?.surfaceFields?.available.includes(mode))throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no computed '+mode+' field.');
         job.display.mode=mode;refresh();return {mode,frame:job.source.frame};
       }}))
   ]);
@@ -480,8 +543,8 @@ export async function activate(context){
     const n=find(hash),j=current(hash),result=j?.result;
     return {hiddenFields:n.params.Medium==='Water'?['Ground','Altitude']:[],actions:[
       {id:'solve-frame',row:'Solve',label:'Frame',cancel:'stop',busy:['queued','solving'].includes(j?.state)},
-      ...['Drag','Pressure','Separation'].map(mode=>({id:mode.toLowerCase()+'-map',row:'Result',label:mode,hidden:!result?.surfaceFields,
-        disabled:!result?.surfaceFields,active:!!result?.surfaceFields&&j.display.mode===mode}))],
+      ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',row:'Result',label:mode,hidden:!result?.surfaceFields?.available.includes(mode),
+        disabled:!result?.surfaceFields?.available.includes(mode),active:!!result?.surfaceFields&&j.display.mode===mode}))],
       readouts:[{id:'force',label:result&&!result.validity.stationary?'Force (N) ≈':'Force (N)',columns:['X','Y','Z','|F|'],
         values:result?[...result.forceWorld,result.forceLocal.magnitude].map(v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=10000)?v.toExponential(2):String(Number(v.toPrecision(4)))):null}]};
   });
@@ -842,8 +905,23 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   stats.exactBoundaryBlocks=mg.cutBlocks;
   stats.colouredBoundaryRelaxation=!!mg.cutRelax;
   if(equilibrium)stats.flowReconstruction=equilibrium.stats;
-  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,
+  return {state:s0,predicted:pred,pressure:mg.p,pressureHierarchy:mg,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,
     groupTransport:grouped?.stats,mobility,fluxConvergence:stats,
+    async steadyDefect(){
+      const next=gpu.buffer('CFD steady momentum residual trial',s0.size),peak=gpu.buffer('CFD steady momentum residual',4);
+      const read=gpu.staging('CFD steady momentum residual scalar',4);
+      try{
+        const measure=await gpu.kernel('CFD physical steady-state momentum residual',decl(0,'old','vec4f')+decl(1,'next','vec4f')+`
+          @group(0) @binding(2) var<storage,read_write> peak:atomic<u32>;
+          @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+            let i=2u*g.x;if(i<arrayLength(&old)){let d=abs(next[i].xyz-old[i].xyz);
+              atomicMax(&peak,bitcast<u32>(max(d.x,max(d.y,d.z))));}}`);
+        const e=gpu.device.createCommandEncoder();
+        gpu.dispatch(e,momentum,gpu.bind(momentum,[s0,flux,wall,next,fluxTail],coords),grid);
+        gpu.dispatch(e,measure,gpu.bind(measure,[pred,next,peak]),grid);gpu.device.queue.submit([e.finish()]);
+        return (await gpu.read(peak,read,1))[0]*f.period/(dt*cref);
+      }finally{next.destroy();peak.destroy();read.destroy();}
+    },
     async advance(i,sampling,scheduler,assertCurrent){
       spin?.angle(f.omega*(i+.5)*dt);
       if(outer){await scheduler.perform([predictMomentum],assertCurrent);await outer.solve(scheduler,assertCurrent);}
@@ -892,6 +970,162 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       for(let k=0;k<(f.axes?2:1);k++)for(const op of fixed)op.encode(e);
       for(const op of mergeState)op.encode(e);if(sampling)samplePlane.encode(e);gpu.device.queue.submit([e.finish()]);
     }};
+}
+
+// Reverse the stationary laminar momentum predictor using the volume inner
+// product. An interior face sends one limited donor trace to both cells.
+// Keep the selected limiter branches fixed while differentiating that trace.
+export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
+  const count=countOf(f.dims),grid=[Math.ceil(count/128)],coords=metricBuffer(gpu,f);
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+`
+    struct Flux{hi:vec4f,lo:vec4f}
+    struct Face{value:vec3f,branch:u32}
+    struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
+    const NU=f32(${f.nu*dt/f.h**2});const U=f32(${(f.U*dt/f.h).toFixed(10)});
+    fn unit(a:u32)->vec3i{var e=vec3i(0);e[a]=1;return e;}
+    fn floorFace(a:u32,s:i32)->bool{return ${!!(f.fixedFloor||f.movingRoad)}&&a==1u&&s<0;}`;
+  const faces=gpu.buffer('CFD linearized conservative donor traces',48*count);
+  const storage=(b,name,type,write=false)=>`@group(0) @binding(${b}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
+  const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+    let i=g.x;if(i>=CELLS){return;}let p=point(i);${body}}`;
+  const velocities=storage(0,'state','vec4f')+storage(1,'flux','Flux')+storage(2,'tail','Flux');
+  const traces=await gpu.kernel('CFD linearize the bounded momentum flux',base+velocities+storage(3,'faces','Face',true)+main(`
+    for(var a=0u;a<3u;a++){
+      let e=unit(a);let r=p+e;if(!inside(r)){continue;}
+      let q=flux[i].hi[a]+tail[i].hi[a];let d=select(r,p,q>=0.);let other=select(p,r,q>=0.);
+      let behind=d+(d-other);let vel=state[2u*index(d)].xyz;var value=vel;var flags=0u;
+      if(inside(behind)){
+        let back=(vel-state[2u*index(behind)].xyz)*axisMetric(a,min(d[a],behind[a])).z;
+        let front=(state[2u*index(other)].xyz-vel)*axisMetric(a,p[a]).z;
+        for(var k=0u;k<3u;k++){if(back[k]*front[k]>0.){
+          let mode=select(2u,1u,abs(back[k])<=abs(front[k]));flags|=mode<<(2u*k);
+          value[k]+=.5*axisMetric(a,d[a]).y*select(front[k],back[k],mode==1u);}}
+      }
+      faces[3u*i+a]=Face(value,flags);
+    }`));
+  const adjoint=await gpu.kernel('CFD transpose of viscous and limited momentum transport',base+velocities+
+    storage(3,'faces','Face')+storage(4,'lambda','vec4f')+storage(5,'out','Reverse',true)+main(`
+    let widths=cellWidths(p);let area=faceAreas(widths);let volume=widths.x*area.x;
+    let l=lambda[i].xyz;let u=state[2u*i].xyz;var adj=volume*l;var hi=vec3f(0);var lo=vec3f(0);
+    for(var a=0u;a<3u;a++){
+      let e=unit(a);
+      for(var s=-1;s<=1;s+=2){
+        let j=p+s*e;let sign=f32(s);let flow=select(flux[i].lo[a]+tail[i].lo[a],flux[i].hi[a]+tail[i].hi[a],s>0);
+        var flowAdj=0.;
+        if(inside(j)){
+          let id=index(j);let owner=select(id,i,s>0);
+          flowAdj=sign*dot(lambda[id].xyz-l,faces[3u*owner+a].value);
+          adj+=NU*area[a]*spacingInv(a,p[a],s)*(lambda[id].xyz-l);
+        }else{
+          var b=u;var db=1.;
+          if(floorFace(a,s)){b=vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u;db=-1.;}
+          else if(!openFace(a,s)||sign*flow<0.){b=vec3f(U,0.,0.);db=0.;}
+          let donor=select(b,u,sign*flow>=0.);let dd=select(db,1.,sign*flow>=0.);
+          flowAdj=-sign*dot(l,donor);
+          adj+=l*(NU*area[a]/widths[a]*(db-1.)-sign*flow*dd);
+        }
+        if(s>0){hi[a]=flowAdj;}else{lo[a]=flowAdj;}
+      }
+      for(var slot=-1;slot<=2;slot++){
+        let left=p-slot*e;let right=left+e;if(!inside(left)||!inside(right)){continue;}
+        let owner=index(left);let q=flux[owner].hi[a]+tail[owner].hi[a];
+        let donor=select(1,0,q>=0.);let other=1-donor;let back=3*donor-1;
+        let face=faces[3u*owner+a];var coef=vec3f(f32(slot==donor));
+        if(face.branch!=0u){
+          let modes=(vec3u(face.branch)>>vec3u(0,2,4))&vec3u(3);
+          let half=.5*axisMetric(a,left[a]+donor).y;
+          let db=half*axisMetric(a,left[a]+min(donor,back)).z*(f32(slot==donor)-f32(slot==back));
+          let df=half*axisMetric(a,left[a]).z*(f32(slot==other)-f32(slot==donor));
+          coef+=select(vec3f(0),vec3f(db),modes==vec3u(1))+select(vec3f(0),vec3f(df),modes==vec3u(2));
+        }
+        adj+=q*coef*(lambda[index(right)].xyz-lambda[owner].xyz);
+      }
+    }
+    out[i]=Reverse(vec4f(adj/volume,0),vec4f(hi,0),vec4f(lo,0));`));
+  const native=[solved.state,solved.flux,solved.fluxTail];
+  const freeze=gpu.bind(traces,[...native,faces],coords),apply=gpu.bind(adjoint,[...native,faces,lambda,reverse],coords);
+  return {freeze:e=>gpu.dispatch(e,traces,freeze,grid),encode:e=>gpu.dispatch(e,adjoint,apply,grid)};
+}
+
+// Reverse the complete stationary momentum/projection map about its solved
+// fields. The cell wall impulse equals predicted minus projected momentum
+// minus the centred pressure gradient. Include all three terms in the seed.
+export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
+  if(!f.laminar||f.cutCells||f.rotor||f.faceHistory||f.tunnelSymmetry)
+    throw Error('This discrete force adjoint requires the stationary laminar momentum operator');
+  const n=countOf(f.dims),bytes=4*n,grid=[Math.ceil(n/128)],coords=metricBuffer(gpu,f),mg=solved.pressureHierarchy;
+  const lambda=gpu.buffer('CFD stationary momentum adjoint',4*bytes),reverse=gpu.buffer('CFD reverse velocity and shared discharge',12*bytes);
+  const p0=gpu.buffer('CFD saved primal pressure',bytes),gradient=gpu.buffer('CFD steady force derivative per immersed fraction',4*bytes);
+  const peak=gpu.buffer('CFD momentum and pressure adjoint defects',8),stage=gpu.staging('CFD adjoint residual readback',8);
+  const momentum=await laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse);
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+`
+    struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
+    struct Face{rawAdj:f32,weight:f32,mu:f32,area:f32,invD:f32,share:f32,pressureAdj:f32}
+    const OBJECTIVE=vec3f(${direction.join(',')});const U=f32(${(f.U*dt/f.h).toFixed(10)});
+    @group(0) @binding(0) var<storage,read> m:array<vec4f>;
+    @group(0) @binding(1) var<storage,read> rev:array<Reverse>;
+    fn neighbour(p:vec3i,a:u32,s:i32)->vec3i{var q=p;q[a]+=s;return q;}
+    fn face(i:u32,p:vec3i,a:u32,s:i32,width:vec3f,vol:f32)->Face{
+      let q=neighbour(p,a,s);let area=vol/width[a];let ub=vol*(rev[i].velocity[a]-OBJECTIVE[a]);
+      var r=-.5*m[i].w*ub;var w=.5*ub+area*select(rev[i].lo[a],rev[i].hi[a],s>0);
+      var d=-.5*vol*OBJECTIVE[a];var mu=1.;var invD=0.;var share=0.;
+      if(inside(q)){
+        let j=index(q);let v=cellWidths(q);let vj=v.x*v.y*v.z;
+        let jb=vj*(rev[j].velocity[a]-OBJECTIVE[a]);w+=.5*jb;r-=.5*m[j].w*jb;
+        d-=.5*vj*OBJECTIVE[a];let owner=select(j,i,s>0);mu=m[owner][a];
+        let ax=axisMetric(a,min(p[a],q[a]));invD=ax.z;
+        share=select(.5*ax.y*invD,1.-.5*ax.y*invD,s>0);
+      }else if(openFace(a,s)){invD=2./width[a];share=1.;}
+      return Face(r,w,mu,area,invD,share,d-mu*w);
+    }`;
+  const source=await gpu.kernel('CFD transposed pressure response of the total force',base+`
+    @group(0) @binding(2) var<storage,read_write> rhs:array<f32>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}let p=point(i);let w=cellWidths(p);let v=w.x*w.y*w.z;var b=0.;var diagonal=0.;
+      for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
+        let t=face(i,p,a,s,w,v);b-=f32(s)*t.invD*t.pressureAdj;diagonal+=t.mu*t.area*t.invD;
+      }}rhs[i]=select(0.,b,diagonal>0.);
+    }`);
+  const apply=await gpu.kernel('CFD steady momentum and geometric force adjoint',base+`
+    @group(0) @binding(2) var<storage,read> z:array<f32>;
+    @group(0) @binding(3) var<storage,read> primalP:array<f32>;
+    @group(0) @binding(4) var<storage,read> pred:array<vec4f>;
+    @group(0) @binding(5) var<storage,read_write> lambda:array<vec4f>;
+    @group(0) @binding(6) var<storage,read_write> gradient:array<vec4f>;
+    @group(0) @binding(7) var<storage,read_write> peak:array<atomic<u32>,2>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}let p=point(i);let widths=cellWidths(p);let vol=widths.x*widths.y*widths.z;
+      let ub=rev[i].velocity.xyz-OBJECTIVE;let v=pred[2u*i].xyz;
+      var next=m[i].w*ub+OBJECTIVE;var rawMean=vec3f(0);var deriv=vec3f(0);
+      var residual=0.;var diagonal=0.;
+      for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
+        let t=face(i,p,a,s,widths,vol);let q=neighbour(p,a,s);let j=bounded(q);
+        let jump=f32(s)*(z[i]-select(0.,z[j],inside(q)));
+        let corr=t.weight-t.area*jump;
+        next[a]+=t.share*(t.rawAdj+t.mu*corr)/vol;
+        var raw=select(select(0.,U,a==0u),v[a],openFace(a,s));
+        if(inside(q)){raw=t.share*v[a]+(1.-t.share)*pred[2u*j][a];}
+        rawMean[a]+=.5*raw;
+        if(s>0&&inside(q)){deriv[a]=corr*(raw-t.invD*(primalP[j]-primalP[i]));}
+        let c=t.mu*t.area*t.invD;residual+=f32(s)*(c*jump+t.invD*t.pressureAdj);diagonal+=c;
+      }}
+      let old=lambda[i].xyz;lambda[i]=vec4f(next,0);
+      let diff=abs(next-old);atomicMax(&peak[0],bitcast<u32>(max(diff.x,max(diff.y,diff.z))));
+      if(diagonal>0.){atomicMax(&peak[1],bitcast<u32>(abs(residual)/(diagonal*(1.+abs(z[i])))));}
+      gradient[i]=vec4f(deriv,vol*dot(ub,v-rawMean))*${f.rho*f.h**4/dt**2};
+    }`);
+  const rhs=gpu.bind(source,[solved.mobility,reverse,mg.rhs],coords);
+  const bind=gpu.bind(apply,[solved.mobility,reverse,mg.p,p0,solved.predicted,lambda,gradient,peak],coords);
+  // The primal and transpose use the identical conductance hierarchy.
+  return {lambda,gradient,reverse,
+    start(e){momentum.freeze(e);e.copyBufferToBuffer(mg.p,0,p0,0,bytes);e.clearBuffer(mg.p);e.clearBuffer(lambda);},
+    step(e,iterations=3){
+      e.clearBuffer(peak);momentum.encode(e);gpu.dispatch(e,source,rhs,grid);mg.solve(e);
+      if(iterations)mg.refine(e,iterations);gpu.dispatch(e,apply,bind,grid);
+    },
+    defects:()=>gpu.read(peak,stage,2),
+    restore(e){e.copyBufferToBuffer(p0,0,mg.p,0,bytes);}
+  };
 }
 
 // Equidistribute the integral of 1 / local pitch. Outside the dense interval
@@ -2475,10 +2709,11 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
     scratch.dispatch(e,pipe,gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries}),[Math.ceil(n/128)]);
     if(rep)crossed.encode(e);seal?.(e);
     gpu.device.queue.submit([e.finish()]);await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();
+    const shape=f.immersedShape?await nativeImmersedShape(gpu,f,capture,wall,response):null;
     const wallDistance=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h):null;
     const skin=f.surfacePressure?await surfacePressure(gpu,f,capture,band,distance,response):null;
     capture.assertCurrent();
-    return {wall,response,centers,skin,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
+    return {wall,response,centers,skin,shape,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
       occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,subdivisionsPerAxis:f.subcellSurface?4:1,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }
@@ -2550,6 +2785,195 @@ export function meshReader(storage){
 }
 
 export function meshResources(mesh){return mesh.storage==='texture'?[mesh.positions.view,mesh.indices.view]:[{buffer:mesh.positions},{buffer:mesh.indices}];}
+
+export const triangleQueryWGSL=`
+  fn edgeWeights(p:vec3f,a:vec3f,b:vec3f,ai:vec3f,bi:vec3f)->vec3f{
+    let d=b-a;return mix(ai,bi,clamp(dot(p-a,d)/max(dot(d,d),1e-30),0.,1.));}
+  fn closestWeights(p:vec3f,a:vec3f,b:vec3f,c:vec3f,n:vec3f,nn:f32)->vec3f{
+    let e0=vec3f(1,0,0);let e1=vec3f(0,1,0);let e2=vec3f(0,0,1);
+    let v=dot(cross(p-a,c-a),n)/nn;let w=dot(cross(b-a,p-a),n)/nn;
+    if(v>=0.&&w>=0.&&v+w<=1.){return vec3f(1.-v-w,v,w);}
+    let m=mat3x3f(a,b,c);var g=edgeWeights(p,a,b,e0,e1);let k=edgeWeights(p,b,c,e1,e2);
+    if(dot(m*k-p,m*k-p)<dot(m*g-p,m*g-p)){g=k;}let l=edgeWeights(p,c,a,e2,e0);
+    return select(g,l,dot(m*l-p,m*l-p)<dot(m*g-p,m*g-p));
+  }
+  fn wedge(a:vec2f,b:vec2f)->f32{return a.x*b.y-a.y*b.x;}
+  fn topLeft(d:vec2f)->bool{return d.y>0.||(d.y==0.&&d.x<0.);}
+  // Half-open ownership on a shared projected edge. Reversing a triangle
+  // first restores the same counter-clockwise edge convention.
+  fn rayCrosses(p:vec3f,a:vec3f,b:vec3f,c:vec3f)->bool{
+    var b0=b;var c0=c;let orient=wedge(b.yz-a.yz,c.yz-a.yz);if(orient==0.){return false;}
+    if(orient<0.){b0=c;c0=b;}
+    let e0=b0.yz-a.yz;let e1=c0.yz-b0.yz;let e2=a.yz-c0.yz;
+    let u=wedge(e1,p.yz-b0.yz);let v=wedge(e2,p.yz-c0.yz);let w=wedge(e0,p.yz-a.yz);
+    if(u<0.||v<0.||w<0.||(u==0.&&!topLeft(e1))||(v==0.&&!topLeft(e2))||(w==0.&&!topLeft(e0))){return false;}
+    return u*(a.x-p.x)+v*(b0.x-p.x)+w*(c0.x-p.x)>0.;
+  }`;
+
+
+// Group consecutive native triangles into bounded ranges, preserving their
+// logical indices. Queries borrow the source buffers or paged textures.
+const meshTreePrograms=new WeakMap();
+export async function nativeTriangleBounds(gpu,mesh,base){
+  const device=gpu.device,limit=Math.min(device.limits.maxBufferSize,device.limits.maxStorageBufferBindingSize);
+  const types='struct Bounds{lo:vec4f,hi:vec4f} struct Pose{m:mat4x4f,triangles:u32,base:u32,leaves:u32}';
+  const storage=(i,id,t,w=false)=>`@group(0) @binding(${i}) var<storage,${w?'read_write':'read'}> ${id}:array<${t}>;`;
+  const leaves=2**Math.ceil(Math.log2(Math.ceil(mesh.triangleCount/8)));
+  if(64*leaves>limit||Math.ceil(leaves/64)>device.limits.maxComputeWorkgroupsPerDimension)
+    throw Error('Native shape search bounds exceed the device limit');
+  const boxes=gpu.buffer('CFD native shape search bounds',64*leaves);
+  const uniform=new ArrayBuffer(80);new Float32Array(uniform,0,16).set(mesh.matrix);
+  new Uint32Array(uniform,64,3).set([mesh.triangleCount,base,leaves]);
+  const pose=gpu.buffer('CFD native shape pose',new Uint8Array(uniform),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+
+  let programs=meshTreePrograms.get(gpu);
+  if(!programs){programs=new Map();meshTreePrograms.set(gpu,programs);}
+  if(!programs.has(mesh.storage)){
+    const source=meshReader(mesh.storage)+types+'fn physical(m:mat4x4f,k:u32)->vec3f{return (m*vec4f(sourcePoint(k),1)).xyz;}';
+    const bounds=await gpu.kernel('CFD bound native triangles for shape derivatives',source+
+      storage(2,'box','Bounds',true)+'@group(0) @binding(3) var<uniform> pose:Pose;'+`
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3u){
+        if(id.x>=pose.leaves){return;}var lo=vec3f(3.4e38);var hi=-lo;
+        for(var k=8u*id.x;k<min(pose.triangles,8u*id.x+8u);k++){for(var j=0u;j<3u;j++){
+          let v=physical(pose.m,3u*k+j);lo=min(lo,v);hi=max(hi,v);}}
+        box[pose.leaves+id.x]=Bounds(vec4f(lo,0.),vec4f(hi,0.));
+      }`);
+    const join=await gpu.kernel('CFD join bounds of native triangle ranges',types+storage(0,'box','Bounds',true)+
+      '@group(0) @binding(1) var<uniform> range:vec2u;'+`
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3u){if(id.x>=range.y){return;}
+        let i=range.x+id.x;let a=box[2u*i];let b=box[2u*i+1u];box[i]=Bounds(min(a.lo,b.lo),max(a.hi,b.hi));}`);
+
+    programs.set(mesh.storage,{bounds,join});
+  }
+  const {bounds,join}=programs.get(mesh.storage),e=device.createCommandEncoder();
+  const resources=[...meshResources(mesh),{buffer:boxes},{buffer:pose}];
+  gpu.dispatch(e,bounds,device.createBindGroup({layout:bounds.getBindGroupLayout(0),
+    entries:resources.map((resource,binding)=>({binding,resource}))}),[Math.ceil(leaves/64)]);
+  const parameters=[];
+  for(let width=leaves/2;width>=1;width/=2){const range=gpu.buffer('CFD native shape search level',new Uint32Array([width,width,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    parameters.push(range);gpu.dispatch(e,join,gpu.bind(join,[boxes,range]),[Math.ceil(width/64)]);}
+
+  device.queue.submit([e.finish()]);
+  return {boxes,pose,release(){for(const b of [boxes,pose,...parameters])b.destroy();}};
+}
+
+// Refine the smooth immersed fractions at exposed cell centres and faces
+// using the closest point of a native triangle. The Frame SDF and geometric
+// crossing certificate own the fluid side and sealed links. The same closest
+// point and barycentric coordinates carry the reverse shape derivative.
+export async function nativeImmersedShape(gpu,f,capture,wall,mobility){
+  if(!capture.meshes.some(mesh=>mesh.triangleCount>0))return null;
+  const {device}=gpu,n=countOf(f.dims),coords=metricBuffer(gpu,f),grid=[Math.ceil(n/128)];
+  const storage=(b,id,type,write=false)=>`@group(0) @binding(${b}) var<storage,${write?'read_write':'read'}> ${id}:array<${type}>;`;
+  const bounds=combinedBounds(capture.meshes.map(mesh=>mesh.bounds)),band=(x,k)=>(x-f.origin[k])/f.h;
+  const lo=bounds.min.map((x,k)=>band(x,k)-.5001),hi=bounds.max.map((x,k)=>band(x,k)+.5001);
+  const base=gridWGSL(f)+metricWGSL(f),criteria=base+storage(0,'wall','vec4f')+storage(1,'mu','vec4f')+
+    '@group(0) @binding(2) var<storage,read_write> count:atomic<u32>;';
+  const search=collect=>criteria+(collect?storage(3,'ids','u32',true):'')+`
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}let p=point(i);let w=cellWidths(p);let m=mu[i];
+      if(abs(wall[i].x)>1.5+max(w.x,max(w.y,w.z))&&all(m>=vec4f(1))){return;}
+      let center=cellCenters(p);var mask=m>vec4f(0);
+      for(var a=0u;a<4u;a++){var x=center;if(a<3u){x[a]+=.5*w[a];}
+        let nearBounds=all(x>=vec3f(${lo.join(',')}))&&all(x<=vec3f(${hi.join(',')}));
+        mask[a]=mask[a]&&(m[a]<1.||nearBounds);}
+      let k=dot(vec4u(mask),vec4u(1));if(k==0u){return;}var next=atomicAdd(&count,k);
+      ${collect?'for(var a=0u;a<4u;a++){if(mask[a]){ids[next]=4u*i+a;next++;}}':''}
+    }`;
+  const [countPipe,listPipe]=await Promise.all([gpu.kernel('CFD count differentiable wall samples',search(false)),
+    gpu.kernel('CFD compact differentiable wall samples',search(true))]);
+  const counter=gpu.buffer('CFD smooth wall sample count',4);
+  gpu.run(countPipe,[wall,mobility,counter],grid,coords);
+  const bits=await gpu.read(counter,gpu.staging('CFD compact wall sample count',4),1),samples=new Uint32Array(bits.buffer)[0];
+  capture.assertCurrent();if(!samples)return null;
+  const ids=gpu.buffer('CFD active immersed coordinates',4*samples),e=device.createCommandEncoder();
+  e.clearBuffer(counter);gpu.dispatch(e,listPipe,gpu.bind(listPipe,[wall,mobility,counter,ids],coords),grid);device.queue.submit([e.finish()]);
+  const types=`struct Bounds{lo:vec4f,hi:vec4f} struct Pose{m:mat4x4f,triangles:u32,base:u32,leaves:u32}
+    struct Hit{bary:vec4f,vertices:vec4u} const NONE=0xffffffffu;`;
+  const init=await gpu.kernel('CFD initialize native shape support',types+storage(0,'hit','Hit',true)+storage(1,'normal','vec4f',true)+`
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=arrayLength(&hit)){return;}
+      normal[i]=vec4f(0.,0.,0.,${.25*f.h**2});hit[i].vertices=vec4u(NONE);}`);
+  const parts=[];const begin=device.createCommandEncoder();
+  for(let first=0;first<samples;first+=262144){
+    const count=Math.min(samples-first,262144),grid=[Math.ceil(count/128)];
+    const hit=gpu.buffer('CFD closest logical wall vertices',32*count),normal=gpu.buffer('CFD native distance derivative',16*count);
+    const offset=gpu.buffer('CFD compact shape range',new Uint32Array([first,count,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    gpu.dispatch(begin,init,gpu.bind(init,[hit,normal]),grid);parts.push({grid,hit,normal,offset});
+  }
+  device.queue.submit([begin.finish()]);const pipelines=new Map(),occurrences=[];let vertices=0;
+  for(const mesh of capture.meshes){
+    const first=vertices;vertices+=mesh.vertexCount;occurrences.push({mesh,first,vertices:mesh.vertexCount});
+    if(!mesh.triangleCount)continue;
+    if(!pipelines.has(mesh.storage))pipelines.set(mesh.storage,await gpu.kernel('CFD closest native wall in the immersed transition',
+      meshReader(mesh.storage)+types+base+triangleQueryWGSL+storage(2,'box','Bounds')+storage(3,'ids','u32')+
+      storage(4,'hit','Hit',true)+storage(5,'normal','vec4f',true)+`
+      @group(0) @binding(6) var<uniform> pose:Pose;@group(0) @binding(7) var<uniform> span:vec4u;
+      fn pos(k:u32)->vec3f{return (pose.m*vec4f(sourcePoint(k),1.)).xyz;}
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i>=span.y){return;}let id=ids[span.x+i];let p=point(id/4u);let a=id%4u;
+        var x=cellCenters(p);if(a<3u){x[a]+=.5*axisMetric(a,p[a]).y;}
+        x=vec3f(${f.origin.join(',')})+x*${f.h};var best=normal[i].w;var node=1u;var triangle=NONE;
+        var weight=vec3f(0);var separation=vec3f(0);
+        loop{
+          let bounds=box[node];let gap=max(max(bounds.lo.xyz-x,x-bounds.hi.xyz),vec3f(0));
+          if(all(bounds.lo.xyz<=bounds.hi.xyz)&&dot(gap,gap)<=best){
+            if(node<pose.leaves){node*=2u;continue;}
+            let begin=8u*(node-pose.leaves);
+            for(var t=begin;t<min(begin+8u,pose.triangles);t++){
+              let a=pos(3u*t);let b=pos(3u*t+1u);let c=pos(3u*t+2u);
+              let n=cross(b-a,c-a);let nn=dot(n,n);if(nn<=1e-36){continue;}
+              let w=closestWeights(x,a,b,c,n,nn);let dx=(x-a)-w.y*(b-a)-w.z*(c-a);let d=dot(dx,dx);
+              if(d<best){best=d;triangle=t;weight=w;separation=dx;}
+            }
+          }
+          while((node&1u)!=0u){node>>=1u;}if(node==0u){break;}node++;
+        }
+        if(triangle!=NONE){
+          let k=3u*triangle;hit[i]=Hit(vec4f(weight,0),vec4u(pose.base+vertex(k),pose.base+vertex(k+1u),pose.base+vertex(k+2u),triangle));
+          normal[i]=vec4f(separation*inverseSqrt(max(1e-36,best)),best);
+        }
+      }`));
+    const tree=await nativeTriangleBounds(gpu,mesh,first),pipe=pipelines.get(mesh.storage);
+    try{
+      for(const part of parts){
+        capture.assertCurrent();const cmd=device.createCommandEncoder();
+        const resources=[...meshResources(mesh),...[tree.boxes,ids,part.hit,part.normal,tree.pose,part.offset].map(buffer=>({buffer}))];
+        const entries=resources.map((resource,binding)=>({binding,resource}));
+        if(coords)entries.push({binding:12,resource:{buffer:coords}});
+        gpu.dispatch(cmd,pipe,device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries}),part.grid);
+        device.queue.submit([cmd.finish()]);await device.queue.onSubmittedWorkDone();
+      }
+    }finally{tree.release();}
+  }
+  capture.assertCurrent();const apply=await gpu.kernel('CFD matched primal and derivative of native wall fractions',
+    immersedMobilityWGSL+storage(0,'ids','u32')+storage(1,'normal','vec4f',true)+storage(2,'mu','f32',true)+`
+    @group(0) @binding(3) var<uniform> range:vec4u;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=range.y){return;}let id=ids[range.x+i];let old=normal[i];let side=select(-1.,1.,mu[id]>=.5);
+      let d=side*sqrt(old.w)/${f.h};mu[id]=fluidMobility(d);
+      let slope=select(0.,(1.+cos(6.283185307*d))/${f.h},abs(d)<.5&&mu[id]>0.);
+      normal[i]=vec4f(-slope*side*old.xyz,d);
+    }`);
+  const updated=device.createCommandEncoder();for(const p of parts)gpu.dispatch(updated,apply,gpu.bind(apply,[ids,p.normal,mobility,p.offset]),p.grid);
+  device.queue.submit([updated.finish()]);await device.queue.onSubmittedWorkDone();capture.assertCurrent();
+  const scatter=await gpu.kernel('CFD backpropagate total force to logical native vertices',types+storage(0,'ids','u32')+
+    storage(1,'hit','Hit')+storage(2,'normal','vec4f')+storage(3,'df','f32')+storage(4,'out','atomic<u32>',true)+`
+    @group(0) @binding(5) var<uniform> range:vec4u;@group(0) @binding(6) var<uniform> vertices:vec4u;
+    fn add(i:u32,v:f32){var b=atomicLoad(&out[i]);loop{let r=atomicCompareExchangeWeak(&out[i],b,bitcast<u32>(bitcast<f32>(b)+v));
+      if(r.exchanged){break;}b=r.old_value;}}
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=range.y){return;}let h=hit[i];if(h.vertices.x==NONE){return;}
+      let v=df[ids[range.x+i]]*normal[i].xyz;
+      for(var k=0u;k<3u;k++){let id=h.vertices[k];if(id>=vertices.x&&id<vertices.x+vertices.y){
+        let d=v*h.bary[k];for(var a=0u;a<3u;a++){if(d[a]!=0.){add(3u*(id-vertices.x)+a,d[a]);}}}}
+    }`);
+  return {samples,occurrences,vertices,
+    scatter(e,gradient,out,range){
+      e.clearBuffer(out);
+      for(const p of parts)gpu.dispatch(e,scatter,gpu.bind(scatter,[ids,p.hit,p.normal,gradient,out,p.offset,range]),p.grid);
+    }
+  };
+}
 
 export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>{},representatives=null){
   const mask=gpu.buffer('CFD crossed Cartesian face bits',4*f.dims.reduce((a,b)=>a*b));
@@ -3099,6 +3523,70 @@ export async function surfaceLoss(gpu,display,f,dt,chunks,mobility){
   };
 }
 
+async function publishNativeShape(gpu,display,shape,chunks,gradient,referenceDensity,check){
+  const device=gpu.device,limit=Math.min(device.limits.maxBufferSize,device.limits.maxStorageBufferBindingSize);
+  const blockSize=Math.min(1000000,Math.floor(limit/16)),pipelines=new Map();
+  const args=(first,n,base,tri)=>gpu.buffer('CFD logical vertex interval',new Uint32Array([first,n,base,tri]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+  const parts=[];
+  for(const o of shape.occurrences){
+    const mesh=o.mesh,work=chunks.map((c,i)=>({c,i})).filter(p=>p.c.mesh===mesh);
+    if(!work.length)continue;
+    const occurrence=display.chunks[work[0].i].occurrence;
+    if(!pipelines.has(mesh.storage)){
+      const base=meshReader(mesh.storage)+`
+        struct Site{point:vec4f,normal:vec4f,near:vec4f,far:vec4f}
+        @group(0) @binding(2) var<storage,read> sites:array<Site>;
+        @group(0) @binding(3) var<uniform> span:vec4u;
+        fn skin(i:u32)->vec4f{var value=vec4f(0);for(var j=0u;j<3u;j++){
+          let s=sites[3u*i+j];if(dot(s.normal.xyz,s.normal.xyz)>.5){value+=s.point.w*vec4f(s.normal.xyz,1.);}}
+          return value;}
+        fn logical(tri:u32,k:u32)->u32{return span.z+vertex(3u*(span.w+tri)+k);}`;
+      const normal=await gpu.kernel('CFD outward normal and area of logical shape vertices',base+`
+        @group(0) @binding(4) var<storage,read_write> sums:array<atomic<u32>>;
+        fn add(i:u32,x:f32){var b=atomicLoad(&sums[i]);loop{let r=atomicCompareExchangeWeak(&sums[i],b,bitcast<u32>(bitcast<f32>(b)+x));
+          if(r.exchanged){break;}b=r.old_value;}}
+        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(3u*i>=arrayLength(&sites)){return;}let value=skin(i)/3.;
+          for(var j=0u;j<3u;j++){let v=logical(i,j);if(v>=span.x&&v<span.x+span.y){for(var k=0u;k<4u;k++){
+            if(value[k]!=0.){add(4u*(v-span.x)+k,value[k]);}}}}
+        }`);
+      const resolve=await gpu.kernel('CFD signed normal force sensitivity on native triangles',base+`
+        @group(0) @binding(4) var<storage,read> geometry:array<vec4f>;
+        @group(0) @binding(5) var<storage,read> derivative:array<f32>;
+        @group(0) @binding(6) var<storage,read_write> visible:array<vec4f>;
+        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i>=arrayLength(&visible)){return;}let area=skin(i).w;var density=visible[i].x;
+          for(var k=0u;k<3u;k++){
+            let id=logical(i,k);if(id<span.x||id>=span.x+span.y){continue;}let v=id-span.x;let n=geometry[v];
+            if(n.w<=0.||dot(n.xyz,n.xyz)<=0.){continue;}
+            let vec=vec3f(derivative[3u*v],derivative[3u*v+1u],derivative[3u*v+2u]);
+            density+=dot(vec,normalize(n.xyz))/(3.*n.w);
+          }
+          visible[i]=vec4f(density,.001*density*area,area,density/${referenceDensity});
+        }`);
+      pipelines.set(mesh.storage,{normal,resolve});
+    }
+    const {normal,resolve}=pipelines.get(mesh.storage);
+    for(let local=0;local<o.vertices;local+=blockSize){
+      check();const count=Math.min(blockSize,o.vertices-local),first=local+o.first;
+      const vector=display.gpu.buffer('CFD physical force gradient per logical vertex',12*count);
+      const area=display.gpu.buffer('CFD physical vertex area and normal',16*count),range=args(first,count,o.first,0);
+      const e=device.createCommandEncoder();shape.scatter(e,gradient,vector,range);
+      const jobs=work.map(({c,i})=>{
+        const bounds=args(first,count,o.first,c.first);
+        const group=(pipe,extra)=>device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[
+          {binding:1,resource:meshResources(mesh)[1]},...[c.site,bounds,...extra].map((buffer,j)=>({binding:j+2,resource:{buffer}}))]});
+        return {normal:group(normal,[area]),resolve:group(resolve,[area,vector,display.chunks[i].shape]),grid:[Math.ceil(c.triangles/64)]};
+      });
+      for(const job of jobs)gpu.dispatch(e,normal,job.normal,job.grid);
+      for(const job of jobs)gpu.dispatch(e,resolve,job.resolve,job.grid);
+      device.queue.submit([e.finish()]);await device.queue.onSubmittedWorkDone();check();
+      parts.push({occurrence,firstVertex:local,count,vector,area});
+    }
+  }
+  display.shapeVertices=parts;
+}
+
 // Three equal-area quadrature sites belong to each original native triangle.
 // Pressure is extrapolated from two fluid-side stencils. Count shear reversals
 // before averaging, relative to the tangential exterior flow in the wall frame.
@@ -3141,20 +3629,21 @@ async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility){
       visible[t]=vec4f(scale.x*v.x/max(1.,v.y),v.z/max(1.,v.w),v.y*scale.y,v.w*scale.y);
     }`);
   const uniform=gpu.buffer('CFD physical surface units and sample denominator',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  const occurrences=new Map(),work=[];
+  const occurrences=new Map(),work=[],emptyShape=f.immersedShape?null:display.gpu.buffer('CFD unavailable shape field',16);
   for(const chunk of chunks){
     const {mesh,first,triangles,site}=chunk;
     if(!occurrences.has(mesh))occurrences.set(mesh,occurrences.size);
     const occurrence=occurrences.get(mesh),bytes=16*triangles,grid=[Math.ceil(triangles/64)];
     const sum=gpu.buffer('CFD current surface observations',bytes),previous=gpu.buffer('CFD previous surface observations',bytes);
     const visible=display.gpu.buffer('CFD displayed native triangle fields',bytes);
-    display.chunks.push({mesh,occurrence,first,triangles,visible});
+    const shape=emptyShape??display.gpu.buffer('CFD signed triangle shape density',bytes);
+    display.chunks.push({mesh,occurrence,first,triangles,visible,shape});
     work.push({site,grid,sum,previous,resolve:gpu.bind(resolve,[sum,previous,visible,uniform])});
   }
   display.dynamicPressure=.5*f.rho*f.maxSpeed**2;
   const losses=await surfaceLoss(gpu,display,f,dt,chunks,mobility);
   display.description={available:['Drag','Pressure','Separation'],pressureUnit:'Pa',separationUnit:'fraction',
-    occurrences:[...occurrences].map(([m,occurrence])=>({occurrence,hash:m.hash,triangles:m.triangleCount}))};
+    occurrences:[...occurrences].map(([m,occurrence])=>({occurrence,hash:m.hash,triangles:m.triangleCount,vertices:m.vertexCount}))};
   let previousSteps=0;
   return {
     async bind(p,state){
@@ -3180,18 +3669,21 @@ async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility){
 async function probeSurface(device,display,occurrence,triangle){
   const part=display.chunks.find(c=>c.occurrence===occurrence&&triangle>=c.first&&triangle<c.first+c.triangles);
   if(!part)throw failure('INVALID_ARGUMENT','The occurrence or native triangle lies outside the current solution.');
-  const read=device.createBuffer({label:'CFD single triangle probe',size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  const hasShape=!!display.shapeVertices;
+  const read=device.createBuffer({label:'CFD single triangle probe',size:hasShape?48:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   try{
     const e=device.createCommandEncoder(),offset=16*(triangle-part.first);
-    e.copyBufferToBuffer(part.visible,offset,read,0,16);e.copyBufferToBuffer(part.loss,offset,read,16,16);device.queue.submit([e.finish()]);
+    e.copyBufferToBuffer(part.visible,offset,read,0,16);e.copyBufferToBuffer(part.loss,offset,read,16,16);
+    if(hasShape)e.copyBufferToBuffer(part.shape,offset,read,32,16);device.queue.submit([e.finish()]);
     await read.mapAsync(GPUMapMode.READ);
-    const [p,gamma,pressureCoverage,separationCoverage,density,watts,area]=new Float32Array(read.getMappedRange());
+    const [p,gamma,pressureCoverage,separationCoverage,density,watts,area,,shapeDensity,shapePatch,shapeArea]=new Float32Array(read.getMappedRange());
     const unit=display.description.loss.unit;
     return {occurrence,hash:part.mesh.hash,triangle,pressurePa:pressureCoverage>0?p:null,
       Cp:pressureCoverage>0&&display.dynamicPressure>0?p/display.dynamicPressure:null,
       gammaRev:separationCoverage>0?gamma:null,pressureCoverage,separationCoverage,areaM2:area,
       attributedPowerW:watts,lossDensity:area>0?density:null,lossDensityUnit:unit,
-      dragDensityNPerM2:area>0&&unit==='N/m2'?density:null};
+      dragDensityNPerM2:area>0&&unit==='N/m2'?density:null,
+      ...(hasShape?{shapeDensityNPerM3:shapeArea>0?shapeDensity:null,shapePatchNPerMm:shapeArea>0?shapePatch:null}:{})};
   }finally{read.destroy();}
 }
 
@@ -3210,7 +3702,7 @@ async function nativeFieldOverlay(ctx,display){
       {binding,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}});
     const layout=device.createBindGroupLayout({entries:[...native,{binding:2,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}},
       {binding:3,visibility:stage.VERTEX|stage.FRAGMENT,buffer:{type:'uniform'}},
-      {binding:4,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}}]});
+      {binding:4,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}},{binding:5,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}}]});
     const module=device.createShaderModule({label:'CFD native surface map',code:ctx.viewport.cameraWGSL+meshReader(storage)+`
       struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f}
       struct Owner{matrix:mat4x4f,inverse:mat4x4f,color:vec4f,settings:vec4f}
@@ -3220,6 +3712,7 @@ async function nativeFieldOverlay(ctx,display){
       @group(0) @binding(2) var<storage,read> field:array<vec4f>;
       @group(0) @binding(3) var<uniform> cfg:Config;
       @group(0) @binding(4) var<storage,read> loss:array<vec4f>;
+      @group(0) @binding(5) var<storage,read> shape:array<vec4f>;
       override orthographic:bool=false;
       struct Out{@builtin(position) clip:vec4f,@location(0) value:vec4f,@location(1) local:vec3f,@location(2) loss:vec2f}
       @vertex fn vs(@builtin(vertex_index) v:u32)->Out{
@@ -3228,6 +3721,7 @@ async function nativeFieldOverlay(ctx,display){
         let p=(frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
         let xy=p.xy+camera.viewport.zw;let depth=-p.z;let span=camera.clip.y-camera.clip.x;
         var out:Out;out.local=local.xyz;out.value=field[v/3u];out.loss=loss[v/3u].zw;
+        if(cfg.mode==3u){out.loss=shape[v/3u].zw;}
         if(orthographic){out.clip=vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/span,1.);}
         else{out.clip=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/span,depth);}
         return out;
@@ -3241,10 +3735,13 @@ async function nativeFieldOverlay(ctx,display){
         }else if(cfg.mode==1u){
           if(value.w<=0.){discard;}color=mix(neutral,vec3f(.93,.62,.10),smoothstep(0.,.5,value.y));
           color=mix(color,vec3f(.74,.10,.12),smoothstep(.5,1.,value.y));
-        }else{
+        }else if(cfg.mode==2u){
           if(input.loss.x<=0.){discard;}let intensity=sqrt(max(0.,input.loss.y));
           color=mix(vec3f(.12,.30,.41),vec3f(.96,.72,.20),smoothstep(0.,.65,intensity));
           color=mix(color,vec3f(.78,.14,.08),smoothstep(.65,1.5,intensity));
+        }else{
+          if(input.loss.x<=0.){discard;}let signed=input.loss.y;
+          color=mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),signed>0.),sqrt(abs(signed)/(1.+abs(signed))));
         }return vec4f(color,.87);
       }`});
     const pl=device.createPipelineLayout({bindGroupLayouts:[layout,cache.camera]});
@@ -3262,7 +3759,7 @@ async function nativeFieldOverlay(ctx,display){
     new Float32Array(data,0,16).set(c.mesh.ownerMatrix);new Uint32Array(data,64,1)[0]=c.first;
     new Float32Array(data,72,1)[0]=display.dynamicPressure;
     const config=display.gpu.buffer('CFD surface display transform',new Uint8Array(data),usage.UNIFORM|usage.COPY_DST);
-    const resources=[...meshResources(c.mesh),{buffer:c.visible},{buffer:config},{buffer:c.loss}];
+    const resources=[...meshResources(c.mesh),{buffer:c.visible},{buffer:config},{buffer:c.loss},{buffer:c.shape}];
     const group=device.createBindGroup({layout:type.layout,entries:resources.map((resource,binding)=>({binding,resource}))});
     records.push({config,group,type,vertices:3*c.triangles});
   }
@@ -3271,7 +3768,7 @@ async function nativeFieldOverlay(ctx,display){
     let byFrame=cache.frames.get(camera);
     if(!byFrame){byFrame=new WeakMap();cache.frames.set(camera,byFrame);}
     if(!byFrame.has(frame))byFrame.set(frame,device.createBindGroup({layout:cache.camera,entries:[camera,frame].map((buffer,binding)=>({binding,resource:{buffer}}))}));
-    const mode=display.mode==='Drag'?2:Number(display.mode==='Separation'),view=byFrame.get(frame);let bound=null;
+    const mode=display.mode==='Shape'?3:display.mode==='Drag'?2:Number(display.mode==='Separation'),view=byFrame.get(frame);let bound=null;
     for(const r of records){
       if(mode!==previousMode)device.queue.writeBuffer(r.config,68,new Uint32Array([mode]));
       const p=r.type.pipelines[Number(orthographic)];

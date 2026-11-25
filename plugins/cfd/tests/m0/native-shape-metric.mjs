@@ -1,36 +1,12 @@
 import {meshReader,meshResources} from './pressure-barrier.mjs';
 import {gridWGSL} from './fixtures.mjs';
-import {metricBuffer,metricWGSL} from '../../plugin.js';
+import {metricBuffer,metricWGSL,nativeTriangleBounds,triangleQueryWGSL as triangleMath} from '../../plugin.js';
 import {cutMetricWGSL} from './cut-metric.mjs';
 
 const storage=(i,id,t,w=false)=>`@group(0) @binding(${i}) var<storage,${w?'read_write':'read'}> ${id}:array<${t}>;`;
 const types=`struct Bounds{lo:vec4f,hi:vec4f} struct Hit{weights:vec4f,vertices:vec4u}
   struct Pose{m:mat4x4f,triangles:u32,base:u32,leaves:u32}
   const NONE=0xffffffffu;`;
-const triangleMath=`
-  fn edgeWeights(p:vec3f,a:vec3f,b:vec3f,ai:vec3f,bi:vec3f)->vec3f{
-    let d=b-a;return mix(ai,bi,clamp(dot(p-a,d)/max(dot(d,d),1e-30),0.,1.));}
-  fn closestWeights(p:vec3f,a:vec3f,b:vec3f,c:vec3f,n:vec3f,nn:f32)->vec3f{
-    let e0=vec3f(1,0,0);let e1=vec3f(0,1,0);let e2=vec3f(0,0,1);
-    let v=dot(cross(p-a,c-a),n)/nn;let w=dot(cross(b-a,p-a),n)/nn;
-    if(v>=0.&&w>=0.&&v+w<=1.){return vec3f(1.-v-w,v,w);}
-    let m=mat3x3f(a,b,c);var g=edgeWeights(p,a,b,e0,e1);let k=edgeWeights(p,b,c,e1,e2);
-    if(dot(m*k-p,m*k-p)<dot(m*g-p,m*g-p)){g=k;}let l=edgeWeights(p,c,a,e2,e0);
-    return select(g,l,dot(m*l-p,m*l-p)<dot(m*g-p,m*g-p));
-  }
-  fn wedge(a:vec2f,b:vec2f)->f32{return a.x*b.y-a.y*b.x;}
-  fn topLeft(d:vec2f)->bool{return d.y>0.||(d.y==0.&&d.x<0.);}
-  // Half-open ownership on a shared projected edge. Reversing a triangle
-  // first restores the same counter-clockwise edge convention.
-  fn rayCrosses(p:vec3f,a:vec3f,b:vec3f,c:vec3f)->bool{
-    var b0=b;var c0=c;let orient=wedge(b.yz-a.yz,c.yz-a.yz);if(orient==0.){return false;}
-    if(orient<0.){b0=c;c0=b;}
-    let e0=b0.yz-a.yz;let e1=c0.yz-b0.yz;let e2=a.yz-c0.yz;
-    let u=wedge(e1,p.yz-b0.yz);let v=wedge(e2,p.yz-c0.yz);let w=wedge(e0,p.yz-a.yz);
-    if(u<0.||v<0.||w<0.||(u==0.&&!topLeft(e1))||(v==0.&&!topLeft(e2))||(w==0.&&!topLeft(e0))){return false;}
-    return u*(a.x-p.x)+v*(b0.x-p.x)+w*(c0.x-p.x)>0.;
-  }`;
-
 // An exact, winding-independent narrow-band metric for differentiable resolved
 // cuts. The three vertices of its nearest physical point carry its derivative.
 // Bounds retain indices into Frame's own mesh, including paged occurrences.
@@ -48,32 +24,14 @@ export async function nativeShapeMetric(gpu,f,capture){
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       if(g.x<arrayLength(&normal)){normal[g.x].w=3.4e38;hit[g.x].vertices=vec4u(NONE);}}`);
   const groups=[Math.ceil(n/128)];capture.assertCurrent();gpu.run(init,[normals,hits],groups);
-  const join=await gpu.kernel('CFD join bounds of native triangle ranges',types+storage(0,'box','Bounds',true)+
-    '@group(0) @binding(1) var<uniform> range:vec2u;'+`
-    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3u){if(id.x>=range.y){return;}
-      let i=range.x+id.x;let a=box[2u*i];let b=box[2u*i+1u];box[i]=Bounds(min(a.lo,b.lo),max(a.hi,b.hi));}`);
   const pipelines=new Map(),occurrences=[];let base=0;
   for(const mesh of capture.meshes){
     occurrences.push({hash:mesh.hash,offset:base,count:mesh.vertexCount});
     if(!Number.isInteger(mesh.vertexCount)||mesh.vertexCount<0)throw Error('Missing native shape vertex count');
     if(!mesh.triangleCount){base+=mesh.vertexCount;continue;}
-    const leaves=2**Math.ceil(Math.log2(Math.ceil(mesh.triangleCount/8)));
-    if(64*leaves>limit||Math.ceil(leaves/64)>device.limits.maxComputeWorkgroupsPerDimension)
-      throw Error('Native shape search bounds exceed the device limit');
-    const boxes=gpu.buffer('CFD native shape search bounds',64*leaves);
-    const uniform=new ArrayBuffer(80);new Float32Array(uniform,0,16).set(mesh.matrix);
-    new Uint32Array(uniform,64,3).set([mesh.triangleCount,base,leaves]);base+=mesh.vertexCount;
-    const pose=gpu.buffer('CFD native shape pose',new Uint8Array(uniform),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    const tree=await nativeTriangleBounds(gpu,mesh,base),{boxes,pose}=tree;base+=mesh.vertexCount;
     if(!pipelines.has(mesh.storage)){
       const source=meshReader(mesh.storage)+types+'fn physical(m:mat4x4f,k:u32)->vec3f{return (m*vec4f(sourcePoint(k),1)).xyz;}';
-      const bounds=await gpu.kernel('CFD bound native triangles for shape derivatives',source+
-        storage(2,'box','Bounds',true)+'@group(0) @binding(3) var<uniform> pose:Pose;'+`
-        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3u){
-          if(id.x>=pose.leaves){return;}var lo=vec3f(3.4e38);var hi=-lo;
-          for(var k=8u*id.x;k<min(pose.triangles,8u*id.x+8u);k++){for(var j=0u;j<3u;j++){
-            let v=physical(pose.m,3u*k+j);lo=min(lo,v);hi=max(hi,v);}}
-          box[pose.leaves+id.x]=Bounds(vec4f(lo,0.),vec4f(hi,0.));
-        }`);
       const query=await gpu.kernel('CFD exact signed distance and barycentric shape derivative',source+layout+
         triangleMath+storage(2,'box','Bounds')+storage(3,'hit','Hit',true)+storage(4,'normal','vec4f',true)+'@group(0) @binding(5) var<uniform> pose:Pose;'+`
         @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u){
@@ -102,19 +60,15 @@ export async function nativeShapeMetric(gpu,f,capture){
               result.vertices=vec4u(pose.base+vertex(3u*triangle),pose.base+vertex(3u*triangle+1u),pose.base+vertex(3u*triangle+2u),triangle);}
             hit[i]=result;normal[i]=vec4f(gradient,s);}
         }`);
-      pipelines.set(mesh.storage,{bounds,query});
+      pipelines.set(mesh.storage,query);
     }
-    const {bounds,query}=pipelines.get(mesh.storage);
+    const query=pipelines.get(mesh.storage);
     const bind=(pipe,extra,coord)=>device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[
       ...[...meshResources(mesh),...extra.map(buffer=>({buffer}))].map((resource,binding)=>({binding,resource})),
       ...coord?[{binding:12,resource:{buffer:coord}}]:[]]});
     capture.assertCurrent();const e=device.createCommandEncoder();
-    gpu.dispatch(e,bounds,bind(bounds,[boxes,pose]),[Math.ceil(leaves/64)]);
-    const parameters=[];
-    for(let width=leaves/2;width>=1;width/=2){const range=gpu.buffer('CFD native shape search level',new Uint32Array([width,width,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-      parameters.push(range);gpu.dispatch(e,join,gpu.bind(join,[boxes,range]),[Math.ceil(width/64)]);}
     gpu.dispatch(e,query,bind(query,[boxes,hits,normals,pose],axes),groups);device.queue.submit([e.finish()]);await device.queue.onSubmittedWorkDone();
-    capture.assertCurrent();for(const b of [boxes,pose,...parameters])b.destroy();
+    capture.assertCurrent();tree.release();
   }
   const extract=await gpu.kernel('CFD differentiable signed metric',storage(0,'normal','vec4f')+storage(1,'s','f32',true)+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){if(g.x<arrayLength(&s)){s[g.x]=normal[g.x].w;}}`);

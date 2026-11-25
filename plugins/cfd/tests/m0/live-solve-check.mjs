@@ -99,9 +99,30 @@ export async function verifyLiveSphere(){
     if(value.state==='failed'||value.state==='stale')throw Error(JSON.stringify(value));
     if(performance.now()-start>4*60*60*1000)throw Error('Native sphere did not finish in the allotted run.');
   }while(value.state==='queued'||value.state==='solving');
-  const r=value.result,cd=r.forceLocal.drag/(.5*r.medium.rho*U**2*Math.PI*.04**2);
-  return {pass:value.state==='ready'&&Math.abs(cd/1.087-1)<.05&&r.validity.maxDivergencePerS<1e-6,
-    elapsedMs:performance.now()-start,cd,referenceCd:1.087,result:r};
+  const r=value.result,cd=r.forceLocal.drag/(.5*r.medium.rho*U**2*Math.PI*.04**2),shape=r.shape;
+  let changedPixels=0,vertices=0,outwardSensitivity=0,nonzero=0,probe=null;
+  if(shape?.state==='ready'){
+    const command=(operation,args={})=>call('plugins.command',{id,operation,args});
+    const part=r.surfaceFields.occurrences[0];
+    for(let i=0;i<part.vertices;i+=128){
+      const samples=await command('shape-gradient',{occurrence:0,firstVertex:i,count:Math.min(128,part.vertices-i)});
+      for(const v of samples.vertices){
+        if(!v.gradientWorldNPerMm.every(Number.isFinite))throw Error('Nonfinite native force sensitivity');
+        vertices++;if(v.normalNPerMm){outwardSensitivity+=v.normalNPerMm;nonzero++;}
+      }
+    }
+    await call('view.set',{index:1,single:true,shading:'solid',focus:sphere.hash});await call('diagnostics.frame',{frames:3});
+    const points=[];for(const x of [-28,-14,0,14,28])for(const y of [-12,12])points.push((await call('view.project',{point:[x,100+y,y]})).screen);
+    const before=(await call('diagnostics.pixels',{points})).colors;
+    const button=document.querySelector('[data-plugin-action-button="shape-map"]');if(!button?.getClientRects().length)throw Error('Missing Shape button');
+    button.click();await call('diagnostics.frame',{frames:3});
+    const after=(await call('diagnostics.pixels',{points})).colors;
+    changedPixels=before.filter((a,i)=>a.slice(0,3).some((v,k)=>Math.abs(v-after[i][k])>12)).length;
+    probe=await command('probe',{occurrence:0,triangle:Math.floor(part.triangles/3)});
+    if(button.getAttribute('aria-pressed')!=='true'||!Number.isFinite(probe.shapeDensityNPerM3))throw Error('Native Shape selection or probe failed');
+  }
+  return {pass:value.state==='ready'&&Math.abs(cd/1.087-1)<.05&&r.validity.maxDivergencePerS<1e-6&&shape?.state==='ready'&&changedPixels>0&&nonzero>0,
+    elapsedMs:performance.now()-start,cd,referenceCd:1.087,result:r,shapeCheck:{vertices,nonzero,outwardSensitivityNPerMm:outwardSensitivity,changedPixels,probe}};
 }
 
 export async function verifyLiveRotating(device){
