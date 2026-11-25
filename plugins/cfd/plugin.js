@@ -412,7 +412,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     }
     if(!(dt>0&&Number.isFinite(dt)))throw failure('INVALID_TIMESTEP','The evaluated fluid domain has no positive stable timestep.');
     const force=gpu.buffer('CFD integrated axial wall reaction',4*count);
-    const fields=await nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response);
+    const fields=await nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response,domain);
     display.draw=await nativeFieldOverlay(ctx,display);check();
     const solver=await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,null,fields);check();
     const roi=f.regionalLoads?await controlVolumeRegion(gpu,f,domain.region):null;
@@ -481,6 +481,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
             stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
           if(resolved){
             await publishNativeShape(gpu,display,geom.shape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
+            await fields.publishAdjoint(adj.lambda);check();
             display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
           }
           check();publish({...result,shape:sensitivity,surfaceFields:display.description});return true;
@@ -494,7 +495,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
 export async function activate(context){
   if(context.version!==1)throw failure('API_VERSION','Unsupported Frame plugin API.');
   const find=hash=>{const n=context.document.nodes.find(n=>n.nativeHash===hash&&n.type==='cfd');if(!n)throw failure('INVALID_OWNER','Select an existing CFD object.');return n;};
-  const jobs=new Map(),archives=new Map(),sweeps=new Map();
+  const jobs=new Map(),archives=new Map(),sweeps=new Map(),lineDensities=new Map();
   let sequence=0,queue=Promise.resolve(),sweepQueue=Promise.resolve(),activeSweep=null;
   const refresh=()=>{context.requestAttributes();context.requestDraw();};
   const closeDisplay=d=>{if(d)setTimeout(()=>d.gpu.close(),0);};
@@ -531,7 +532,7 @@ export async function activate(context){
     }
   }
   function detach(hash){const job=jobs.get(hash);if(job){job.stopped=true;jobs.delete(hash);release(job);}}
-  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}discardArchive(hash);detach(hash);}
+  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);detach(hash);}
   function newJob(hash,fidelity){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
     const world=context.document.world(hash),pivot=context.document.pivot(hash);
@@ -556,6 +557,7 @@ export async function activate(context){
       ...(solution.fields?{surfaceFields:solution.fields}:{}),...(solution.shape?{shape:solution.shape}:{}),cache:'hit'};
     if(solution.hadFields&&!solution.display)job.result.visualizationCache='evicted';
     solution.used=performance.now();jobs.set(job.owner,job);
+    job.display?.flow?.set(lineDensities.get(job.owner)??0);
   }
   function verify(job){
     if(jobs.get(job.owner)!==job||job.stopped)throw failure('CANCELLED','The CFD job was stopped.');
@@ -616,7 +618,7 @@ export async function activate(context){
         verify(job);job.state='solving';job.running=true;
         job.display={gpu:gpuScope(device),chunks:[],mode:'Drag'};
         const done=await solveNativeFrame(context,source,fidelityBudget,()=>verify(job),result=>{
-          verify(job);job.result=result;refresh();
+          verify(job);job.result=result;job.display?.flow?.set(lineDensities.get(hash)??0);refresh();
         },job.display);
         verify(job);job.state=done?'ready':'unconverged';remember(job);
       }catch(e){
@@ -705,6 +707,21 @@ export async function activate(context){
   function results(hash){
     const s=status(hash),result=jobs.get(hash)?.result;
     return {state:s.state,job:s.job,result:result?structuredClone(result):null,...s.animation?{animation:s.animation}:{}};
+  }
+  function setFlowLines(hash,{density}){
+    if(!Number.isInteger(density)||density<0||density>maxStreamlines)throw failure('INVALID_ARGUMENT','Choose a supported streamline seed count.');
+    const job=current(hash);if(!job?.result?.surfaceFields||!job.display?.flow)throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no computed velocity field.');
+    job.display.flow.set(density);lineDensities.set(hash,density);refresh();return {density,frame:job.source.frame,job:job.id};
+  }
+  async function readFlowLine(hash,{seed,backward=false}){
+    const job=current(hash),flow=job?.display?.flow;
+    if(!job?.result?.surfaceFields||!flow)throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no computed velocity field.');
+    const display=job.display,result=job.result,density=flow.density,points=await flow.read(seed,backward);verify(job);
+    if(result!==job.result||display!==job.display||density!==flow.density)throw failure('STALE_CFD_RESULT','The flow field changed during the streamline readback.');
+    const shape=result.surfaceFields.available.includes('Shape');
+    return {frame:job.source.frame,job:job.id,seed,backward,points:points.map(({pointM,adjointMagnitude,...fields})=>({
+      worldM:context.math.point(job.world,context.math.point(flow.physicalToLocal,pointM)).map(v=>v*.001),...fields,
+      adjointMagnitude:shape?adjointMagnitude:null}))};
   }
   async function flushOutput({output,present=true,frame,signal}={}){
     if(!output)return;
@@ -856,6 +873,12 @@ export async function activate(context){
     {id:'shape-gradient',description:'Read the signed world-space drag derivative for physical displacements of logical mesh vertices.',
       inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},firstVertex:{type:'integer',minimum:0},count:{type:'integer',minimum:1,maximum:128}},
         required:['occurrence','firstVertex','count'],additionalProperties:false},readOnly:true,run:shapeGradient},
+    {id:'flow-lines',description:'Set the number of streamline seeds on the current mean velocity field. Zero hides the paths.',
+      inputSchema:{type:'object',properties:{density:{type:'integer',minimum:0,maximum:maxStreamlines}},required:['density'],additionalProperties:false},
+      readOnly:false,run:setFlowLines},
+    {id:'flow-line',description:'Read one directed half of a computed streamline with World SI positions, pressure, dissipation, nearby reversal fraction and available momentum adjoint magnitude.',
+      inputSchema:{type:'object',properties:{seed:{type:'integer',minimum:0,maximum:maxStreamlines-1},backward:{type:'boolean'}},required:['seed'],additionalProperties:false},
+      readOnly:true,run:readFlowLine},
     ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',description:'Display the computed '+mode+' field of this CFD box.',
       inputSchema:emptySchema,readOnly:false,run:hash=>{
         const job=current(hash);if(!job?.result?.surfaceFields?.available.includes(mode))throw failure('CFD_FIELDS_UNAVAILABLE','This frame has no computed '+mode+' field.');
@@ -888,6 +911,8 @@ export async function activate(context){
         progress:sweeping?b.completed+'/'+(b.last-b.first+1):''},
       ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',row:'Result',label:mode,hidden:!result?.surfaceFields?.available.includes(mode),
         disabled:!result?.surfaceFields?.available.includes(mode),active:!!result?.surfaceFields&&j.display.mode===mode}))],
+      numbers:[{id:'flow-lines',label:'Flow lines',visible:!!result?.surfaceFields&&!!j?.display?.flow,value:lineDensities.get(hash)??0,
+        min:0,max:maxStreamlines,integer:true,set:density=>setFlowLines(hash,{density})}],
       readouts:[{id:'force',label:result&&!result.validity.stationary?'Force (N) ≈':'Force (N)',columns:['X','Y','Z','|F|'],
         series:()=>measuredFrames(hash),
         values:result?[...result.forceWorld,result.forceLocal.magnitude].map(v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=10000)?v.toExponential(2):String(Number(v.toPrecision(4)))):null}]};
@@ -3761,13 +3786,16 @@ export async function closestWallBins(gpu,f,seeds){
 
 // Physical dissipation in one control volume, in watts. A uniform velocity
 // gradient is recovered on unequal pitches. A rigid rotation has zero strain.
-export async function volumeDissipation(gpu,f,dt,state,mobility,total){
+export async function volumeDissipation(gpu,f,dt,state,mobility,total,observations=null){
   const count=countOf(f.dims),pipe=await gpu.kernel('CFD molecular and turbulent dissipation',gridWGSL(f)+metricWGSL(f)+`
     @group(0) @binding(0) var<storage,read> state:array<vec4f>;
     @group(0) @binding(1) var<storage,read> mu:array<vec4f>;
     @group(0) @binding(2) var<storage,read_write> total:array<f32>;
+    ${observations?`@group(0) @binding(3) var<storage,read> pressure:array<f32>;
+      @group(0) @binding(4) var<storage,read_write> sum:array<vec4f>;`:''}
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=CELLS||mu[i].w<=0.){return;}let p=point(i);let u=state[2u*i].xyz;
+      ${observations?'sum[i]+=vec4f(u,pressure[i]);':''}
       var derivative:mat3x3f;
       for(var a=0u;a<3u;a++){
         var sum=vec3f(0);var weights=0.;
@@ -3784,7 +3812,7 @@ export async function volumeDissipation(gpu,f,dt,state,mobility,total){
       let viscosity=${f.nu}+${f.laminar?'0.':`max(0.,state[2u*i+1u].y)*${f.h**2/dt}`};
       total[i]+=${2*f.rho}*viscosity*s2*volume;
     }`);
-  const group=gpu.bind(pipe,[state,mobility,total],metricBuffer(gpu,f));
+  const group=gpu.bind(pipe,[state,mobility,total,...observations??[]],metricBuffer(gpu,f));
   return e=>gpu.dispatch(e,pipe,group,[Math.ceil(count/128)]);
 }
 
@@ -3895,15 +3923,16 @@ export async function surfaceLoss(gpu,display,f,dt,chunks,mobility){
     display.chunks[i].loss=out;
     const b=gpu.bind(stamp,[c.site,bins,siteBin,area,...regional?[c.cover]:[]],coords);
     gpu.dispatch(e,stamp,b,[Math.ceil(3*c.triangles/64)]);
-    parts.push({group:gpu.bind(write,[c.site,siteBin,area,bucket,out,uniform,...regional?[c.cover]:[]]),grid:[Math.ceil(c.triangles/64)]});
+    parts.push({siteBin,group:gpu.bind(write,[c.site,siteBin,area,bucket,out,uniform,...regional?[c.cover]:[]]),grid:[Math.ceil(c.triangles/64)]});
   }
   nearest.encode(e);gpu.device.queue.submit([e.finish()]);
   const gather=gpu.bind(distribute,[current,previous,nearest.nearest,bucket,...regional?[area]:[]],f.movingRoad?coords:null);
   const totalPower=await sumForce(gpu,bucket,count);
-  return {current,bind:state=>volumeDissipation(gpu,f,dt,state,mobility,current),
+  return {current,previous,nearest:nearest.nearest,siteBins:parts.map(p=>p.siteBin),
+    bind:(state,fields)=>volumeDissipation(gpu,f,dt,state,mobility,current,fields),
     async publish(steps,complete,force,check,encodeFields){
       check();const b=gpu.device.createCommandEncoder();b.clearBuffer(bucket);gpu.dispatch(b,distribute,gather,grid);
-      if(complete)b.copyBufferToBuffer(current,0,previous,0,bytes);gpu.device.queue.submit([b.finish()]);
+      gpu.device.queue.submit([b.finish()]);
       const watts=(await totalPower())/steps;check();
       if(!Number.isFinite(watts))throw failure('NONFINITE_LOSS','The integrated dissipation is nonfinite.');
       const normalized=f.U>0&&force>=0&&watts>0,scale=normalized?force/watts:1;
@@ -3911,10 +3940,188 @@ export async function surfaceLoss(gpu,display,f,dt,chunks,mobility){
       gpu.device.queue.writeBuffer(uniform,0,new Float32Array([1/steps,scale,1/reference,0]));
       const result=gpu.device.createCommandEncoder();for(const p of parts)gpu.dispatch(result,write,p.group,p.grid);
       encodeFields?.(result);
+      if(complete)result.copyBufferToBuffer(current,0,previous,0,bytes);
       gpu.device.queue.submit([result.finish()]);
       return {unit:normalized?'N/m2':'W/m2',attributedPowerW:watts,forceNormalizationN:normalized?force:null};
     }
   };
+}
+
+const maxStreamlines=256,streamPoints=129;
+// Arc-length RK2 in physical space. Trace both halves of each streamline and
+// traverse crossed finite-volume faces in parametric order, including thin sheets.
+export async function streamlinePaths(gpu,f,domain,macro,scalars){
+  const {device}=gpu,{region,bodies,scale}=domain,q=.5*f.rho*f.maxSpeed**2;
+  const data=new Float32Array([...region.inverse,...region.center,0,...region.halfAxes.flatMap(v=>[...v,0]),
+    ...bodies.min,0,...bodies.max,0,f.maxSpeed,scale,q,q*f.maxSpeed/scale]);
+  const regionBuffer=gpu.buffer('CFD streamline region and reference scales',data,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+  const grid=gridWGSL(f)+metricWGSL(f),origin=`vec3f(${f.origin.join(',')})`;
+  const pipe=await gpu.kernel('CFD bidirectional RK2 through open physical cells',grid+`
+    struct Region{inverse:mat4x4f,center:vec4f,a:vec4f,b:vec4f,c:vec4f,lo:vec4f,hi:vec4f,scales:vec4f}
+    struct Vertex{point:vec4f,colors:vec4f}
+    struct Sample{u:vec3f,valid:bool,colors:vec4f}
+    @group(0) @binding(0) var<storage,read> field:array<vec4f>;@group(0) @binding(1) var<storage,read> scalar:array<vec4f>;
+    @group(0) @binding(2) var<uniform> region:Region;@group(0) @binding(3) var<storage,read_write> paths:array<Vertex>;
+    @group(0) @binding(4) var<storage,read_write> lengths:array<u32>;@group(0) @binding(5) var<uniform> count:vec4u;
+    fn metres(x:vec3f)->vec3f{return ${origin}+x*${f.h};}
+    fn coordinate(x:vec3f)->vec3f{return (x-${origin})/${f.h};}
+    fn cell(x:vec3f)->vec3i{
+      var p=vec3i(0);for(var a=0u;a<3u;a++){var lo=0;var hi=DIMS[a];
+        loop{if(lo+1>=hi){break;}let mid=(lo+hi)/2;let m=axisMetric(a,mid);if(x[a]<m.x-.5*m.y){hi=mid;}else{lo=mid;}}
+        p[a]=lo;}return p;
+    }
+    fn regionContains(x:vec3f)->bool{
+      let local=(region.inverse*vec4f(metres(x),1.)).xyz;
+      if(any(local<vec3f(-500.,0.,-500.))||any(local>vec3f(500.,1000.,500.))){return false;}
+      for(var a=0u;a<3u;a++){let lo=axisMetric(a,0);let hi=axisMetric(a,DIMS[a]-1);
+        if(x[a]<lo.x-.5*lo.y||x[a]>hi.x+.5*hi.y){return false;}}return true;
+    }
+    fn flags(p:vec3i)->u32{return u32(scalar[index(p)].w);}
+    fn wet(p:vec3i)->bool{return (flags(p)&8u)!=0u;}
+    fn connected(x:vec3f,y:vec3f,startCell:vec3i,to:vec3i)->bool{
+      var p=startCell;let delta=y-x;
+      for(var hit=0u;hit<8u;hit++){
+        if(all(p==to)){return true;}var best=2.;var axis=3u;var step=0;
+        for(var a=0u;a<3u;a++){if(p[a]==to[a]||delta[a]==0.){continue;}let sign=select(-1,1,to[a]>p[a]);let m=axisMetric(a,p[a]);
+          let time=(m.x+.5*f32(sign)*m.y-x[a])/delta[a];if(time<best){best=time;axis=a;step=sign;}}
+        if(axis>2u){return false;}var next=p;next[axis]+=step;
+        if(!inside(next)||!wet(next)||(flags(select(next,p,step>0))&(1u<<axis))==0u){return false;}p=next;
+      }return false;
+    }
+    fn sample(x:vec3f,p:vec3i)->Sample{
+      var out:Sample;if(!wet(p)){return out;}
+      let center=cellCenters(p);let base=clamp(p-vec3i(x<center),vec3i(0),DIMS-vec3i(2));
+      let left=cellCenters(base);let t=clamp((x-left)/(cellCenters(base+vec3i(1))-left),vec3f(0),vec3f(1));
+      var u=vec4f(0);var obs=vec3f(0);var weight=0.;var validGamma=0.;
+      for(var k=0u;k<8u;k++){let d=vec3i(i32(k&1u),i32((k>>1u)&1u),i32(k>>2u));let donor=base+d;
+        let v=select(1.-t,t,d!=vec3i(0));let w=v.x*v.y*v.z;
+        if(w<=0.||!wet(donor)||!connected(x,cellCenters(donor),p,donor)){continue;}
+        let j=index(donor);let s=scalar[j];u+=w*field[j];obs.x+=w*s.x;obs.z+=w*s.z;weight+=w;
+        if(s.y>=0.){obs.y+=w*s.y;validGamma+=w;}}
+      if(weight<=0.){return out;}out.u=u.xyz/weight;out.valid=length(out.u)>1e-7*region.scales.x;
+      out.colors=vec4f(u.w/weight,obs.x/weight,select(-1.,obs.y/max(validGamma,1e-30),validGamma>0.),obs.z/weight);return out;
+    }
+    fn quasi(i:u32)->vec3f{return fract((f32(i)+.5)*vec3f(.754877666,.569840291,.438447187)+vec3f(.17,.31,.73));}
+    fn importance(x:vec3f)->f32{
+      if(!regionContains(x)){return -1.;}let p=cell(x);let j=index(p);if(!wet(p)||length(field[j].xyz)<1e-7*region.scales.x){return -1.;}
+      var du:mat3x3f;for(var a=0u;a<3u;a++){var h=p;h[a]++;if(inside(h)&&wet(h)&&(flags(p)&(1u<<a))!=0u){
+        du[a]=(field[index(h)].xyz-field[j].xyz)*axisMetric(a,p[a]).z/${f.h};}}
+      let curl=vec3f(du[1].z-du[2].y,du[2].x-du[0].z,du[0].y-du[1].x);
+      let s=scalar[j];return log(1.+s.x/max(region.scales.w,1e-30))+log(1.+length(curl)*region.scales.y/region.scales.x)+max(0.,s.y);
+    }
+    fn seed(id:u32)->vec3f{
+      let r=2.*quasi(id)-1.;var start=region.center.xyz-.998*region.a.xyz+r.y*region.b.xyz+r.z*region.c.xyz;
+      if(${f.U>0}&&id%4u==0u){return coordinate(start);}
+      let span=max(region.hi.xyz-region.lo.xyz,vec3f(.18*region.scales.y));
+      let lo=region.lo.xyz-.38*span;let hi=region.hi.xyz+.38*span;var best=-1.;
+      for(var i=0u;i<12u;i++){let candidate=coordinate(mix(lo,hi,quasi(17u*id+47u*i+3u)));
+        let score=importance(candidate);if(score>best){best=score;start=metres(candidate);}}
+      return coordinate(start);
+    }
+    @compute @workgroup_size(32) fn main(@builtin(global_invocation_id) g:vec3u){
+      let trace=g.x;if(trace>=2u*count.x){return;}let direction=select(1.,-1.,(trace&1u)!=0u);
+      var x=seed(trace/2u);var p=cell(x);var n=0u;
+      if(regionContains(x)){var v=sample(x,p);
+        for(var i=0u;i<${streamPoints}u;i++){
+          if(!v.valid){break;}paths[trace*${streamPoints}u+i]=Vertex(vec4f(metres(x),1.),v.colors);n++;
+          let unit=direction*normalize(v.u);let lens=cellWidths(p)/max(abs(unit),vec3f(1e-8));
+          var step=.72*min(lens.x,min(lens.y,lens.z));var advanced=false;
+          for(var retry=0u;retry<4u;retry++){
+            let mid=x+.5*step*unit;let m=cell(mid);
+            if(regionContains(mid)&&connected(x,mid,p,m)){let half=sample(mid,m);
+              if(half.valid&&dot(normalize(v.u),normalize(half.u))>.995){let y=x+direction*step*normalize(half.u);let next=cell(y);
+                if(regionContains(y)&&connected(x,y,p,next)){let sampleY=sample(y,next);
+                  if(sampleY.valid){x=y;p=next;v=sampleY;advanced=true;break;}}}}
+            step*=.5;
+          }if(!advanced){break;}
+        }}lengths[trace]=n;
+    }`);
+  let density=0,vertices=null,lengths=null,bind=null,count=null;
+  function encode(e){if(density)gpu.dispatch(e,pipe,bind,[Math.ceil(2*density/32)]);}
+  function set(value){
+    if(density===value)return;density=value;
+    if(!density)return;
+    if(!vertices){
+      vertices=gpu.buffer('CFD integrated streamline samples',2*maxStreamlines*streamPoints*32);
+      lengths=gpu.buffer('CFD valid points in each directed streamline',2*maxStreamlines*4);
+      count=gpu.buffer('CFD streamline density',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+      bind=gpu.bind(pipe,[macro,scalars,regionBuffer,vertices,lengths,count],metricBuffer(gpu,f));
+    }
+    device.queue.writeBuffer(count,0,new Uint32Array([value]));const e=device.createCommandEncoder();encode(e);device.queue.submit([e.finish()]);
+  }
+  async function read(seedIndex,backward){
+    if(!Number.isInteger(seedIndex)||seedIndex<0||seedIndex>=density)throw failure('INVALID_ARGUMENT','The selected streamline seed is unavailable.');
+    const trace=2*seedIndex+Number(backward),bytes=streamPoints*32;
+    const buffer=device.createBuffer({label:'CFD bounded streamline readback',size:bytes+4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    try{
+      const e=device.createCommandEncoder();e.copyBufferToBuffer(vertices,trace*bytes,buffer,0,bytes);e.copyBufferToBuffer(lengths,trace*4,buffer,bytes,4);
+      device.queue.submit([e.finish()]);await buffer.mapAsync(GPUMapMode.READ);
+      const data=buffer.getMappedRange(),n=new Uint32Array(data,bytes,1)[0],values=new Float32Array(data,0,streamPoints*8);
+      return Array.from({length:n},(_,i)=>({pointM:Array.from(values.subarray(8*i,8*i+3)),pressurePa:values[8*i+4],
+        dissipationWPerM3:values[8*i+5],gammaRev:values[8*i+6]<0?null:values[8*i+6],adjointMagnitude:values[8*i+7]}));
+    }finally{buffer.destroy();}
+  }
+  return {set,encode,read,get density(){return density;},get vertices(){return vertices;},get lengths(){return lengths;},regionBuffer,
+    physicalToLocal:region.inverse};
+}
+
+// Retain SI velocity, gauge pressure and display scalars on the physical grid.
+// Both macroscopic quantities and dissipation use the same two time windows.
+async function streamlineVolume(gpu,display,f,domain,dt,chunks,loss,mobility){
+  const n=countOf(f.dims),grid=[Math.ceil(n/128)],bytes=16*n,coords=metricBuffer(gpu,f);
+  const sum=gpu.buffer('CFD current volume field sum',bytes),previous=gpu.buffer('CFD previous volume field sum',bytes);
+  const macro=display.gpu.buffer('CFD mean velocity and pressure',bytes),scalars=display.gpu.buffer('CFD streamline scalars and face connectivity',bytes);
+  const reversals=gpu.buffer('CFD area-weighted reversal observations by nearest surface bin',8*n);
+  const scale=gpu.buffer('CFD volume observation count',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+  const mean=await gpu.kernel('CFD mean volume velocity and pressure',`
+    @group(0) @binding(0) var<storage,read> now:array<vec4f>;@group(0) @binding(1) var<storage,read> prior:array<vec4f>;
+    @group(0) @binding(2) var<storage,read_write> out:array<vec4f>;@group(0) @binding(3) var<uniform> invSteps:vec4f;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=arrayLength(&out)){return;}let v=(now[i]+prior[i])*invSteps.x;
+      out[i]=vec4f(v.xyz*${f.h/dt},v.w*${f.rho*(f.h/dt)**2});
+    }`);
+  const bin=await gpu.kernel('CFD assign measured surface reversal to its physical wall bin',positiveAtomicWGSL+`
+    struct Site{point:vec4f,normal:vec4f,near:vec4f,far:vec4f}
+    @group(0) @binding(0) var<storage,read> sites:array<Site>;@group(0) @binding(1) var<storage,read> cell:array<u32>;
+    @group(0) @binding(2) var<storage,read> value:array<vec4f>;
+    ${f.regionalLoads?'@group(0) @binding(4) var<storage,read> cover:array<f32>;':''}
+    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=arrayLength(&sites)||cell[i]==0u){return;}
+      let s=sites[i];let v=value[i/3u];if(s.normal.w<0.||v.w<=0.){return;}
+      let a=s.point.w*v.w${f.regionalLoads?'*cover[i]':''};let k=2u*(cell[i]-1u);
+      addPositive(k,a*v.y);addPositive(k+1u,a);
+    }`);
+  const summarize=await gpu.kernel('CFD volumetric loss, reversal and open faces',gridWGSL(f)+metricWGSL(f)+`
+    @group(0) @binding(0) var<storage,read> now:array<f32>;@group(0) @binding(1) var<storage,read> prior:array<f32>;
+    @group(0) @binding(2) var<storage,read> m:array<vec4f>;@group(0) @binding(3) var<storage,read> nearest:array<u32>;
+    @group(0) @binding(4) var<storage,read> wall:array<vec2f>;@group(0) @binding(5) var<storage,read_write> out:array<vec4f>;
+    @group(0) @binding(6) var<uniform> invSteps:vec4f;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}let mu=m[i];let w=cellWidths(point(i));
+      let volume=w.x*w.y*w.z*mu.w*${f.h**3};let id=nearest[i];var gamma=-1.;
+      if(id>0u){let v=wall[id-1u];if(v.y>0.){gamma=clamp(v.x/v.y,0.,1.);}}
+      let flags=dot(vec4u(mu>vec4f(.5)),vec4u(1,2,4,8));
+      out[i]=vec4f((now[i]+prior[i])*invSteps.x/max(volume,1e-32),gamma,0.,f32(flags));
+    }`);
+  const storeAdjoint=await gpu.kernel('CFD resolved momentum adjoint magnitude',`
+    @group(0) @binding(0) var<storage,read> lambda:array<vec4f>;@group(0) @binding(1) var<storage,read_write> out:array<vec4f>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i<arrayLength(&out)){out[i].z=length(lambda[i].xyz);}
+    }`);
+  const a=gpu.bind(mean,[sum,previous,macro,scale]),b=gpu.bind(summarize,[loss.current,loss.previous,mobility,loss.nearest,reversals,scalars,scale],coords);
+  const groups=chunks.map((c,i)=>({group:gpu.bind(bin,[c.site,loss.siteBins[i],display.chunks[i].visible,reversals,...c.cover?[c.cover]:[]]),
+    grid:[Math.ceil(3*c.triangles/64)]}));
+  const flow=display.flow=await streamlinePaths(display.gpu,f,domain,macro,scalars);
+  return {sum,setSteps:steps=>gpu.device.queue.writeBuffer(scale,0,new Float32Array([1/steps])),
+    resolve(e,complete){
+      gpu.dispatch(e,mean,a,grid);e.clearBuffer(reversals);
+      for(const p of groups)gpu.dispatch(e,bin,p.group,p.grid);
+      gpu.dispatch(e,summarize,b,grid);if(complete)e.copyBufferToBuffer(sum,0,previous,0,bytes);flow.encode(e);
+    },
+    publishAdjoint(lambda){
+      const e=gpu.device.createCommandEncoder();gpu.dispatch(e,storeAdjoint,gpu.bind(storeAdjoint,[lambda,scalars]),grid);
+      flow.encode(e);gpu.device.queue.submit([e.finish()]);
+    }};
 }
 
 async function publishNativeShape(gpu,display,shape,chunks,gradient,referenceDensity,check){
@@ -3987,7 +4194,7 @@ async function publishNativeShape(gpu,display,shape,chunks,gradient,referenceDen
 // Three equal-area quadrature sites belong to each original native triangle.
 // Pressure is extrapolated from two fluid-side stencils. Count shear reversals
 // before averaging, relative to the tangential exterior flow in the wall frame.
-async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility){
+async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility,domain){
   const grid=gridWGSL(f),velScale=f.h/dt,pressureScale=f.rho*velScale**2;
   if(f.regionalLoads)await clipNativeSurfaceRegion(gpu,chunks);
   const sample=await gpu.kernel('CFD time-resolved native surface quadrature',grid+`
@@ -4042,23 +4249,27 @@ async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility){
   }
   display.dynamicPressure=.5*f.rho*f.maxSpeed**2;
   const losses=await surfaceLoss(gpu,display,f,dt,chunks,mobility);
+  const volume=await streamlineVolume(gpu,display,f,domain,dt,chunks,losses,mobility);
   display.description={available:['Drag','Pressure','Separation'],pressureUnit:'Pa',separationUnit:'fraction',surfaceRegion:'held-frame',
     occurrences:[...occurrences].map(([m,occurrence])=>({occurrence,hash:m.hash,triangles:m.triangleCount,vertices:m.vertexCount}))};
   let previousSteps=0;
   return {
     async bind(p,state){
-      const dissipate=await losses.bind(state);
+      const dissipate=await losses.bind(state,[p,volume.sum]);
       const bindings=work.map(c=>gpu.bind(sample,[c.site,p,state,c.sum,...c.cover?[c.cover]:[]]));
       return e=>{dissipate(e);for(const [i,c] of work.entries())gpu.dispatch(e,sample,bindings[i],c.grid);};
     },
-    begin(e){e.clearBuffer(losses.current);for(const c of work)e.clearBuffer(c.sum);},
+    publishAdjoint:volume.publishAdjoint,
+    begin(e){e.clearBuffer(losses.current);e.clearBuffer(volume.sum);for(const c of work)e.clearBuffer(c.sum);},
     async publish(steps,complete,force,check){
       check();gpu.device.queue.writeBuffer(uniform,0,new Float32Array([pressureScale,1/(3*(steps+previousSteps)),0,0]));
+      volume.setSteps(steps+previousSteps);
       const loss=await losses.publish(steps+previousSteps,complete,force,check,e=>{
         for(const c of work){
           gpu.dispatch(e,resolve,c.resolve,c.grid);
           if(complete)e.copyBufferToBuffer(c.sum,0,c.previous,0,c.sum.size);
         }
+        volume.resolve(e,complete);
       });check();
       display.description={...display.description,loss};
       if(complete)previousSteps=steps;
@@ -4090,6 +4301,62 @@ async function probeSurface(device,display,occurrence,triangle){
 // Draw the renderer's original indexed triangles, including paged meshes.
 // The surface values are derived data. Camera, depth and authoring stay native.
 const overlayDevices=new WeakMap();
+const fieldProjectionWGSL=`
+  struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f}
+  struct Owner{matrix:mat4x4f,inverse:mat4x4f,color:vec4f,settings:vec4f}
+  @group(1) @binding(0) var<uniform> camera:Camera;@group(1) @binding(1) var<uniform> owner:Owner;
+  override orthographic:bool=false;
+  fn clipField(local:vec4f)->vec4f{
+    let world=(owner.matrix*local).xyz;
+    let p=(frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1.)).xyz;
+    let xy=p.xy+camera.viewport.zw;let depth=-p.z;let span=camera.clip.y-camera.clip.x;
+    if(orthographic){return vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/span,1.);}
+    return vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/span,depth);
+  }
+  fn fieldColor(mode:u32,value:f32)->vec3f{
+    let neutral=vec3f(.78,.83,.85);
+    if(mode==0u){return mix(neutral,select(vec3f(.12,.37,.76),vec3f(.84,.20,.10),value>0.),clamp(abs(value),0.,1.));}
+    if(mode==1u){let color=mix(neutral,vec3f(.93,.62,.10),smoothstep(0.,.5,value));
+      return mix(color,vec3f(.74,.10,.12),smoothstep(.5,1.,value));}
+    if(mode==2u){let intensity=sqrt(max(0.,value));
+      let color=mix(vec3f(.12,.30,.41),vec3f(.96,.72,.20),smoothstep(0.,.65,intensity));
+      return mix(color,vec3f(.78,.14,.08),smoothstep(.65,1.5,intensity));}
+    return mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),value>0.),sqrt(abs(value)/(1.+abs(value))));
+  }`;
+async function streamlineOverlay(ctx,display,cache){
+  const device=ctx.device,flow=display.flow,stage=GPUShaderStage;
+  if(!cache.lines)cache.lines=(async()=>{
+    const layout=device.createBindGroupLayout({entries:[0,1,2,3].map(binding=>({binding,visibility:stage.VERTEX,
+      buffer:{type:binding<2?'read-only-storage':'uniform'}}))});
+    const module=device.createShaderModule({label:'CFD streamline colors',code:ctx.viewport.cameraWGSL+fieldProjectionWGSL+`
+      struct Region{inverse:mat4x4f,center:vec4f,a:vec4f,b:vec4f,c:vec4f,lo:vec4f,hi:vec4f,scales:vec4f}
+      struct Vertex{point:vec4f,colors:vec4f} struct Out{@builtin(position) clip:vec4f,@location(0) color:vec3f}
+      @group(0) @binding(0) var<storage,read> paths:array<Vertex>;@group(0) @binding(1) var<storage,read> lengths:array<u32>;
+      @group(0) @binding(2) var<uniform> region:Region;@group(0) @binding(3) var<uniform> mode:vec4u;
+      @vertex fn vs(@builtin(instance_index) trace:u32,@builtin(vertex_index) i:u32)->Out{
+        let n=lengths[trace];if(n<2u){return Out(vec4f(0.,0.,-1.,1.),vec3f(0.));}
+        let v=paths[trace*${streamPoints}u+min(i,n-1u)];var value=0.;
+        switch mode.x{case 0u:{value=v.colors.x/region.scales.z;}case 1u:{value=v.colors.z;}
+          case 2u:{value=v.colors.y/region.scales.w;}default:{value=v.colors.w;}}
+        return Out(clipField(region.inverse*v.point),fieldColor(mode.x,value));
+      }
+      @fragment fn fs(v:Out)->@location(0) vec4f{return vec4f(v.color,1.);}`});
+    const pl=device.createPipelineLayout({bindGroupLayouts:[layout,cache.camera]});
+    const pipes=await Promise.all([false,true].map(orthographic=>device.createRenderPipelineAsync({label:'CFD physical streamlines',layout:pl,
+      vertex:{module,entryPoint:'vs',constants:{orthographic}},fragment:{module,entryPoint:'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat()}]},
+      primitive:{topology:'line-strip'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}})));
+    return {layout,pipes};
+  })().catch(e=>{cache.lines=null;throw e;});
+  const {layout,pipes}=await cache.lines;
+  const config=display.gpu.buffer('CFD active streamline color field',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+  let group,previous;
+  return (pass,view,orthographic,mode)=>{
+    if(!flow.density)return;
+    group??=device.createBindGroup({layout,entries:[flow.vertices,flow.lengths,flow.regionBuffer,config].map((buffer,binding)=>({binding,resource:{buffer}}))});
+    if(mode!==previous){device.queue.writeBuffer(config,0,new Uint32Array([mode]));previous=mode;}
+    pass.setPipeline(pipes[Number(orthographic)]);pass.setBindGroup(0,group);pass.setBindGroup(1,view);pass.draw(streamPoints,2*flow.density);
+  };
+}
 async function nativeFieldOverlay(ctx,display){
   const device=ctx.device,stage=GPUShaderStage,usage=GPUBufferUsage;
   let cache=overlayDevices.get(device);
@@ -4103,46 +4370,25 @@ async function nativeFieldOverlay(ctx,display){
     const layout=device.createBindGroupLayout({entries:[...native,{binding:2,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}},
       {binding:3,visibility:stage.VERTEX|stage.FRAGMENT,buffer:{type:'uniform'}},
       {binding:4,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}},{binding:5,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}}]});
-    const module=device.createShaderModule({label:'CFD native surface map',code:ctx.viewport.cameraWGSL+meshReader(storage)+`
-      struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f}
-      struct Owner{matrix:mat4x4f,inverse:mat4x4f,color:vec4f,settings:vec4f}
+    const module=device.createShaderModule({label:'CFD native surface map',code:ctx.viewport.cameraWGSL+fieldProjectionWGSL+meshReader(storage)+`
       struct Config{relative:mat4x4f,first:u32,mode:u32,dynamicPressure:f32}
-      @group(1) @binding(0) var<uniform> camera:Camera;
-      @group(1) @binding(1) var<uniform> owner:Owner;
       @group(0) @binding(2) var<storage,read> field:array<vec4f>;
       @group(0) @binding(3) var<uniform> cfg:Config;
       @group(0) @binding(4) var<storage,read> loss:array<vec4f>;
       @group(0) @binding(5) var<storage,read> shape:array<vec4f>;
-      override orthographic:bool=false;
       struct Out{@builtin(position) clip:vec4f,@location(0) value:vec4f,@location(1) local:vec3f,@location(2) loss:vec2f}
       @vertex fn vs(@builtin(vertex_index) v:u32)->Out{
         let local=cfg.relative*vec4f(sourcePoint(3u*cfg.first+v),1.);
-        let world=(owner.matrix*local).xyz;
-        let p=(frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
-        let xy=p.xy+camera.viewport.zw;let depth=-p.z;let span=camera.clip.y-camera.clip.x;
         var out:Out;out.local=local.xyz;out.value=field[v/3u];out.loss=loss[v/3u].zw;
         if(cfg.mode==3u){out.loss=shape[v/3u].zw;}
-        if(orthographic){out.clip=vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/span,1.);}
-        else{out.clip=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/span,depth);}
-        return out;
+        out.clip=clipField(local);return out;
       }
       @fragment fn fs(input:Out)->@location(0) vec4f{
         if(any(input.local<vec3f(-500.,0.,-500.))||any(input.local>vec3f(500.,1000.,500.))){discard;}
-        let value=input.value;let neutral=vec3f(.78,.83,.85);var color=neutral;
-        if(cfg.mode==0u){
-          if(value.z<=0.){discard;}let cp=value.x/cfg.dynamicPressure;
-          color=mix(neutral,select(vec3f(.12,.37,.76),vec3f(.84,.20,.10),cp>0.),clamp(abs(cp),0.,1.));
-        }else if(cfg.mode==1u){
-          if(value.w<=0.){discard;}color=mix(neutral,vec3f(.93,.62,.10),smoothstep(0.,.5,value.y));
-          color=mix(color,vec3f(.74,.10,.12),smoothstep(.5,1.,value.y));
-        }else if(cfg.mode==2u){
-          if(input.loss.x<=0.){discard;}let intensity=sqrt(max(0.,input.loss.y));
-          color=mix(vec3f(.12,.30,.41),vec3f(.96,.72,.20),smoothstep(0.,.65,intensity));
-          color=mix(color,vec3f(.78,.14,.08),smoothstep(.65,1.5,intensity));
-        }else{
-          if(input.loss.x<=0.){discard;}let signed=input.loss.y;
-          color=mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),signed>0.),sqrt(abs(signed)/(1.+abs(signed))));
-        }return vec4f(color,1.);
+        var value=input.loss.y;
+        if(cfg.mode==0u){if(input.value.z<=0.){discard;}value=input.value.x/cfg.dynamicPressure;}
+        else if(cfg.mode==1u){if(input.value.w<=0.){discard;}value=input.value.y;}
+        else if(input.loss.x<=0.){discard;}return vec4f(fieldColor(cfg.mode,value),1.);
       }`});
     const pl=device.createPipelineLayout({bindGroupLayouts:[layout,cache.camera]});
     const pipelines=await Promise.all([false,true].map(orthographic=>device.createRenderPipelineAsync({label:'CFD surface observations',
@@ -4163,7 +4409,7 @@ async function nativeFieldOverlay(ctx,display){
     const group=device.createBindGroup({layout:type.layout,entries:resources.map((resource,binding)=>({binding,resource}))});
     records.push({config,group,type,vertices:3*c.triangles});
   }
-  let previousMode=0;
+  const lines=await streamlineOverlay(ctx,display,cache);let previousMode=0;
   return ({pass,camera,frame,orthographic})=>{
     let byFrame=cache.frames.get(camera);
     if(!byFrame){byFrame=new WeakMap();cache.frames.set(camera,byFrame);}
@@ -4176,6 +4422,7 @@ async function nativeFieldOverlay(ctx,display){
       pass.setBindGroup(0,r.group);pass.draw(r.vertices);
     }
     previousMode=mode;
+    lines(pass,view,orthographic,mode);
   };
 }
 
