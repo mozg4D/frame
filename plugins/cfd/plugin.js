@@ -474,7 +474,7 @@ function wallMotionReport(context,owner,points){
 }
 
 const flowBudgets={
-  preview:{tier:.45,cells:32768,windows:12},
+  preview:{tier:.45,cells:32768,windows:12,laminarWindows:24},
   standard:{tier:1,cells:750000,windows:32},
   fine:{tier:2,cells:3000000,windows:48}
 };
@@ -586,6 +586,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
   if(!Number.isFinite(reynolds)||maxSpeed/fluid.soundSpeedMps>.25)throw failure('FLOW_REGIME','This solve requires an incompressible flow with reference Mach at most 0.25.');
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
+  const windowLimit=wallModeled?budget.windows:budget.laminarWindows??budget.windows;
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
   const settings={origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
@@ -598,7 +599,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   if(history.paired&&(!prior||prior.frameKey!==source.frameKey))throw failure('CFD_PAIR_UNAVAILABLE','The baseline needs the same CFD box, physical frame, ground and fidelity.');
   if(history.paired&&domain.bodies.min.some((x,a)=>x<prior.grid.axes[a][0]-1e-12||domain.bodies.max[a]>prior.grid.axes[a].at(-1)+1e-12))
     throw failure('CFD_PAIR_OUTSIDE_GRID','The edited geometry extends beyond the paired computational domain.');
-  const f=history.paired?{...settings,...prior.grid}:gradeCapturedDomain(settings,domain.bodies,budget.tier,cap);
+  const refinement=history.refinement;
+  const f=refinement?{...settings,...refinement.grid}:history.paired?{...settings,...prior.grid}:gradeCapturedDomain(settings,domain.bodies,budget.tier,cap);
   const crossesRegion=bounds=>bounds.some(b=>Array.from({length:8},(_,k)=>ctx.math.point(domain.region.inverse,
     b.min.map((v,a)=>k&(1<<a)?b.max[a]:v))).some(p=>p.some((v,a)=>v<LOCAL_BOX.min[a]-1e-4||v>LOCAL_BOX.max[a]+1e-4)));
   const partiallyContained=crossesRegion(swept);
@@ -653,11 +655,13 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check);check();
     }
     const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,
-      sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null};
+      sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null,
+      ...(refinement?{refinement:{parentJob:prior.id,parentGridHash:prior.gridHash,...refinement.details}}:{})};
     function publishSample(value){
       const paired=history.paired?{baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
         deltaDragN:value.forceLocal.drag-prior.drag}:null;
-      publish({...value,validity:{...value.validity,...gridValidity},...(paired?{paired}:{}),
+      publish({...value,validity:{...value.validity,...gridValidity,...(refinement?{spatialConvergence:'two-nested-grids',
+        refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag}}:{})},...(paired?{paired}:{}),
         initialization:restart?{kind:'projected-stationary-predictor',fromJob:prior.id,...restart}:{kind:'uniform-inflow'}});
     }
     async function publishFinished(value){
@@ -665,14 +669,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       check();display.colorScale=statistics.surfaceColorScale;
       publishSample({...value,...statistics});
     }
-    async function retain(drag){
+    async function retain(drag,transportWeights=null){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
       const buffer=f.laminar&&16*count<=checkpointBytes?await savePredictor(gpu,solver,count,check):null;
-      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag});}
+      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag,transportWeights});}
       catch(e){buffer?.destroy();throw e;}
     }
     let step=0;
-    for(let window=0;window<budget.windows;window++){
+    for(let window=0;window<windowLimit;window++){
       check();const e=device.createCommandEncoder();for(const b of [force,solver.loads,solver.transverseImpulse])if(b)e.clearBuffer(b);
       regional?.begin(e);profiles.begin(e);fields.begin(e);device.queue.submit([e.finish()]);
       const first=step,end=Math.max(first+1,Math.round((window+1)*period/dt));
@@ -705,18 +709,18 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           surfaceFields:display.description,
           uncertainty:forceUncertainty(windows,source.axes,source.dragAxis),
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
-            temporalConvergence:stationary?'window-stationary':step===end&&window+1===budget.windows?'window-limit':'sampling',
+            temporalConvergence:stationary?'window-stationary':step===end&&window+1===windowLimit?'window-limit':'sampling',
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
             ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
             ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'};
         if(!stationary){
-          if(step===end&&window+1===budget.windows)await publishFinished(result);
+          if(step===end&&window+1===windowLimit)await publishFinished(result);
           else publishSample(result);
           continue;
         }
         if(!geom.shape){await retain(physical.forceLocal.drag);await publishFinished(result);return true;}
         if(baseDefect>.025){
-          if(window+1<budget.windows){publishSample(result);continue;}
+          if(window+1<windowLimit){publishSample(result);continue;}
           await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
         }
         publishSample({...result,shape:{state:'solving',objective:'drag'}});
@@ -734,12 +738,17 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         const sensitivity={state:resolved?'ready':'iteration-limit',objective:'drag',method:'steady-discrete-laminar',
           geometry:'native-fixed-topology',samples:geom.shape.samples,iterations,momentumDefect:defects[0],pressureDefect:defects[1],
           stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
+        let transportWeights=null;
         if(resolved){
           await publishNativeShape(gpu,display,geom.shape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
           await fields.publishAdjoint(adj.lambda);check();
+          transportWeights=await adjointTransportWeights(gpu,f,dt,solver,adj);check();
+          const byAxis=transportWeights.map(axis=>axis.reduce((sum,v)=>sum+v,0));
+          if(byAxis.every(Number.isFinite))sensitivity.refinementIndicator={objective:'drag',estimator:'adjoint-weighted-momentum-transport',byAxisN:byAxis};
+          else transportWeights=null;
           display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
         }
-        check();await retain(physical.forceLocal.drag);await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});return true;
+        check();await retain(physical.forceLocal.drag,transportWeights);await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});return true;
       }
     }
     return false;
@@ -789,7 +798,8 @@ export async function activate(context){
   function dropCheckpoint(c){checkpoints.delete(c.id);c.buffer?.destroy();}
   function retainCheckpoint(job,c){
     const epoch=context.fields.authoringStamp().epoch;
-    checkpoints.set(job.id,{...c,id:job.id,owner:job.owner,device:job.device,epoch,frameKey:job.source.frameKey,geometryKey:job.source.geometryKey});
+    checkpoints.set(job.id,{...c,id:job.id,owner:job.owner,device:job.device,epoch,frameKey:job.source.frameKey,
+      geometryKey:job.source.geometryKey,operatingKey:job.source.operatingKey});
     let bytes=0,count=0;
     for(const entry of [...checkpoints.values()].reverse()){
       bytes+=entry.buffer?.size??0;
@@ -799,14 +809,20 @@ export async function activate(context){
   function previousCheckpoint(job){
     const epoch=context.fields.authoringStamp().epoch;
     const entries=[...checkpoints.values()].reverse().filter(c=>c.owner===job.owner&&c.epoch===epoch&&c.device===job.device);
-    const prior=job.pairedWithJob?entries.find(c=>c.id===job.pairedWithJob):entries[0];
+    const parent=job.pairedWithJob??job.refineFromJob;
+    const prior=parent?entries.find(c=>c.id===parent):entries[0];
     if(job.pairedWithJob&&(!prior||job.source.frameKey!==prior.frameKey))
       throw failure('CFD_PAIR_UNAVAILABLE','Choose a retained stationary job of this box at the same physical frame and fidelity.');
-    return {prior,paired:!!job.pairedWithJob,save:c=>retainCheckpoint(job,c)};
+    if(job.refineFromJob&&(!prior?.transportWeights||prior.operatingKey!==job.source.operatingKey))
+      throw failure('CFD_REFINEMENT_UNAVAILABLE','Choose a retained stationary Shape solution of this geometry at the same operating point.');
+    const limits=job.device.limits;
+    const refinement=job.refineFromJob?refineAdjointGrid(prior.grid,prior.transportWeights,
+      Math.min(flowBudgets[job.fidelity].cells,Math.floor(limits.maxStorageBufferBindingSize/48)),Math.floor(limits.maxUniformBufferBindingSize/16)):null;
+    return {prior,paired:!!job.pairedWithJob,refinement,save:c=>retainCheckpoint(job,c)};
   }
   function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);detach(hash);
     for(const c of checkpoints.values())if(c.owner===hash)dropCheckpoint(c);}
-  function newJob(hash,fidelity,pairedWithJob){
+  function newJob(hash,fidelity,pairedWithJob,refineFromJob){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
     const world=context.document.world(hash),pivot=context.document.pivot(hash);
     source.owner=hash;source.boxAxes=boxAxes(world);
@@ -817,16 +833,17 @@ export async function activate(context){
     source.geometryKey=source.capture.meshes.length?context.scene.signature(hash,[],{bounds:LOCAL_BOX}):null;
     source.dragAxis=basis?.map(v=>v[0])??[1,0,0];
     source.pivot=context.math.point(flowMetric(world,source.motion?.axisOriginM??[0,0,0],basis),pivot.slice(12,15));
-    const key=JSON.stringify([fidelity,source.capture.signature,source.animationSignature,world,pivot,source.fps,
-      source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS,pairedWithJob]);
-    return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,pairedWithJob,key,state:'queued',result:null,stopped:false};
+    source.operatingKey=JSON.stringify([source.capture.signature,source.animationSignature,world,pivot,source.fps,
+      source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS]);
+    const key=JSON.stringify([fidelity,source.operatingKey,pairedWithJob,refineFromJob]);
+    return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,pairedWithJob,refineFromJob,key,state:'queued',result:null,stopped:false};
   }
   function remember(job){
     const a=archive(job.owner,true);if(!a)return;
     const {surfaceFields,shape,...numbers}=job.result;
     if(!surfaceFields){closeDisplay(job.display);job.display=null;}
     const old=a.solutions.get(job.key);if(old?.display&&old.display!==job.display)closeDisplay(old.display);
-    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,pairedWithJob:job.pairedWithJob,state:job.state,
+    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,pairedWithJob:job.pairedWithJob,refineFromJob:job.refineFromJob,state:job.state,
       numbers,fields:surfaceFields,shape,display:job.display,hadFields:!!surfaceFields,used:performance.now()});
     a.solutions.set(job.key,solution);a.frames.set(job.source.frame,solution);a.version++;job.solution=solution;trimDisplays();
   }
@@ -857,7 +874,7 @@ export async function activate(context){
       const a=archive(hash),solution=a?.frames.get(context.document.frame);
       if(solution){
         try{
-          const restored=newJob(hash,solution.fidelity,solution.pairedWithJob);
+          const restored=newJob(hash,solution.fidelity,solution.pairedWithJob,solution.refineFromJob);
           if(restored.key===solution.key){restoreSolution(restored,solution);job=restored;}
           else discardArchive(hash);
         }catch{discardArchive(hash);}
@@ -878,17 +895,18 @@ export async function activate(context){
       job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,steps:j.result?.steps??0,error:j.error??null}:null,
       animation:sweepInfo(sweeps.get(hash))};
   }
-  function start(hash,{fidelityBudget='standard',pairedWithJob}={},sweep=null){
+  function start(hash,{fidelityBudget='standard',pairedWithJob,refineFromJob}={},sweep=null){
     const node=find(hash);
     if(!Object.hasOwn(flowBudgets,fidelityBudget))throw failure('INVALID_ARGUMENT','Choose preview, standard or fine fidelity.');
-    if(pairedWithJob!==undefined&&(!Number.isSafeInteger(pairedWithJob)||pairedWithJob<=0))throw failure('INVALID_ARGUMENT','Choose a positive baseline job identifier.');
+    if([pairedWithJob,refineFromJob].some(id=>id!==undefined&&(!Number.isSafeInteger(id)||id<=0))||pairedWithJob&&refineFromJob)
+      throw failure('INVALID_ARGUMENT','Choose a single positive baseline job identifier for comparison or refinement.');
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
     if(!sweep&&sweepBusy(sweeps.get(hash))){sweeps.get(hash).moved=true;stop(hash);}
     const old=current(hash);
-    if(old&&old.fidelity===fidelityBudget&&old.pairedWithJob===pairedWithJob&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
-    const job=newJob(hash,fidelityBudget,pairedWithJob),{device,source}=job,a=archive(hash);
+    if(old&&old.fidelity===fidelityBudget&&old.pairedWithJob===pairedWithJob&&old.refineFromJob===refineFromJob&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
+    const job=newJob(hash,fidelityBudget,pairedWithJob,refineFromJob),{device,source}=job,a=archive(hash);
     const cached=a?.solutions.get(job.key);
-    if(pairedWithJob&&!cached)previousCheckpoint(job);
+    if((pairedWithJob||refineFromJob)&&!cached)previousCheckpoint(job);
     detach(hash);
     if((cached?.state==='ready'||sweep&&cached?.state==='unconverged')&&(!cached.hadFields||cached.display)){
       restoreSolution(job,cached);a.frames.set(source.frame,cached);a.version++;refresh();return status(hash);
@@ -1140,7 +1158,8 @@ export async function activate(context){
         return wallMotionReport(context,hash,p);
       }},
     {id:'solve-frame',description:'Start a Cartesian finite-volume solve on the visible evaluated scene at this frame. Returns a job handle.',
-      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)},pairedWithJob:{type:'integer',minimum:1}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
+      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)},pairedWithJob:{type:'integer',minimum:1},
+        refineFromJob:{type:'integer',minimum:1}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
     {id:'solve-animation',description:'Measure each native animation frame in an inclusive interval, preserving the held playhead on completion.',
       inputSchema:{type:'object',properties:{firstFrame:{type:'integer',minimum:0},lastFrame:{type:'integer',minimum:0},
         fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:solveAnimation},
@@ -1743,7 +1762,7 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
     out[i]=Reverse(vec4f(adj/volume,${solved.forceMask?'region[i]':'1.'}),vec4f(hi,0),vec4f(lo,0));`));
   const native=[solved.state,solved.flux,solved.fluxTail];
   const freeze=gpu.bind(traces,[...native,faces],coords),apply=gpu.bind(adjoint,[...native,faces,lambda,reverse,...solved.forceMask?[solved.forceMask]:[]],coords);
-  return {freeze:e=>gpu.dispatch(e,traces,freeze,grid),encode:e=>gpu.dispatch(e,adjoint,apply,grid)};
+  return {faces,freeze:e=>gpu.dispatch(e,traces,freeze,grid),encode:e=>gpu.dispatch(e,adjoint,apply,grid)};
 }
 
 // Reverse the complete stationary momentum/projection map about its solved
@@ -1816,7 +1835,7 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
   const rhs=gpu.bind(source,[solved.mobility,reverse,mg.rhs],coords);
   const bind=gpu.bind(apply,[solved.mobility,reverse,mg.p,p0,solved.predicted,lambda,gradient,peak],coords);
   // The primal and transpose use the identical conductance hierarchy.
-  return {lambda,gradient,reverse,
+  return {lambda,gradient,reverse,faces:momentum.faces,
     start(e){momentum.freeze(e);e.copyBufferToBuffer(mg.p,0,p0,0,bytes);e.clearBuffer(mg.p);e.clearBuffer(lambda);},
     step(e,iterations=3){
       e.clearBuffer(peak);momentum.encode(e);gpu.dispatch(e,source,rhs,grid);mg.solve(e);
@@ -1825,6 +1844,93 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
     defects:()=>gpu.read(peak,stage,2),
     restore(e){e.copyBufferToBuffer(p0,0,mg.p,0,bytes);}
   };
+}
+
+// Apply the converged force dual to the change in conservative momentum flux
+// under a higher-order reconstruction. Each shared face contributes once.
+// The reconstruction fits cell averages, including on stretched axes.
+export async function adjointTransportWeights(gpu,f,dt,solved,adj){
+  const bins=f.dims.reduce((s,v)=>s+v,0),bytes=8*bins;
+  const marginal=gpu.buffer('CFD directional drag error weights',bytes),stage=gpu.staging('CFD axis error weights',bytes);
+  const kernel=await gpu.kernel('CFD adjoint-weighted enriched momentum flux',gridWGSL(f)+metricWGSL(f)+profileHistogram(6)+`
+    struct Flux{hi:vec4f,lo:vec4f}
+    struct Trace{u:vec3f,branch:u32}
+    @group(0) @binding(0) var<storage,read> state:array<vec4f>;
+    @group(0) @binding(1) var<storage,read> flux:array<Flux>;
+    @group(0) @binding(2) var<storage,read> tail:array<Flux>;
+    @group(0) @binding(3) var<storage,read> mu:array<vec4f>;
+    @group(0) @binding(4) var<storage,read> dual:array<vec4f>;
+    @group(0) @binding(5) var<storage,read> trace:array<Trace>;
+    fn moments(x:f32,w:f32)->vec2f{return vec2f(x*x+w*w/12.,x*(x*x+w*w/4.));}
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS||mu[i].w<=0.){return;}let p=point(i);let widths=cellWidths(p);let areas=faceAreas(widths);
+      for(var a=0u;a<3u;a++){
+        var e=vec3i(0);e[a]=1;let r=p+e;if(!inside(r)||mu[i][a]<=0.){continue;}
+        let j=index(r);if(mu[j].w<=0.){continue;}
+        let left=p-e;let right=r+e;
+        let hasL=inside(left)&&mu[bounded(left)].w>0.&&mu[bounded(left)][a]>0.;
+        let hasR=inside(right)&&mu[bounded(right)].w>0.&&mu[j][a]>0.;if(!hasL&&!hasR){continue;}
+        let invD=axisMetric(a,p[a]).z;
+        let wl=widths[a]*invD;let wr=axisMetric(a,r[a]).y*invD;
+        let xl=-.5*wl;let xr=.5*wr;let ml=moments(xl,wl);let dm=moments(xr,wr)-ml;
+        let ul=state[2u*i].xyz;let ur=state[2u*j].xyz;let du=ur-ul;
+        var el=vec2f(0);var er=vec2f(0);var vl=vec3f(0);var vr=vec3f(0);
+        if(hasL){
+          let w=axisMetric(a,left[a]).y*invD;let x=xl-.5*(wl+w);let t=x-xl;
+          el=moments(x,w)-(ml+t*dm);vl=(state[2u*index(left)].xyz-ul)-t*du;
+        }
+        if(hasR){
+          let w=axisMetric(a,right[a]).y*invD;let x=xr+.5*(wr+w);let t=x-xl;
+          er=moments(x,w)-(ml+t*dm);vr=(state[2u*index(right)].xyz-ul)-t*du;
+        }
+        var c2=vec3f(0);var c3=vec3f(0);
+        if(hasL&&hasR){let det=el.x*er.y-el.y*er.x;c2=(er.y*vl-el.y*vr)/det;c3=(el.x*vr-er.x*vl)/det;}
+        else if(hasL){c2=vl/el.x;}else{c2=vr/er.x;}
+        let mf=ml-xl*dm;let traceDefect=(ul-trace[3u*i+a].u)-xl*du-mf.x*c2-mf.y*c3;
+        let q=flux[i].hi[a]+tail[i].hi[a];
+        let defect=q*traceDefect+f32(${f.nu*dt/f.h**2})*areas[a]*invD*(dm.x*c2+dm.y*c3);
+        let weight=.5*abs(dot(dual[j].xyz-dual[i].xyz,defect));
+        let bin=u32(p[a])+select(select(0u,NX,a==1u),NX+NY,a==2u);
+        addProfile(bin,weight);addProfile(bin+1u,weight);
+      }
+    }`);
+  gpu.run(kernel,[solved.state,solved.flux,solved.fluxTail,solved.mobility,adj.lambda,adj.faces,marginal],
+    [Math.ceil(countOf(f.dims)/128)],metricBuffer(gpu,f));
+  const sums=await gpu.read(marginal,stage,2*bins),scale=f.rho*f.h**4/dt**2;let offset=0;
+  return f.dims.map(n=>Array.from({length:n},()=>{const i=2*offset++;return (sums[i]+sums[i+1])*scale;}));
+}
+
+// A tensor-product split adds one entire layer. Rank eight splits at a time
+// by their integrated weight per added cell, preserving the 8³ block layout.
+export function refineAdjointGrid(parent,weights,cap,maxAxisEntries=Infinity){
+  const dims=[...parent.dims],base=countOf(dims),limit=Math.min(cap,2*base);
+  if(!weights||!weights.every((axis,a)=>axis.length===dims[a]&&axis.every(v=>Number.isFinite(v)&&v>=0)))
+    throw failure('CFD_REFINEMENT_UNAVAILABLE','The baseline has no resolved stationary drag indicator.');
+  const ranks=weights.map(axis=>axis.map((value,i)=>({value,i})).sort((a,b)=>b.value-a.value||a.i-b.i));
+  const selected=dims.map(()=>new Set());let cells=base,captured=0;
+  while(dims.reduce((s,v)=>s+v,0)+8<=maxAxisEntries){
+    let best=null;
+    for(let a=0;a<3;a++){
+      const first=selected[a].size,cost=8*cells/dims[a];
+      if(first+8>ranks[a].length||cells+cost>limit)continue;
+      const weight=ranks[a].slice(first,first+8).reduce((s,r)=>s+r.value,0);
+      if(weight>0&&(!best||weight/cost>best.rate))best={a,cost,weight,rate:weight/cost};
+    }
+    if(!best)break;
+    const {a,cost,weight}=best,first=selected[a].size;
+    for(const item of ranks[a].slice(first,first+8))selected[a].add(item.i);
+    dims[a]+=8;cells+=cost;captured+=weight;
+  }
+  if(cells===base)throw failure('CFD_REFINEMENT_UNAVAILABLE','The baseline needs positive flux-error weights and room for another eight coordinate layers.');
+  const axes=parent.axes.map((axis,a)=>{
+    const result=[];for(let i=0;i+1<axis.length;i++){result.push(axis[i]);if(selected[a].has(i))result.push(axis[i]+.5*(axis[i+1]-axis[i]));}
+    result.push(axis.at(-1));return Float64Array.from(result);
+  });
+  const minPitch=axes.map(axis=>axis.subarray(1).reduce((v,x,i)=>Math.min(v,x-axis[i]),Infinity));
+  const total=weights.reduce((s,axis)=>s+axis.reduce((v,x)=>v+x,0),0);
+  return {grid:{...parent,axes,dims,minPitch,h:Math.min(...minPitch)},details:{objective:'drag',estimator:'adjoint-weighted-momentum-transport',
+    parentDims:[...parent.dims],parentCells:base,cells,splitIntervals:selected.map(set=>Array.from(set).sort((a,b)=>a-b)),
+    selectedIndicatorFraction:captured/total}};
 }
 
 // Equidistribute the integral of 1 / local pitch. Outside the dense interval

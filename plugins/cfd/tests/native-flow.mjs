@@ -14,6 +14,7 @@ const cases={
   'oblique-shape':['steady-shape-check','verifyObliqueSteadyForce'],
   'paired':['paired-check','verifyPairedSolve'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
+  'transport-weights':['adjoint-refinement-check','verifyTransportWeights'],'adjoint-refinement':['adjoint-refinement-check','verifyAdjointRefinement'],
   'cavity':['cavity-check','verifyCavity'],
   'backward-step':['backstep-check','verifyBackwardStep'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
