@@ -78,6 +78,9 @@ if(selection.implicitOuterSpin&&!wallOnly&&(!(nativeRotor||scenePath)||!selectio
 selection.faceHistory=args.includes('--transport-faces');
 selection.incrementalPressure=args.includes('--incremental-pressure');
 selection.fluxEquilibration=args.includes('--equilibrate-flux');
+if(args.includes('--prefix-forest')&&args.includes('--depth-forest'))throw Error('Choose one subtree reduction');
+selection.prefixForest=args.includes('--prefix-forest')?true:args.includes('--depth-forest')?false:undefined;
+if(selection.prefixForest!==undefined&&!selection.fluxEquilibration)throw Error('Subtree reductions require conservative flux reconstruction');
 if(selection.fluxEquilibration&&!wallOnly&&(!selection.cutCells||!selection.graded||!scenePath&&!selection.faceHistory))
   throw Error('Conservative flux reconstruction requires graded cut volumes and transported face flow');
 if(selection.incrementalPressure&&!wallOnly&&!scenePath&&!selection.faceHistory)throw Error('Choose transported face flows for the incremental projection');

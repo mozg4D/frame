@@ -715,6 +715,9 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           surfaceFields:display.description,
           uncertainty:forceUncertainty(windows,source.axes,source.dragAxis),
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
+            ...(mass.flowReconstruction?{pressureFluxReconstruction:{method:mass.flowReconstruction.subtreeMethod,
+              depthLevels:mass.flowReconstruction.levels,subtreeDispatches:mass.flowReconstruction.subtreeDispatches,
+              maxAcceptedRelativeSpeed:mass.flowReconstruction.maxAcceptedRelativeSpeed}}:{}),
             temporalConvergence:stationary?'window-stationary':step===end&&window+1===windowLimit?'window-limit':'sampling',
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
             ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
@@ -3269,6 +3272,91 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
   return residualControlledTransport(stage,begin,sweep,norm,end,192);
 }
 
+// Give each pressure-tree subtree a contiguous interval once. On each
+// projection, sum its current defects from block-local compensated prefixes.
+// Interval endpoints are differenced inside a single block. Long unrelated
+// trees never enter the subtraction, even when their root order changes.
+async function prefixSubtreeSums(gpu,f,common,parent,ordered,ranges,reached,flux,tail,sum){
+  if(!reached)return {phases:[],largestRoot:0};
+  const n=countOf(f.dims),grid=[Math.ceil(n/128)],device=gpu.device;
+  const span=gpu.buffer('CFD subtree start and size',8*n),counter=gpu.buffer('CFD reserved root intervals',8);
+  const indices=`
+    @group(0) @binding(0) var<storage,read> dir:array<u32>;@group(0) @binding(1) var<storage,read> ids:array<u32>;
+    @group(0) @binding(2) var<storage,read_write> span:array<vec2u>;@group(0) @binding(3) var<uniform> block:vec2u;`;
+  const count=await gpu.kernel('CFD size each connected pressure subtree',common+indices+`
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u){
+      if(id.x>=block.y){return;}let i=ids[block.x+id.x];let p=point(i);var size=1u;
+      for(var c=0u;c<6u;c++){let q=neighbour(p,c);if(inside(q)&&dir[bounded(q)]==(c^1u)){size+=span[index(q)].y;}}
+      span[i].y=size;}`);
+  const order=await gpu.kernel('CFD enumerate contiguous pressure subtrees',common+indices+`
+    @group(0) @binding(4) var<storage,read_write> next:array<atomic<u32>>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u){
+      if(id.x>=block.y){return;}let i=ids[block.x+id.x];let p=point(i);var first=span[i].x;
+      if(!inside(neighbour(p,dir[i]))){first=atomicAdd(&next[0],span[i].y);atomicMax(&next[1],span[i].y);span[i].x=first;}
+      var start=first+1u;for(var c=0u;c<6u;c++){let q=neighbour(p,c);if(inside(q)&&dir[bounded(q)]==(c^1u)){
+        let j=index(q);span[j].x=start;start+=span[j].y;
+      }}
+    }`);
+  const layout=device.createCommandEncoder();
+  for(const r of ranges)gpu.dispatch(layout,count,gpu.bind(count,[parent,ordered,span,r.buffer]),r.grid);
+  for(const r of [...ranges].reverse())gpu.dispatch(layout,order,gpu.bind(order,[parent,ordered,span,r.buffer,counter]),r.grid);
+  device.queue.submit([layout.finish()]);
+  const check=gpu.staging('CFD preorder extent',8),[written,largestRoot]=new Uint32Array((await gpu.read(counter,check,2)).buffer);
+  if(written!==reached)throw Error('The pressure subtree ranges do not cover the open fluid component');
+  counter.destroy();check.destroy();
+  const levels=[{offset:0,length:reached}];
+  // A subtree no longer than one block touches at most two partial blocks.
+  // Cross-block totals are needed only for the longest physical root.
+  for(let span=largestRoot;span>128;span=Math.ceil(span/128)){
+    const row=levels.at(-1);levels.push({offset:row.offset+row.length,length:Math.ceil(row.length/128)});
+  }
+  const last=levels.at(-1),values=gpu.buffer('CFD compensated segment prefixes',8*(last.offset+last.length));
+  const combine=addFlowWGSL+`
+    fn combine(a:vec2f,b:vec2f)->vec2f{let s=addFlow(a.x,a.y,b.x);return addFlow(s.x,s.y,b.y);}`;
+  const fill=await gpu.kernel('CFD order the measured face defects by subtree',common+combine+`
+    struct Flux{hi:vec4f,lo:vec4f}
+    @group(0) @binding(0) var<storage,read> h:array<Flux>;@group(0) @binding(1) var<storage,read> l:array<Flux>;
+    @group(0) @binding(2) var<storage,read> span:array<vec2u>;@group(0) @binding(3) var<storage,read_write> prefix:array<vec2f>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS||span[i].y==0u){return;}var s=vec2f(0);
+      for(var a=0u;a<3u;a++){s=combine(s,-vec2f(h[i].lo[a],l[i].lo[a]));s=combine(s,vec2f(h[i].hi[a],l[i].hi[a]));}
+      prefix[span[i].x]=s;}`);
+  const build=await gpu.kernel('CFD inclusive compensated prefixes within 128 cells',combine+`
+    @group(0) @binding(0) var<storage,read_write> prefix:array<vec2f>;@group(0) @binding(1) var<uniform> range:vec4u;
+    var<workgroup> tmp:array<vec2f,128>;
+    @compute @workgroup_size(128) fn main(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){
+      let i=128u*group.x+lane;var value=vec2f(0);if(i<range.y){value=prefix[range.x+i];}tmp[lane]=value;
+      for(var step=1u;step<128u;step*=2u){workgroupBarrier();var v=tmp[lane];if(lane>=step){v=combine(tmp[lane-step],v);}
+        workgroupBarrier();tmp[lane]=v;}
+      if(i<range.y){prefix[range.x+i]=tmp[lane];}if(lane==127u&&range.z!=0xffffffffu){prefix[range.z+group.x]=tmp[127];}
+    }`);
+  const read=await gpu.kernel('CFD sum only complete and partial blocks inside each subtree',common+combine+`
+    @group(0) @binding(0) var<storage,read> prefix:array<vec2f>;@group(0) @binding(1) var<storage,read> span:array<vec2u>;
+    @group(0) @binding(2) var<storage,read_write> discharge:array<vec2f>;
+    const offsets=array<u32,${levels.length}>(${levels.map(r=>r.offset+'u').join(',')});
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS||span[i].y==0u){return;}var lo=span[i].x;var hi=lo+span[i].y;var value=vec2f(0);
+      for(var depth=0u;depth<${levels.length}u&&lo<hi;depth++){
+        let base=offsets[depth];if(lo/128u==(hi-1u)/128u){
+          var s=prefix[base+hi-1u];if(lo%128u!=0u){s=combine(s,-prefix[base+lo-1u]);}value=combine(value,s);break;
+        }
+        if(lo%128u!=0u){value=combine(value,combine(prefix[base+(lo|127u)],-prefix[base+lo-1u]));}
+        if(hi%128u!=0u){value=combine(value,prefix[base+hi-1u]);}
+        lo=(lo+127u)/128u;hi=hi/128u;
+      }discharge[i]=value;
+    }`);
+  const first=gpu.bind(fill,[flux,tail,span,values]),finish=gpu.bind(read,[values,span,sum]);
+  const phases=[{kind:'order stored flux defects',encode:e=>gpu.dispatch(e,fill,first,grid)}];
+  for(const [i,row] of levels.entries()){
+    const data=new Uint32Array([row.offset,row.length,levels[i+1]?.offset??0xffffffff,0]);
+    const cfg=gpu.buffer('CFD prefix level',data,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    const group=gpu.bind(build,[values,cfg]),size=[Math.ceil(row.length/128)];
+    phases.push({kind:'pressure prefix level '+i,encode:e=>gpu.dispatch(e,build,group,size)});
+  }
+  phases.push({kind:'read subtree discharges',encode:e=>gpu.dispatch(e,read,finish,grid)});
+  return {phases,largestRoot};
+}
+
 // Route only the remaining projection defect. An edge never crosses a closed
 // face. A root discharges through an actual pressure reservoir. Components
 // disconnected from all reservoirs retain the ordinary pressure correction.
@@ -3349,10 +3437,10 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
         }}
       }sum[i]=s;
     }`);
-  const sweeps=[];
+  const ranges=[];
   for(let depth=waves;depth>=0;depth--){if(!levels[depth])continue;
     const range=gpu.buffer('CFD pressure discharge level',new Uint32Array([offsets[depth],levels[depth],0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-    sweeps.push([gpu.bind(collect,[flux,tail,parent,ordered,sum,range]),[Math.ceil(levels[depth]/128)]]);
+    ranges.push({buffer:range,grid:[Math.ceil(levels[depth]/128)]});
   }
   const reference=f.maxSpeed*dt/f.h;
   const bound=await gpu.kernel('CFD bound the face velocity perturbation',common+metricWGSL(f)+arr(0,'mu','vec4f')+
@@ -3391,7 +3479,16 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
         if(upper(c)){hi.hi[a]=pair.x;lo.hi[a]=pair.y;}else{hi.lo[a]=pair.x;lo.lo[a]=pair.y;}
       }h[i]=hi;l[i]=lo;`));
   const applyGroup=gpu.bind(apply,[flux,tail,parent,sum]);
-  const proposals=sweeps.map(([group,size])=>({kind:'sum pressure discharge level',encode:e=>gpu.dispatch(e,collect,group,size)}));
+  const usePrefix=f.prefixForest??(ranges.length>=24&&reached>=16384);
+  const prefix=usePrefix?await prefixSubtreeSums(gpu,f,common,parent,ordered,ranges,reached,flux,tail,sum):null;
+  if(prefix){ordered.destroy();for(const r of ranges)r.buffer.destroy();}
+  const proposals=prefix?.phases??ranges.map(r=>{
+    const group=gpu.bind(collect,[flux,tail,parent,ordered,sum,r.buffer]);
+    return {kind:'sum pressure discharge level',encode:e=>gpu.dispatch(e,collect,group,r.grid)};
+  });
+  stats.subtreeMethod=prefix?'contiguous subtree intervals':'depth ordering';
+  stats.subtreeDispatches=proposals.length;
+  if(prefix)stats.largestRootCells=prefix.largestRoot;
   proposals.push({kind:'bound face perturbation',encode:e=>{
     e.clearBuffer(audit);gpu.dispatch(e,bound,boundGroup,grid);gpu.dispatch(e,reduce,reduceGroup,[1]);e.copyBufferToBuffer(audit,0,auditStage,0,8);
   }});

@@ -18,6 +18,7 @@ const cases={
   'transport-weights':['adjoint-refinement-check','verifyTransportWeights'],'adjoint-refinement':['adjoint-refinement-check','verifyAdjointRefinement'],
   'cavity':['cavity-check','verifyCavity'],
   'flow-regime':['regime-check','verifyFlowRegime'],'modeled-regime':['regime-check','verifyModeledRegime'],
+  'pressure-forest':['flux-equilibration-check','verifyPrefixForest'],
   'backward-step':['backstep-check','verifyBackwardStep'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
