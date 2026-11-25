@@ -17,6 +17,7 @@ const cases={
   'car-first-field':['shift-check','verifyCarFirstField'],
   'metric-cache':['metric-cache-check','verifyNativeMetricReuse'],
   'still-fields':['still-fields-check','verifyStillSurfaceFields'],
+  'force-objectives':['force-objectives-check','verifyNativeForceObjectives'],
   'initial-discharge':['initial-flow-check','verifyInitialDischarge'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'surface-components':['surface-components-check','verifySurfaceComponents'],

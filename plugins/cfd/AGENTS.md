@@ -2,6 +2,8 @@
 
 Native box authoring, wall kinematics and the Cartesian finite-volume solver live in plugin.js. Numerical qualification imports the production operators.
 
+`solve-frame` and `solve-animation` accept an optional `shapeObjective` of `drag`, `lift` or `side` on the authored CFD Box axes. The default is drag. The derivative is local to the current grid and open-face connectivity. Recompute the force after a finite edit changes either. Preserve the selected objective in cached vertex gradients, surface components and dual-weighted refinement. `refineFromJob` inherits its parent objective. Paired drag intervals continue to measure the box-axis drag. Check transverse sensitivities against independent constant-volume native incidence perturbations at two displacement sizes with `native-flow.mjs --case=force-objectives`.
+
 `status.job.progress` reports the actual flow timestep and the Shape iteration while a solve runs. Frame and Animation update their progress independently of the most recent pressure and force sampling window. `native-flow.mjs --case=animation` checks the counter between measured snapshots and stops stalled runs.
 
 For still fluid in the material frame, expose exact zero gauge pressure, loss and drag shape derivatives on the exposed triangle area inside the CFD Box. Relative dynamic pressure and the reversal direction vanish in this state. Keep Cp and reversal undefined. Integral curves of the zero velocity have no directed segments. Check buffered geometry, paged geometry, clipped faces, buried faces, a sheet, common translation and an empty box with `native-flow.mjs --case=still-fields`.

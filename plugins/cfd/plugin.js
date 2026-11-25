@@ -492,6 +492,7 @@ function wallMotionReport(context,owner,points){
     ...(translation?{translationWorldMPerS:translation.velocityWorldMPerS,relativeWindBoxMPerS:translation.relativeWindBoxMPerS}:{})};
 }
 
+const forceObjectives=['drag','lift','side'];
 const flowBudgets={
   preview:{tier:.45,cells:32768,windows:12,laminarWindows:24},
   standard:{tier:1,cells:750000,windows:32},
@@ -633,7 +634,7 @@ async function equilibriumSurface(ctx,source,budget,display,storage,check){
       gpu.dispatch(e,observe,gpu.bind(observe,[site,cover,visible,loss]),[Math.ceil(triangles/64)]);
     }
     device.queue.submit([e.finish()]);check();
-    const shape={state:'ready',objective:'drag',method:'exact-equilibrium',geometry:'native-fixed-topology',
+    const shape={state:'ready',objective:source.shapeObjective,directionWorld:source.objectiveWorld,valueN:0,method:'exact-equilibrium',geometry:'native-fixed-topology',
       iterations:0,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
     const vertices=capture.meshes.map(mesh=>({mesh,first:0,vertices:mesh.vertexCount}));
     await publishNativeShape(gpu,display,{occurrences:vertices},chunks,null,0,check);
@@ -761,7 +762,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     function publishSample(value){
       const paired=history.paired?pairedDrag(prior,value.forceLocal.drag,value.uncertainty):null;
       publish({...value,validity:{...value.validity,...gridValidity,...(refinement?{spatialConvergence:'two-nested-grids',
-        refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag}}:{})},...(paired?{paired}:{}),
+        refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag,
+          deltaObjectiveN:value.forceLocal[source.shapeObjective]-prior.objectiveValueN}}:{})},...(paired?{paired}:{}),
         initialization:restart?{kind:refinement?'projected-nested-predictor':'projected-stationary-predictor',fromJob:prior.id,...restart}:
           solver.fluxConvergence.initialization??{kind:'uniform-inflow'}});
     }
@@ -781,7 +783,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       const buffer=usable?await savePredictor(gpu,solver,count,check):null;
       const {ci95Drag,ci975Drag}=result.uncertainty;
       try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,
-        drag:result.forceLocal.drag,ci95Drag,ci975Drag,transportWeights,surfaceComponents});}
+        drag:result.forceLocal.drag,objective:source.shapeObjective,objectiveValueN:result.forceLocal[source.shapeObjective],
+        ci95Drag,ci975Drag,transportWeights,surfaceComponents});}
       catch(e){buffer?.destroy();throw e;}
     }
     let step=0;
@@ -838,11 +841,11 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         if(!geom.shape){await publishFinished(result);await retain(result);return true;}
         if(baseDefect>.025){
           if(window+1<windowLimit){publishSample(result);continue;}
-          await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});await retain(result);return true;
+          await publishFinished({...result,shape:{state:'unsteady-base',objective:source.shapeObjective,stationaryMomentumDefect:baseDefect}});await retain(result);return true;
         }
-        publishSample({...result,shape:{state:'solving',objective:'drag'}});
+        publishSample({...result,shape:{state:'solving',objective:source.shapeObjective}});
         reportProgress({stage:'shape',steps:step,completeWindows:windows.length,iterations:0});
-        const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
+        const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.objectiveAxis);check();
         await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
         const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
         const limit=Math.min(12000,Math.max(1200,4*step));let iterations=0,defects;
@@ -854,7 +857,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         }
         await scheduler.perform([{kind:'restore primal pressure',encode:adj.restore}],check);
         const resolved=defects.every(v=>Number.isFinite(v)&&v<4e-6);
-        const sensitivity={state:resolved?'ready':'iteration-limit',objective:'drag',method:'steady-discrete-laminar',
+        const sensitivity={state:resolved?'ready':'iteration-limit',objective:source.shapeObjective,directionWorld:source.objectiveWorld,
+          valueN:result.forceLocal[source.shapeObjective],method:'steady-discrete-laminar',
           geometry:'native-fixed-topology',samples:geom.shape.samples,iterations,momentumDefect:defects[0],pressureDefect:defects[1],
           stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
         let transportWeights=null;
@@ -863,7 +867,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           await fields.publishAdjoint(adj.lambda);check();
           transportWeights=await adjointTransportWeights(gpu,f,dt,solver,adj);check();
           const byAxis=transportWeights.map(axis=>axis.reduce((sum,v)=>sum+v,0));
-          if(byAxis.every(Number.isFinite))sensitivity.refinementIndicator={objective:'drag',estimator:'adjoint-weighted-momentum-transport',byAxisN:byAxis};
+          if(byAxis.every(Number.isFinite))sensitivity.refinementIndicator={objective:source.shapeObjective,estimator:'adjoint-weighted-momentum-transport',byAxisN:byAxis};
           else transportWeights=null;
           display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
         }
@@ -958,16 +962,16 @@ export async function activate(context){
     const prior=parent?entries.find(c=>c.id===parent):entries[0];
     if(job.pairedWithJob&&(!prior||job.source.frameKey!==prior.frameKey))
       throw failure('CFD_PAIR_UNAVAILABLE','Choose a retained stationary job of this box at the same physical frame and fidelity.');
-    if(job.refineFromJob&&(!prior?.transportWeights||prior.operatingKey!==job.source.operatingKey))
-      throw failure('CFD_REFINEMENT_UNAVAILABLE','Choose a retained stationary Shape solution of this geometry at the same operating point.');
+    if(job.refineFromJob&&(!prior?.transportWeights||prior.operatingKey!==job.source.operatingKey||prior.objective!==job.source.shapeObjective))
+      throw failure('CFD_REFINEMENT_UNAVAILABLE','Choose a retained stationary Shape solution with the same geometry, force objective and operating point.');
     const limits=job.device.limits;
     const refinement=job.refineFromJob?refineAdjointGrid(prior.grid,prior.transportWeights,
-      Math.min(flowBudgets[job.fidelity].cells,Math.floor(limits.maxStorageBufferBindingSize/48)),Math.floor(limits.maxUniformBufferBindingSize/16)):null;
+      Math.min(flowBudgets[job.fidelity].cells,Math.floor(limits.maxStorageBufferBindingSize/48)),Math.floor(limits.maxUniformBufferBindingSize/16),job.source.shapeObjective):null;
     return {prior,paired:!!job.pairedWithJob,refinement,warmStart:job.warmStart,metric:metricStorage(job,epoch),save:c=>retainCheckpoint(job,c)};
   }
   function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);dropMetric(hash);detach(hash);
     for(const c of checkpoints.values())if(c.owner===hash)dropCheckpoint(c);}
-  function newJob(hash,fidelity,pairedWithJob,refineFromJob,warmStart=true){
+  function newJob(hash,fidelity,pairedWithJob,refineFromJob,warmStart=true,shapeObjective='drag'){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
     const world=context.document.world(hash),pivot=context.document.pivot(hash);
     source.owner=hash;source.boxAxes=boxAxes(world);
@@ -977,10 +981,13 @@ export async function activate(context){
     source.frameKey=JSON.stringify([fidelity,world,source.axes,source.originWorldM,!!source.motion,source.capture.params.Medium==='Air'&&source.capture.params.Ground==='Road']);
     source.geometryKey=source.capture.meshes.length?context.scene.signature(hash,[],{bounds:LOCAL_BOX}):null;
     source.dragAxis=basis?.map(v=>v[0])??[1,0,0];
+    const component=forceObjectives.indexOf(shapeObjective);
+    source.shapeObjective=shapeObjective;source.objectiveWorld=source.boxAxes[component];
+    source.objectiveAxis=basis?.map(v=>v[component])??[0,1,2].map(a=>Number(a===component));
     source.pivot=context.math.point(flowMetric(world,source.motion?.axisOriginM??[0,0,0],basis),pivot.slice(12,15));
     source.operatingKey=JSON.stringify([source.capture.signature,source.animationSignature,world,pivot,source.fps,
       source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS]);
-    const key=JSON.stringify([fidelity,source.operatingKey,pairedWithJob,refineFromJob,warmStart]);
+    const key=JSON.stringify([fidelity,source.operatingKey,pairedWithJob,refineFromJob,warmStart,shapeObjective]);
     return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,pairedWithJob,refineFromJob,warmStart,key,state:'queued',result:null,stopped:false};
   }
   function remember(job){
@@ -988,7 +995,7 @@ export async function activate(context){
     const {surfaceFields,shape,...numbers}=job.result;
     if(!surfaceFields){closeDisplay(job.display);job.display=null;}
     const old=a.solutions.get(job.key);if(old?.display&&old.display!==job.display)closeDisplay(old.display);
-    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,pairedWithJob:job.pairedWithJob,refineFromJob:job.refineFromJob,warmStart:job.warmStart,state:job.state,
+    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,pairedWithJob:job.pairedWithJob,refineFromJob:job.refineFromJob,warmStart:job.warmStart,shapeObjective:job.source.shapeObjective,state:job.state,
       numbers,fields:surfaceFields,shape,display:job.display,hadFields:!!surfaceFields,used:performance.now()});
     a.solutions.set(job.key,solution);a.frames.set(job.source.frame,solution);a.version++;job.solution=solution;trimDisplays();
   }
@@ -1019,7 +1026,7 @@ export async function activate(context){
       const a=archive(hash),solution=a?.frames.get(context.document.frame);
       if(solution){
         try{
-          const restored=newJob(hash,solution.fidelity,solution.pairedWithJob,solution.refineFromJob,solution.warmStart);
+          const restored=newJob(hash,solution.fidelity,solution.pairedWithJob,solution.refineFromJob,solution.warmStart,solution.shapeObjective);
           if(restored.key===solution.key){restoreSolution(restored,solution);job=restored;}
           else discardArchive(hash);
         }catch{discardArchive(hash);}
@@ -1037,11 +1044,13 @@ export async function activate(context){
       localBox:{min:[...LOCAL_BOX.min],max:[...LOCAL_BOX.max],pivot:[...LOCAL_BOX.pivot],unit:'mm'},
       flow:{directionLocal:[1,0,0],inletLocalX:-500,outletLocalX:500,speedUnit:'m/s',markerOnly:true},
       geometryParticipation:'automatic-evaluated-box-intersection',geometryEvaluated:!!j&&j.state!=='stale',
-      job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,steps:j.result?.steps??0,
+      job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,shapeObjective:j.source.shapeObjective,steps:j.result?.steps??0,
         ...(j.state==='solving'&&j.progress?{progress:{...j.progress}}:{}),error:j.error??null}:null,
       animation:sweepInfo(sweeps.get(hash))};
   }
-  function start(hash,{fidelityBudget='standard',pairedWithJob,refineFromJob,warmStart=true}={},sweep=null){
+  function start(hash,{fidelityBudget='standard',pairedWithJob,refineFromJob,warmStart=true,shapeObjective}={},sweep=null){
+    if(shapeObjective===undefined)shapeObjective=checkpoints.get(refineFromJob)?.objective??'drag';
+    if(!forceObjectives.includes(shapeObjective))throw failure('INVALID_ARGUMENT','Choose drag, lift or side for the signed Shape objective.');
     const node=find(hash);
     if(!Object.hasOwn(flowBudgets,fidelityBudget))throw failure('INVALID_ARGUMENT','Choose preview, standard or fine fidelity.');
     if(typeof warmStart!=='boolean')throw failure('INVALID_ARGUMENT','Choose a boolean warmStart.');
@@ -1050,8 +1059,8 @@ export async function activate(context){
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
     if(!sweep&&sweepBusy(sweeps.get(hash))){sweeps.get(hash).moved=true;stop(hash);}
     const old=current(hash);
-    if(old&&old.fidelity===fidelityBudget&&old.pairedWithJob===pairedWithJob&&old.refineFromJob===refineFromJob&&old.warmStart===warmStart&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
-    const job=newJob(hash,fidelityBudget,pairedWithJob,refineFromJob,warmStart),{device,source}=job,a=archive(hash);
+    if(old&&old.fidelity===fidelityBudget&&old.source.shapeObjective===shapeObjective&&old.pairedWithJob===pairedWithJob&&old.refineFromJob===refineFromJob&&old.warmStart===warmStart&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
+    const job=newJob(hash,fidelityBudget,pairedWithJob,refineFromJob,warmStart,shapeObjective),{device,source}=job,a=archive(hash);
     const cached=a?.solutions.get(job.key);
     if((pairedWithJob||refineFromJob)&&!cached)previousCheckpoint(job);
     detach(hash);
@@ -1083,7 +1092,7 @@ export async function activate(context){
     job.done=queue=queue.then(()=>new Promise(resolve=>setTimeout(resolve,0))).then(run);refresh();return status(hash);
   }
   function sweepBusy(b){return !!b&&!b.stop&&['queued','solving'].includes(b.state);}
-  function sweepInfo(b){return b?{id:b.id,state:b.state,firstFrame:b.first,lastFrame:b.last,currentFrame:b.frame,
+  function sweepInfo(b){return b?{id:b.id,state:b.state,shapeObjective:b.shapeObjective,firstFrame:b.first,lastFrame:b.last,currentFrame:b.frame,
     completedFrames:b.completed,totalFrames:b.last-b.first+1,cachedFrames:b.cached,unconvergedFrames:b.unconverged,error:b.error??null}:null;}
   function sweepStamp(){try{return context.fields.authoringStamp();}catch{return null;}}
   function checkSweep(b){
@@ -1108,17 +1117,18 @@ export async function activate(context){
       }
     }
   }
-  function solveAnimation(hash,{firstFrame=0,lastFrame,fidelityBudget='standard'}={}){
+  function solveAnimation(hash,{firstFrame=0,lastFrame,fidelityBudget='standard',shapeObjective='drag'}={}){
     const node=find(hash),time=context.animation.timeline();lastFrame??=time.total;
     if(context.document.exporting)throw failure('BUSY','The offline render is visiting animation frames.');
+    if(!forceObjectives.includes(shapeObjective))throw failure('INVALID_ARGUMENT','Choose drag, lift or side for the signed Shape objective.');
     if(!Object.hasOwn(flowBudgets,fidelityBudget)||!Number.isSafeInteger(firstFrame)||!Number.isSafeInteger(lastFrame)||
       firstFrame<0||lastFrame<firstFrame||lastFrame>time.total)throw failure('INVALID_ARGUMENT','Choose a valid interval inside the native timeline and a supported fidelity.');
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
     const previous=sweeps.get(hash);
-    if(sweepBusy(previous)&&previous.first===firstFrame&&previous.last===lastFrame&&previous.fidelity===fidelityBudget)return status(hash);
+    if(sweepBusy(previous)&&previous.first===firstFrame&&previous.last===lastFrame&&previous.fidelity===fidelityBudget&&previous.shapeObjective===shapeObjective)return status(hash);
     if(sweepBusy(previous))stop(hash);
     context.document.pause();
-    const b={id:++sequence,owner:hash,first:firstFrame,last:lastFrame,fidelity:fidelityBudget,frame:null,completed:0,cached:0,unconverged:0,state:'queued',
+    const b={id:++sequence,owner:hash,first:firstFrame,last:lastFrame,fidelity:fidelityBudget,shapeObjective,frame:null,completed:0,cached:0,unconverged:0,state:'queued',
       stamp:sweepStamp(),stop:false,moved:false};sweeps.set(hash,b);
     async function run(){
       if(!sweepBusy(b))return;
@@ -1127,7 +1137,7 @@ export async function activate(context){
         for(let frame=b.first;frame<=b.last;frame++){
           checkSweep(b);await seekSweep(b,frame);checkSweep(b);b.frame=frame;
           const before=current(hash);
-          start(hash,{fidelityBudget},b);
+          start(hash,{fidelityBudget,shapeObjective},b);
           const job=jobs.get(hash);b.job=job;
           const reused=job.result?.cache==='hit'||job===before&&['ready','unconverged'].includes(job.state);
           await job.done;checkSweep(b);
@@ -1312,10 +1322,10 @@ export async function activate(context){
       }},
     {id:'solve-frame',description:'Start a Cartesian finite-volume solve on the visible evaluated scene at this frame. Returns a job handle.',
       inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)},pairedWithJob:{type:'integer',minimum:1},
-        refineFromJob:{type:'integer',minimum:1},warmStart:{type:'boolean'}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
+        refineFromJob:{type:'integer',minimum:1},warmStart:{type:'boolean'},shapeObjective:{type:'string',enum:forceObjectives}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
     {id:'solve-animation',description:'Measure each native animation frame in an inclusive interval, preserving the held playhead on completion.',
       inputSchema:{type:'object',properties:{firstFrame:{type:'integer',minimum:0},lastFrame:{type:'integer',minimum:0},
-        fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:solveAnimation},
+        fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)},shapeObjective:{type:'string',enum:forceObjectives}},additionalProperties:false},readOnly:false,run:solveAnimation},
     {id:'stop',description:'Stop the calculation for this CFD box.',inputSchema:emptySchema,readOnly:false,run:stop},
     {id:'results',description:'Read source-current measured force, torque, units and numerical convergence.',inputSchema:emptySchema,readOnly:true,run:results},
     {id:'force-history',description:'Read measured world forces, torque and power over solved animation frames.',
@@ -1323,7 +1333,7 @@ export async function activate(context){
       readOnly:true,run:forceHistory},
     {id:'probe',description:'Read averaged pressure, reversal fraction, allocated loss density and any resolved signed shape sensitivity at a native triangle.',
       inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},triangle:{type:'integer',minimum:0}},required:['occurrence','triangle'],additionalProperties:false},readOnly:true,run:probe},
-    {id:'shape-gradient',description:'Read the signed world-space drag derivative for physical displacements of logical mesh vertices.',
+    {id:'shape-gradient',description:'Read the selected force objective’s signed world-space derivative for physical displacements of logical mesh vertices.',
       inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},firstVertex:{type:'integer',minimum:0},count:{type:'integer',minimum:1,maximum:128}},
         required:['occurrence','firstVertex','count'],additionalProperties:false},readOnly:true,run:shapeGradient},
     {id:'flow-lines',description:'Set the number of streamline seeds on the current mean velocity field. Zero hides the paths.',
@@ -2129,10 +2139,10 @@ export function nestedParentCoordinates(parent,child){
 
 // A tensor-product split adds one entire layer. Rank eight splits at a time
 // by their integrated weight per added cell, preserving the 8³ block layout.
-export function refineAdjointGrid(parent,weights,cap,maxAxisEntries=Infinity){
+export function refineAdjointGrid(parent,weights,cap,maxAxisEntries=Infinity,objective='drag'){
   const dims=[...parent.dims],base=countOf(dims),limit=Math.min(cap,2*base);
   if(!weights||!weights.every((axis,a)=>axis.length===dims[a]&&axis.every(v=>Number.isFinite(v)&&v>=0)))
-    throw failure('CFD_REFINEMENT_UNAVAILABLE','The baseline has no resolved stationary drag indicator.');
+    throw failure('CFD_REFINEMENT_UNAVAILABLE','The baseline has no resolved stationary force indicator.');
   const ranks=weights.map(axis=>axis.map((value,i)=>({value,i})).sort((a,b)=>b.value-a.value||a.i-b.i));
   const selected=dims.map(()=>new Set());let cells=base,captured=0;
   while(dims.reduce((s,v)=>s+v,0)+8<=maxAxisEntries){
@@ -2155,7 +2165,7 @@ export function refineAdjointGrid(parent,weights,cap,maxAxisEntries=Infinity){
   });
   const minPitch=axes.map(axis=>axis.subarray(1).reduce((v,x,i)=>Math.min(v,x-axis[i]),Infinity));
   const total=weights.reduce((s,axis)=>s+axis.reduce((v,x)=>v+x,0),0);
-  return {grid:{...parent,axes,dims,minPitch,h:Math.min(...minPitch)},details:{objective:'drag',estimator:'adjoint-weighted-momentum-transport',
+  return {grid:{...parent,axes,dims,minPitch,h:Math.min(...minPitch)},details:{objective,estimator:'adjoint-weighted-momentum-transport',
     parentDims:[...parent.dims],parentCells:base,cells,splitIntervals:selected.map(set=>Array.from(set).sort((a,b)=>a-b)),
     selectedIndicatorFraction:captured/total}};
 }
@@ -5253,7 +5263,8 @@ export async function nativeSurfaceComponents(device,chunks,shown,statistics,reg
         const key=[mesh.hash,ordinal,n,mesh.triangleCount,...Array.from(signature,x=>x.toString(16))].join('/');
         for(let mode=0;mode<4;mode++){
           if(cut[mode]==null)continue;
-          const list=patchLists[mode],prior=(previous?.[list]??[]).filter(r=>r.topologyKey===key&&r.mode===mode);
+          const list=patchLists[mode],objective=frame.shapeObjective??'drag';
+          const prior=(previous?.[list]??[]).filter(r=>r.topologyKey===key&&r.mode===mode&&(mode<2||(r.objective??'drag')===objective));
           const e=device.createCommandEncoder();e.clearBuffer(scores);
           gpu.dispatch(e,init,gpu.bind(init,[parent]),[Math.min(device.limits.maxComputeWorkgroupsPerDimension,Math.ceil(n/128))]);
           for(const s of spans){
@@ -5282,11 +5293,11 @@ export async function nativeSurfaceComponents(device,chunks,shown,statistics,reg
               anchorTriangles:Array.from(raw.slice(o+23,o+31)).filter(Boolean).map(x=>~x>>>0),areaM2:area,
               centroid:xyz.map(a=>world(sum(1+a)/area,a)),meanNormal:xyz.map(a=>sum(4+a)/area),
               bbox:[...xyz.map(a=>world(decode(~raw[o+16+a]),a)),...xyz.map(a=>world(decode(raw[o+19+a]),a))],
-              persistentId:key+'/'+mode+'/'+row.root};
+              persistentId:key+'/'+mode+'/'+(mode>=2&&objective!=='drag'?objective+'/':'')+row.root};
             if(mode===0){component.attributedPowerW=integral;component.sharePercent=100*integral/loss.attributedPowerW;
               if(loss.forceNormalizationN!=null)component.forceN=loss.forceNormalizationN*integral/loss.attributedPowerW;}
             else if(mode===1){component.areaFraction=area/statistics.separationStats.sampledAreaM2;component.meanGammaRev=integral/area;}
-            else{component.action=mode===2?'push_in':'pull_out';component.sensitivityNPerMm=integral;}
+            else{component.objective=objective;component.action=mode===2?'push_in':'pull_out';component.sensitivityNPerMm=integral;}
             for(const [j,old] of prior.entries()){
               const hits=raw[o+31+j];if(hits>0)matches.push({component,old,hits,fraction:hits/old.anchorTriangles.length});
             }
