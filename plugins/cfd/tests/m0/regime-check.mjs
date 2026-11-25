@@ -61,6 +61,7 @@ export async function verifyModeledRegime(){
       const r=s.result,v=r.validity,y=v.yPlusPercentiles;
       return {pass:r.method==='SST wall-modeled'&&v.turbulenceClosure==='SST delayed detached-eddy simulation'&&v.maxEddyViscosityRatio>0&&
         v.wallDistance.propagationPasses>0&&v.cutMomentum.cutCells>0&&v.cutMomentum.mergedCells>0&&
+        /^[0-9a-f]{64}$/.test(v.momentumTopologyHash)&&v.sameMomentumGroupsAsPrev===false&&v.previousJob===null&&
         v.maxFluidMach>r.referenceMach&&y.p50>0&&y.p95>=y.p50&&
         y.method==='Spalding smooth-wall shear'&&Math.abs(y.sampledAreaM2/r.pressureStats.sampledAreaM2-1)<1e-5&&
         v.maxDivergencePerS<1e-6,elapsedMs:performance.now()-start,state:s.state,steps:r.steps,Re:r.reynolds,

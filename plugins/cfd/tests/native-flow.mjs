@@ -4,6 +4,7 @@ import {dirname,resolve} from 'node:path';
 import {launch,ready} from '../../../tools/browser.mjs';
 
 const cases={
+  'momentum-topology':['momentum-topology-check','verifyMomentumTopology'],
   'shaft-channels':['shaft-channels-check','verifyShaftChannels'],
   'sphere':['live-solve-check','verifyLiveSphere'],'rotor':['live-solve-check','verifyLiveRotating'],
   'regions':['live-solve-check','verifyLiveRegions'],'curves':['live-solve-check','verifyFrameHistory'],

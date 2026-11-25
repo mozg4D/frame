@@ -519,22 +519,27 @@ async function fingerprint(data){
   const digest=await crypto.subtle.digest('SHA-256',data);
   return Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
 }
-async function discretization(gpu,f,mobility,source){
-  const n=countOf(f.dims),words=Math.ceil(n/8),bytes=4*words;
-  const packed=gpu.buffer('CFD four connectivity bits per cell',bytes),stage=gpu.staging('CFD connectivity fingerprint',bytes);
+export async function discretization(gpu,f,mobility,source,groups=null){
+  const n=countOf(f.dims),words=Math.ceil(n/8),bytes=4*words,total=bytes+(groups?4*n:0);
+  const packed=gpu.buffer('CFD pressure connectivity and momentum group roots',total),stage=gpu.staging('CFD connectivity fingerprint',total);
   try{
     const kernel=await gpu.kernel('CFD fingerprint of shared fluid faces and active cells',`
       @group(0) @binding(0) var<storage,read> mu:array<vec4f>;@group(0) @binding(1) var<storage,read_write> packed:array<u32>;
+      ${groups?'@group(0) @binding(2) var<storage,read> links:array<u32>;':''}
       @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
-        let i=g.x;if(i>=arrayLength(&packed)){return;}var word=0u;
+        let i=g.x;let n=arrayLength(&mu);let words=(n+7u)/8u;if(i>=words){return;}var word=0u;
         for(var j=0u;j<8u;j++){let k=8u*i+j;if(k<arrayLength(&mu)){let v=vec4u(mu[k]>vec4f(0));
-          word|=dot(v,vec4u(1,2,4,8))<<(4u*j);}}packed[i]=word;
+          word|=dot(v,vec4u(1,2,4,8))<<(4u*j);${groups?'packed[words+k]=links[3u*k];':''}}}packed[i]=word;
       }`);
-    const e=gpu.device.createCommandEncoder();gpu.dispatch(e,kernel,gpu.bind(kernel,[mobility,packed]),[Math.ceil(words/64)]);
-    e.copyBufferToBuffer(packed,0,stage,0,bytes);gpu.device.queue.submit([e.finish()]);await stage.mapAsync(GPUMapMode.READ);
+    const e=gpu.device.createCommandEncoder();gpu.dispatch(e,kernel,gpu.bind(kernel,[mobility,packed,...groups?[groups.links]:[]]),[Math.ceil(words/64)]);
+    e.copyBufferToBuffer(packed,0,stage,0,total);gpu.device.queue.submit([e.finish()]);await stage.mapAsync(GPUMapMode.READ);
     const coordinates=new Float64Array([...f.dims,...source.axes.flat(),...source.originWorldM,...f.axes[0],...f.axes[1],...f.axes[2]]);
-    const [gridHash,wallTopologyHash]=await Promise.all([fingerprint(coordinates),fingerprint(stage.getMappedRange().slice(0))]);
-    return {gridHash,wallTopologyHash};
+    const data=stage.getMappedRange();
+    // Linked-list traversal order may vary with GPU scheduling. Only the
+    // cell-to-root assignment defines the physical momentum partition.
+    const [gridHash,wallTopologyHash,momentumTopologyHash]=await Promise.all([
+      fingerprint(coordinates),fingerprint(new Uint8Array(data,0,bytes)),groups?fingerprint(new Uint8Array(data,bytes)):null]);
+    return {gridHash,wallTopologyHash,momentumTopologyHash};
   }finally{packed.destroy();stage.destroy();}
 }
 
@@ -587,7 +592,8 @@ export function forceUncertainty(windows,axes,dragAxis=[1,0,0],stationary=false)
 export function pairedDrag(prior,drag,uncertainty){
   const exact=uncertainty.scope==='exact equilibrium',level=exact?'ci95Drag':'ci975Drag';
   const current=uncertainty[level],baseline=prior[level];
-  return {baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,deltaDragN:drag-prior.drag,
+  return {baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
+    baselineMomentumTopologyHash:prior.momentumTopologyHash??null,deltaDragN:drag-prior.drag,
     ci95DeltaDragN:current&&baseline?[current[0]-baseline[1],current[1]-baseline[0]]:null,
     intervalMethod:exact?'baseline temporal interval against exact equilibrium':'Bonferroni difference of two 97.5% marginal temporal intervals'};
 }
@@ -735,9 +741,10 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   request=requestAnimationFrame(tick);
   try{
     const guarded={...capture,assertCurrent:check},geom=await nativeFlowGeometry(gpu,f,guarded,dt,history.metric);check();
-    const hashes=await discretization(gpu,f,geom.response,source);check();
-    const sameGrid=prior?.gridHash===hashes.gridHash,sameWalls=prior?.wallTopologyHash===hashes.wallTopologyHash;
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;check();
+    const hashes=await discretization(gpu,f,geom.response,source,groups);check();
+    const sameGrid=prior?.gridHash===hashes.gridHash,sameWalls=prior?.wallTopologyHash===hashes.wallTopologyHash;
+    const sameGroups=!!prior&&(prior.momentumTopologyHash??null)===hashes.momentumTopologyHash;
     const stable=groups?factor*groups.stableStep:Infinity;
     if(dt>stable){
       if(motion){
@@ -772,7 +779,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       ...(groups?{cutMomentum:{cutCells:groups.stats.cutCells,mergedCells:groups.stats.mergedCells,remainingCutRoots:groups.stats.remainingCutRoots,
         wallTreatment:f.sstWall?'Spalding shear and merged wall-adjacent SST':'Spalding shear'}}:{}),
       ...(geom.stats.wallDistance?{wallDistance:geom.stats.wallDistance}:{}),
-      sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null,
+      samePressureConnectivityAsPrev:sameWalls,sameMomentumGroupsAsPrev:sameGroups,
+      sameDiscretizationAsPrev:sameGrid&&sameWalls&&sameGroups,previousJob:prior?.id??null,
       ...(refinement?{refinement:{parentJob:prior.id,parentGridHash:prior.gridHash,...refinement.details}}:{})};
     function publishSample(value){
       const paired=history.paired?pairedDrag(prior,value.forceLocal.drag,value.uncertainty):null;
