@@ -63,10 +63,12 @@ export async function verifyLiveSurfaceReport(device){
   }
   await call('mesh.create',{name:'Native pressure reference',storage:'texture',vertices:vertices.flat(),indices:faces.flat()});
   const op=(operation,args={})=>call('plugins.command',{id:box.hash,operation,args});
-  await op('solve-frame',{fidelityBudget:'preview'});let current;const start=performance.now();
+  await op('solve-frame',{fidelityBudget:'preview'});let current,previous;const start=performance.now();let active=start;
   do{
     await new Promise(r=>setTimeout(r,150));current=await op('results');
-    if(!['queued','solving','ready','partial'].includes(current.state)||performance.now()-start>12*60*1000)
+    const progress=current.job?.progress,mark=JSON.stringify([current.state,progress?.stage,progress?.steps,progress?.iterations]);
+    if(mark!==previous){active=performance.now();previous=mark;}
+    if(!['queued','solving','ready','partial'].includes(current.state)||performance.now()-active>180000||performance.now()-start>45*60*1000)
       throw Error('Native surface report failed: '+JSON.stringify({state:current.state,job:current.job}));
   }while(current.state==='queued'||current.state==='solving');
   const r=current.result,rows=[];

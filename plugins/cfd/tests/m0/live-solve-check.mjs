@@ -439,10 +439,17 @@ export async function verifyAnimationSolve(){
   const seek=async frame=>{await call('animation.seek',{frame});await call('diagnostics.frame',{frames:2});};
   const op=(operation,args={})=>call('plugins.command',{id,operation,args});
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  let sawIntermediateStep=false;
   async function until(test){
-    const end=performance.now()+180000;
-    for(;;){const v=await op('status');if(test(v))return v;
-      if(v.animation?.state==='failed'||performance.now()>end)throw Error('Unexpected animation state: '+JSON.stringify(v));await wait(25);}
+    const deadline=performance.now()+30*60*1000;let lastChange=performance.now(),previous;
+    for(;;){const v=await op('status'),p=v.job?.progress;
+      if(p?.stage==='flow'&&p.steps>v.job.steps)sawIntermediateStep=true;
+      if(test(v))return v;
+      const now=performance.now(),progress=[v.animation?.completedFrames,v.job?.id,p?.stage,p?.steps,p?.iterations].join('/');
+      if(progress!==previous){lastChange=now;previous=progress;}
+      if(v.animation?.state==='failed'||now-lastChange>180000||now>deadline)throw Error('Unexpected animation state: '+JSON.stringify(v));
+      await wait(25);
+    }
   }
   await seek(7);await call('scene.select',{ids:[id]});document.querySelector('#tabAttributes').click();
   await call('diagnostics.frame',{frames:3});const button=()=>document.querySelector('[data-plugin-action-button="solve-animation"]');
@@ -472,8 +479,8 @@ export async function verifyAnimationSolve(){
   await until(s=>s.animation?.id===override.animation.id&&s.job?.frame===0&&s.state==='solving');
   await seek(11);const interrupted=await until(s=>s.animation?.state==='stale'||s.animation?.state==='stopped');
   await wait(150);const held=(await call('animation.inspect')).frame,dirty=await op('results');
-  return {pass:shown==='Stop'&&busy.animation.state==='solving'&&duplicate.animation.id===measured.animation.id&&done.animation.completedFrames===4&&
+  return {pass:sawIntermediateStep&&shown==='Stop'&&busy.animation.state==='solving'&&duplicate.animation.id===measured.animation.id&&done.animation.completedFrames===4&&
     done.animation.cachedFrames>=2&&loads.total===4&&loads.samples[0].magnitude>0&&loads.samples.slice(1).every(s=>s.magnitude===0)&&
     restored===7&&stopped.animation.state==='stopped'&&stopFrame===7&&held===11&&dirty.result===null,
-    full:native.animation,totalFrames:time.total+1,physical:done.animation,loads,restored,stopped:stopped.animation,stopFrame,interrupted:interrupted.animation,held};
+    full:native.animation,totalFrames:time.total+1,physical:done.animation,sawIntermediateStep,loads,restored,stopped:stopped.animation,stopFrame,interrupted:interrupted.animation,held};
 }

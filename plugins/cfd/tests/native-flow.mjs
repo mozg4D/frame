@@ -16,6 +16,7 @@ const cases={
   'grid-shift':['shift-check','verifyGridShift'],'preview-grid-shift':['shift-check','verifyPreviewGridShift'],
   'car-first-field':['shift-check','verifyCarFirstField'],
   'metric-cache':['metric-cache-check','verifyNativeMetricReuse'],
+  'still-fields':['still-fields-check','verifyStillSurfaceFields'],
   'initial-discharge':['initial-flow-check','verifyInitialDischarge'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'surface-components':['surface-components-check','verifySurfaceComponents'],

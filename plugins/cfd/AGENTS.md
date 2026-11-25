@@ -2,6 +2,10 @@
 
 Native box authoring, wall kinematics and the Cartesian finite-volume solver live in plugin.js. Numerical qualification imports the production operators.
 
+`status.job.progress` reports the actual flow timestep and the Shape iteration while a solve runs. Frame and Animation update their progress independently of the most recent pressure and force sampling window. `native-flow.mjs --case=animation` checks the counter between measured snapshots and stops stalled runs.
+
+For still fluid in the material frame, expose exact zero gauge pressure, loss and drag shape derivatives on the exposed triangle area inside the CFD Box. Relative dynamic pressure and the reversal direction vanish in this state. Keep Cp and reversal undefined. Integral curves of the zero velocity have no directed segments. Check buffered geometry, paged geometry, clipped faces, buried faces, a sheet, common translation and an empty box with `native-flow.mjs --case=still-fields`.
+
 The laminar preview allocates whole eight-cell coordinate intervals independently on each axis within its cell budget. Keep physical domain boundaries and the dense body/wake interval fixed while coarsening the outer spacing, with adjacent widths differing by at most a factor of two. `native-flow.mjs --case=preview-grid-shift` measures the force after 32 independent subcell translations on the same physical grid.
 
 Retain the native Unite signed-distance band across operating-point changes on the same physical grid. Match the evaluated geometry, CFD coordinate frame, band coordinates, device and document epoch. Bound retained fields to four owners and 32 MiB in total. Move the buffer to the active geometry job until all wall stencils have been rebuilt. Report its source and size in `validity.distanceField`. `native-flow.mjs --case=metric-cache` compares pressure and force with an independent cold solve and checks a mesh edit at the original extent.
