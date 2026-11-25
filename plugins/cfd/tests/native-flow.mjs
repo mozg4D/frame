@@ -6,6 +6,7 @@ import {launch,ready} from '../../../tools/browser.mjs';
 const cases={
   'momentum-topology':['momentum-topology-check','verifyMomentumTopology'],
   'finite-pair':['finite-pair-check','verifyFinitePair'],
+  'surface-extents':['surface-extents-check','verifySurfaceExtents'],
   'shaft-channels':['shaft-channels-check','verifyShaftChannels'],
   'sphere':['live-solve-check','verifyLiveSphere'],'rotor':['live-solve-check','verifyLiveRotating'],
   'regions':['live-solve-check','verifyLiveRegions'],'curves':['live-solve-check','verifyFrameHistory'],
@@ -43,7 +44,7 @@ if(!Object.hasOwn(cases,which))throw Error('Choose --case='+Object.keys(cases).j
 const [moduleName,method]=cases[which],name='plugins/cfd/tests/m0/'+moduleName+'.mjs',output=resolve(args.find(v=>v.startsWith('--out='))?.slice(6)??'tests/results/cfd-live-'+which+'.json');
 const files=[...new Set(['index.html','plugins/cfd/plugin.js','plugins/cfd/plugin.json','plugins/cfd/tests/native-flow.mjs',
   'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,
-  ...moduleName==='steady-shape-check'||which==='surface-components'?['plugins/cfd/tests/m0/native-geometry.mjs','plugins/cfd/tests/m0/pressure-barrier.mjs']:[],
+  ...moduleName==='steady-shape-check'||['surface-components','surface-extents'].includes(which)?['plugins/cfd/tests/m0/native-geometry.mjs','plugins/cfd/tests/m0/pressure-barrier.mjs']:[],
   ...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[],
   ...['car-first-field','metric-cache'].includes(which)?['plugins/cfd/tests/m0/ahmed.mjs']:[]])];
 if(files.some(f=>resolve(f)===output))throw Error('Use a separate path for the result.');

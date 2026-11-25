@@ -2,6 +2,8 @@
 
 Native box authoring, wall kinematics and the Cartesian finite-volume solver live in plugin.js. Numerical qualification imports the production operators.
 
+Use conservative occurrence bounds to filter the scene. Measure each participating indexed surface on the renderer device for Reynolds number, dense-grid placement and wall search. Reduce signed extrema in the physical flow axes before adding Float64 occurrence translation. A shaft uses the full swept radius for the domain and reference scale. Reuse small extent tables with the matching signed-distance field. Check reflected and sheared buffered and paged triangles, empty occurrences and the Reynolds regime of a rotated native sphere with `native-flow.mjs --case=surface-extents`.
+
 `solve-frame` and `solve-animation` accept an optional `shapeObjective` of `drag`, `lift` or `side` on the authored CFD Box axes. The default is drag. The derivative is local to the current grid and open-face connectivity. Recompute the force after a finite edit changes either. Preserve the selected objective in cached vertex gradients, surface components and dual-weighted refinement. `refineFromJob` inherits its parent objective. Paired drag intervals continue to measure the box-axis drag. Check transverse sensitivities against independent constant-volume native incidence perturbations at two displacement sizes with `native-flow.mjs --case=force-objectives`.
 
 `status.job.progress` reports the actual flow timestep and the Shape iteration while a solve runs. Frame and Animation update their progress independently of the most recent pressure and force sampling window. `native-flow.mjs --case=animation` checks the counter between measured snapshots and stops stalled runs.

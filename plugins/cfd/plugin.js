@@ -284,9 +284,11 @@ export function capturedDomain(ctx,owner,capture,tier,axisOrigin=[0,0,0],cellBud
   const region={center:corners[0].map((v,a)=>(v+corners[7][a])*.5),
     halfAxes:[1,2,4].map(k=>corners[k].map((v,a)=>(v-corners[0][a])*.5)),inverse:ctx.math.inv(metric)};
   const bodies=capture.meshes.length?combinedBounds(capture.meshes.map(m=>m.bounds)):box;
-  const scale=Math.max(...bodies.max.map((v,k)=>v-bodies.min[k]))||Math.max(...box.max.map((v,k)=>v-box.min[k]));
+  const radius=.5*(capture.sweptDiameterM??0);
+  const envelope=radius?{min:[bodies.min[0],-radius,-radius],max:[bodies.max[0],radius,radius]}:bodies;
+  const scale=Math.max(...envelope.max.map((v,k)=>v-envelope.min[k]))||Math.max(...box.max.map((v,k)=>v-box.min[k]));
   if(!(scale>0&&Number.isFinite(scale)))throw failure('INVALID_GEOMETRY','The CFD region has no finite physical extent.');
-  const bounds=combinedBounds([box,bodies]),road=capture.params.Medium==='Air'&&capture.params.Ground==='Road';
+  const bounds=combinedBounds([box,envelope]),road=capture.params.Medium==='Air'&&capture.params.Ground==='Road';
   const origin=bounds.min.map((v,k)=>k===1&&road?box.min[1]:v-3*scale);
   const extent=bounds.max.map((v,k)=>v+(k===0?8:3)*scale-origin[k]);
   const cap=Math.min(Math.floor(ctx.device.limits.maxStorageBufferBindingSize/32),cellBudget);
@@ -683,17 +685,23 @@ async function equilibriumSurface(ctx,source,budget,display,storage,check){
       }};
     display.draw=await nativeFieldOverlay(ctx,display);check();
     if(storage?.store(band,distance))gpu.detach(distance);
-    return {result:{surfaceFields:display.description,shape,...statistics},validity:{distanceField,loadScope:'inside-cfd-box'}};
+    return {result:{surfaceFields:display.description,shape,...statistics},validity:{distanceField,loadScope:'inside-cfd-box',
+      geometryExtent:{frame:'physical flow axes',source:capture.extentSource,bodyBoundsM:domain.bodies,characteristicLengthM:domain.scale,sweptDiameterM:0}}};
   }finally{gpu.close();}
 }
 
 async function solveNativeFrame(ctx,source,fidelity,check,publish,display,history,reportProgress){
-  const {capture,motion,translation,owner}=source,{Speed,Medium,Altitude}=capture.params,U=translation?.relativeSpeedMPerS??Speed;
+  let {capture}=source;
+  const {motion,translation,owner}=source,{Speed,Medium,Altitude}=capture.params,U=translation?.relativeSpeedMPerS??Speed;
   const fluid=mediumProperties(Medium,Altitude),device=ctx.device,budget=flowBudgets[fidelity];
   if(translation&&Medium==='Air'&&capture.params.Ground==='Road'&&Math.abs(translation.velocityBoxMPerS[1])>1e-8)
     throw failure('UNSUPPORTED_MOTION','A wall moving normal to the road changes the ground clearance during the solve.');
-  const simple=capture.meshes.length===0||(!motion&&U===0);
   reportProgress({stage:'geometry',steps:0,completeWindows:0});
+  const measured=await history.metric.measure({...capture,assertCurrent:check},!!motion);check();
+  capture={...capture,extentSource:measured.source,sweptDiameterM:measured.diameterM,
+    meshes:capture.meshes.flatMap((m,i)=>measured.bounds[i]?[{...m,bounds:measured.bounds[i]}]:[])};
+  source={...source,capture};
+  const simple=capture.meshes.length===0||(!motion&&U===0);
   if(simple){
     check();
     const uncertainty={blocks:0,averagedBlocks:0,averagedSteps:0,scope:'exact equilibrium',
@@ -708,7 +716,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         ...regimeNumbers(U,null,U,fluid.soundSpeedMps),yPlusPercentiles:{p50:null,p95:null,sampledAreaM2:0,method:'no-wall-samples'}}});
     return true;
   }
-  const diameter=motion?await sweptDiameter(device,capture):0;check();
+  const diameter=measured.diameterM;
   const domain=capturedDomain(ctx,owner,capture,budget.tier,motion?.axisOriginM,budget.cells,translation?.basis);
   if(motion&&domain.road)throw failure('UNSUPPORTED_MOTION','A moving road and a rotating shaft require separate moving frames.');
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
@@ -789,6 +797,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check,refinement?prior.grid:null);check();
     }
     const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,distanceField:geom.stats.distanceField,
+      geometryExtent:{frame:'physical flow axes',source:capture.extentSource,bodyBoundsM:domain.bodies,characteristicLengthM:domain.scale,sweptDiameterM:diameter},
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':f.wallModeled?'SST':'laminar',
       ...(groups?{cutMomentum:{cutCells:groups.stats.cutCells,mergedCells:groups.stats.mergedCells,remainingCutRoots:groups.stats.remainingCutRoots,
         wallTreatment:f.sstWall?'Spalding shear and merged wall-adjacent SST':'Spalding shear'}}:{}),
@@ -973,11 +982,19 @@ export async function activate(context){
   // geometry consumers finish and the native capture is still current.
   function metricStorage(job,epoch){
     const {owner,device,source}=job,bandKey=b=>JSON.stringify([b.origin,b.dims,b.h]);
+    const sameGeometry=entry=>entry&&entry.device===device&&entry.epoch===epoch&&entry.geometry===source.geometryKey&&entry.frame===source.frameKey;
+    let measures=null;
     return {
+      async measure(capture,radial){
+        const entry=metrics.get(owner);
+        if(sameGeometry(entry)&&entry.measures){measures=entry.measures;return {...measures,source:'retained'};}
+        const result=await nativeSurfaceMeasures(device,capture,radial);
+        if(result.bounds.length<=256)measures=result;
+        return {...result,source:'evaluated'};
+      },
       take(band){
         const entry=metrics.get(owner);
-        if(!entry||entry.device!==device||entry.epoch!==epoch||entry.geometry!==source.geometryKey||
-          entry.frame!==source.frameKey||entry.band!==bandKey(band))return null;
+        if(!sameGeometry(entry)||entry.band!==bandKey(band))return null;
         metrics.delete(owner);return entry.buffer;
       },
       store(band,buffer){
@@ -988,7 +1005,7 @@ export async function activate(context){
           if(bytes<=capacity&&metrics.size<4)break;
           bytes-=entry.buffer.size;dropMetric(key);
         }
-        metrics.set(owner,{epoch,device,geometry:source.geometryKey,frame:source.frameKey,band:bandKey(band),buffer});
+        metrics.set(owner,{epoch,device,geometry:source.geometryKey,frame:source.frameKey,band:bandKey(band),buffer,measures});
         return true;
       }
     };
@@ -5883,31 +5900,83 @@ export function rotorTransportStep(f){
   return .65/maxRate;
 }
 
-export async function sweptDiameter(device,capture){
-  const gpu=gpuScope(device),peak=gpu.buffer('CFD maximum squared physical radius',4);
+// The geometry SDK returns a conservative box for occurrence filtering.
+// Use the indexed native surface for CFD length scales and wall refinement.
+// Project without translation, then restore the affine offset in Float64.
+export async function nativeSurfaceMeasures(device,capture,radial=false){
+  const meshes=capture.meshes,bounds=[],slots=Math.min(meshes.length,256);
+  if(!slots){
+    if(radial)throw Error('The evaluated spinning surface has zero or invalid radius');
+    return {bounds,diameterM:0};
+  }
+  const gpu=gpuScope(device),stride=Math.ceil(96/device.limits.minUniformBufferOffsetAlignment)*device.limits.minUniformBufferOffsetAlignment;
   try{
-    const pipes=new Map();
-    for(const mesh of capture.meshes){
-      if(!pipes.has(mesh.storage))pipes.set(mesh.storage,await gpu.kernel('CFD swept radius of native surface',meshReader(mesh.storage)+`
-        struct Config{m:mat4x4f,n:u32}
-        @group(0) @binding(2) var<uniform> cfg:Config;@group(0) @binding(3) var<storage,read_write> peak:atomic<u32>;
-        var<workgroup> radii:array<f32,128>;
+    const uniforms=gpu.buffer('CFD evaluated surface frames',slots*stride,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    const output=gpu.buffer('CFD projected native surface extrema',32*slots),stage=gpu.staging('CFD extent readback',output.size);
+    const pipes=new Map();let radiusSquared=0;
+    for(const storage of new Set(meshes.map(m=>m.storage))){
+      pipes.set(storage,await gpu.kernel('CFD physical extent of indexed surface',meshReader(storage)+`
+        struct Frame{basis:mat4x4f,scale:vec3f,n:u32,origin:vec3f,slot:u32}
+        @group(0) @binding(2) var<uniform> cfg:Frame;
+        @group(0) @binding(3) var<storage,read_write> result:array<atomic<u32>>;
+        var<workgroup> low:array<vec3f,128>;var<workgroup> high:array<vec4f,128>;
+        fn ordered(v:f32)->u32{let bits=bitcast<u32>(v);return select(bits^0x80000000u,~bits,(bits&0x80000000u)!=0u);}
         @compute @workgroup_size(128) fn main(@builtin(local_invocation_index) k:u32,@builtin(workgroup_id) g:vec3u){
-          let i=(g.x+65535u*g.y)*128u+k;var radius=0.;if(i<cfg.n){let v=(cfg.m*vec4f(sourcePoint(i),1.)).yz;radius=dot(v,v);}
-          radii[k]=radius;for(var h=64u;h>0u;h/=2u){workgroupBarrier();if(k<h){radii[k]=max(radii[k],radii[k+h]);}}
-          if(k==0u){atomicMax(&peak,bitcast<u32>(radii[0]));}
+          let i=(g.x+65535u*g.y)*128u+k;
+          var lo=vec3f(3.4028234e38);var hi=-lo;var r=0.;
+          if(i<cfg.n){
+            let p=(cfg.basis*vec4f(sourcePoint(i),0.)).xyz;lo=p;hi=p;
+            ${radial?'let arm=(cfg.scale*p+cfg.origin).yz;r=dot(arm,arm);':''}
+          }
+          low[k]=lo;high[k]=vec4f(hi,r);
+          for(var s=64u;s>0u;s/=2u){workgroupBarrier();if(k<s){low[k]=min(low[k],low[k+s]);high[k]=max(high[k],high[k+s]);}}
+          if(k==0u){let base=8u*cfg.slot;
+            for(var a=0u;a<3u;a++){atomicMin(&result[base+a],ordered(low[0][a]));atomicMax(&result[base+3u+a],ordered(high[0][a]));}
+            ${radial?'atomicMax(&result[base+6u],bitcast<u32>(high[0].w));':''}
+          }
         }`));
-      const data=new ArrayBuffer(80);new Float32Array(data,0,16).set(mesh.matrix);new Uint32Array(data,64,1)[0]=mesh.triangleCount*3;
-      const cfg=gpu.buffer('CFD physical spin axis transform',new Uint8Array(data),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-      const op=pipes.get(mesh.storage),entries=[...meshResources(mesh),{buffer:cfg},{buffer:peak}].map((resource,binding)=>({binding,resource}));
-      const b=device.createBindGroup({layout:op.getBindGroupLayout(0),entries}),e=device.createCommandEncoder(),groups=Math.ceil(3*mesh.triangleCount/128);
-      capture.assertCurrent();gpu.dispatch(e,op,b,[Math.min(65535,groups),Math.ceil(groups/65535)]);device.queue.submit([e.finish()]);
     }
-    const radius=(await gpu.read(peak,gpu.staging('CFD physical radius readback',4),1))[0];capture.assertCurrent();
-    if(!(radius>0&&Number.isFinite(radius)))throw Error('The evaluated spinning surface has zero or invalid radius');
-    return 2*Math.sqrt(radius);
+    for(let first=0;first<meshes.length;first+=slots){
+      capture.assertCurrent();
+      const batch=meshes.slice(first,first+slots),config=new ArrayBuffer(stride*batch.length);
+      const initial=new Uint32Array(8*batch.length),scales=[];
+      const e=device.createCommandEncoder();
+      for(const [slot,m] of batch.entries()){
+        initial.fill(0xffffffff,8*slot,8*slot+3);
+        const v=new Float32Array(config,slot*stride,24),u=new Uint32Array(config,slot*stride,24);
+        const scale=[0,1,2].map(a=>Math.hypot(m.matrix[a],m.matrix[a+4],m.matrix[a+8]));scales.push(scale);
+        for(let a=0;a<3;a++)for(const col of [0,4,8])v[col+a]=m.matrix[col+a]/(scale[a]||1);
+        v.set(scale,16);u[19]=3*m.triangleCount;v.set(m.matrix.slice(12,15),20);u[23]=slot;
+        if(!m.triangleCount)continue;
+        const op=pipes.get(m.storage),entries=[...meshResources(m),{buffer:uniforms,offset:slot*stride,size:96},{buffer:output}]
+          .map((resource,binding)=>({binding,resource}));
+        const group=device.createBindGroup({layout:op.getBindGroupLayout(0),entries}),groups=Math.ceil(u[19]/128);
+        gpu.dispatch(e,op,group,[Math.min(65535,groups),Math.ceil(groups/65535)]);
+      }
+      device.queue.writeBuffer(uniforms,0,config);device.queue.writeBuffer(output,0,initial);
+      device.queue.submit([e.finish()]);
+      const data=await gpu.read(output,stage,initial.length),bits=new Uint32Array(data.buffer,data.byteOffset,data.length);
+      capture.assertCurrent();
+      for(const [i,m] of batch.entries()){
+        if(!m.triangleCount){bounds.push(null);continue;}
+        const start=8*i;
+        for(let j=start;j<start+6;j++)bits[j]=bits[j]&0x80000000?bits[j]^0x80000000:~bits[j];
+        const extent=offset=>scales[i].map((v,a)=>m.matrix[12+a]+v*data[start+offset+a]);
+        const min=extent(0),max=extent(3);
+        if(min.some((v,a)=>!Number.isFinite(v)||!Number.isFinite(max[a])||v>max[a]))
+          throw failure('INVALID_GEOMETRY','The evaluated surface has invalid physical coordinates.');
+        bounds.push({min,max});radiusSquared=Math.max(radiusSquared,data[start+6]);
+      }
+    }
+    if(radial&&!(radiusSquared>0&&Number.isFinite(radiusSquared)))throw Error('The evaluated spinning surface has zero or invalid radius');
+    return {bounds,diameterM:2*Math.sqrt(radiusSquared)};
   }finally{gpu.close();}
 }
+
+export async function sweptDiameter(device,capture){
+  return (await nativeSurfaceMeasures(device,capture,true)).diameterM;
+}
+
 
 // Each four-cell brick has 64 unknowns. The last coefficient is the
 // conductance to its complement, including any pressure reservoir.

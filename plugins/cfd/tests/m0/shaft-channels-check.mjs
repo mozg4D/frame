@@ -35,7 +35,7 @@ export async function verifyShaftChannels(){
     rows.push({axis,type,angularVelocityWorldRadPerS:motion.angularVelocityWorldRadPerS,rpmInBox:motion.rpmInBox,
       velocityWorldMPerS:motion.velocityWorldMPerS[0],velocityErrorMPerS:vError,steps:result.steps,powerW:result.powerW,
       powerIdentityErrorW:powerIdentityError,pressure:result.surfaceFields.available.includes('Pressure'),forceWorldN:result.forceWorld,
-      maxDivergencePerS:result.validity.maxDivergencePerS});
+      geometryExtent:result.validity.geometryExtent,maxDivergencePerS:result.validity.maxDivergencePerS});
   }
   await call('scene.new');
   const box=await call('scene.create',{type:'cfd',params:{Speed:0}}),body=await call('scene.create',{type:'sphere',params:{diameter:45}});
@@ -45,5 +45,6 @@ export async function verifyShaftChannels(){
   try{await call('plugins.command',{id:box.hash,operation:'wall-motion',args:{pointsWorldM:[[0,.5,.02]]}});}
   catch(e){crossAxisError=e.message;}
   return {pass:!!crossAxisError?.includes('axial angular velocity')&&rows.every(r=>r.pressure&&r.forceWorldN.every(Number.isFinite)&&r.powerW>0&&
-    r.powerIdentityErrorW<1e-6&&r.maxDivergencePerS<1e-6),rows,crossAxisError};
+    r.geometryExtent.sweptDiameterM>0&&r.geometryExtent.characteristicLengthM===Math.max(r.geometryExtent.sweptDiameterM,
+      r.geometryExtent.bodyBoundsM.max[0]-r.geometryExtent.bodyBoundsM.min[0])&&r.powerIdentityErrorW<1e-6&&r.maxDivergencePerS<1e-6),rows,crossAxisError};
 }

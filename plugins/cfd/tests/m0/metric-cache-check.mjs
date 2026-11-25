@@ -16,7 +16,7 @@ export async function verifyNativeMetricReuse(){
         const status=await op('results'),r=status.result;
         if(r?.steps>0){
           const part=r.surfaceFields.occurrences[0],probe=await op('probe',{occurrence:0,triangle:Math.floor(part.triangles/2)});
-          return {label,field:r.validity.distanceField,cells:r.cells,gridHash:r.validity.gridHash,
+          return {label,field:r.validity.distanceField,geometryExtent:r.validity.geometryExtent,cells:r.cells,gridHash:r.validity.gridHash,
             triangles:part.triangles,pressurePa:probe.pressurePa,force:r.forceWorld,steps:r.steps,
             mass:r.validity.maxDivergencePerS,firstFieldMs:performance.now()-start};
         }
@@ -38,6 +38,7 @@ export async function verifyNativeMetricReuse(){
   const pressureError=Math.abs(speed.pressurePa-cold.pressurePa)/Math.max(1,Math.abs(cold.pressurePa));
   return {pass:runs.every(r=>r.steps===1&&r.mass<1e-6&&r.field.bytes>0&&Number.isFinite(r.pressurePa))&&
     runs.map(r=>r.field.source).join(',')==='rebuilt,retained,rebuilt,retained,rebuilt'&&
+    runs.map(r=>r.geometryExtent.source).join(',')==='evaluated,retained,evaluated,retained,evaluated'&&
     altitude.triangles>edited.triangles&&JSON.stringify(altitude.field.dims)===JSON.stringify(edited.field.dims)&&
     speed.gridHash===cold.gridHash&&forceError<.001&&pressureError<.001,forceError,pressureError,runs};
 }
