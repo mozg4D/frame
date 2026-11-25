@@ -181,6 +181,7 @@ export async function runCase(device,f,kind,progress,capture=null){
   f.cutCells=!!f.cutCells&&f.wallModeled;
   f.subcellSurface=!!f.subcellSurface&&f.cutCells;
   f.faceHistory=!!f.faceHistory&&f.wallModeled;
+  f.latticeMassAudit=kind==='mr-lbm';
   f.linearWallPressure=!!f.linearWallPressure&&f.cutCells;
   f.sstWall=!!f.sstWall&&f.cutCells;
   f.faceReconstruction=!!f.faceReconstruction&&f.cutCells&&48*f.dims.reduce((a,b)=>a*b)<=device.limits.maxStorageBufferBindingSize;
@@ -204,7 +205,11 @@ export async function runCase(device,f,kind,progress,capture=null){
   let stopMonitor=viewportMonitor();
   try{
     const finiteVolume=kind==='cartesian-fvm';
-    const geom=capture?await (await import('./native-volume.mjs')).nativeFlowGeometry(gpu,f,capture,dt):await geometryKernel(gpu,f,dt,finiteVolume);
+    let geom;
+    if(capture){
+      const {nativeFlowGeometry,nativeLatticeGeometry}=await import('./native-volume.mjs');
+      geom=await (finiteVolume?nativeFlowGeometry:nativeLatticeGeometry)(gpu,f,capture,dt);
+    }else geom=await geometryKernel(gpu,f,dt,finiteVolume);
     geom.update(0);
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;
     if(groups&&dt>groups.stableStep){
@@ -228,14 +233,14 @@ export async function runCase(device,f,kind,progress,capture=null){
     const planeStage=measureWake?gpu.staging('CFD complete wake window',solver.plane.size):null;
     await device.queue.onSubmittedWorkDone();
     const setupMs=performance.now()-start;
-    const batchedLattice=!finiteVolume&&!f.rotor&&!!solver.encode;
+    const batchedLattice=!finiteVolume&&!!solver.encode&&(!f.rotor||!!geom.encode);
     const scheduler=solver.advance||batchedLattice?viewportBudget(device,stopMonitor.lastFrame):null;
-    const latticeTick=batchedLattice?{kind:'packed lattice step',encode:solver.encode}:null;
+    const latticeTick=batchedLattice?{kind:'packed lattice step',encode:geom.encode?e=>{geom.encode(e);solver.encode(e);}:solver.encode}:null;
     let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
     for(let window=0;window<32;window++){
       await f.checkKinematics?.();
-      clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null,geom.skin?.mean);
+      clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null,geom.skin?.mean,solver.mass?.exchanges);
       // Round cumulative times; each measured rotor window spans one revolution.
       const end=Math.round((window+1)*f.period/dt),first=step;
       while(step<end){
@@ -272,8 +277,10 @@ export async function runCase(device,f,kind,progress,capture=null){
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
       const radialProfile=annular&&complete?await annular(scale,forceN,load[1]):null;
       const nativePressure=geom.skin?await geom.skin.measure(f.rho*(f.h/dt)**2/(step-first),f.omega):null;
+      const latticeMass=solver.mass?await solver.mass.measure(step-first):null;
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
         ...nativePressure?{nativePressure}:{},
+        ...latticeMass?{latticeMass}:{},
         ...radialProfile?{radialProfile,shaftPowerFromViscousStressW:radialProfile.reduce((a,b)=>a-f.omega*b.viscousTorqueNm,0),
           shaftPowerFromPressureW:radialProfile.reduce((a,b)=>a-f.omega*b.pressureTorqueNm,0)}:{},
         ...measureWake?{wakeLengthM:isolatedWake}:{},
@@ -304,18 +311,20 @@ export async function runCase(device,f,kind,progress,capture=null){
     const wakePassed=expectedWake?Number.isFinite(field?.wakeLengthM)&&Math.abs(field.wakeLengthM/expectedWake-1)<=.05:null;
     const massPassed=solver.flux?!!field&&field.relativeDivergenceMax<1e-6&&field.maxDivergencePerS<1e-6&&
       solver.fluxConvergence.maxRelativeDivergence<1e-6&&solver.fluxConvergence.maxDivergencePerS<1e-6:null;
-    const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&powerPassed!==false&&wakePassed!==false&&viewport.qualified&&massPassed!==false;
+    const latticeMassPassed=solver.mass?windows.length>0&&[...windows,...partialWindow?[partialWindow]:[]].every(w=>
+      w.latticeMass?.relativeGlobalMassDefect<1e-6&&w.latticeMass.densityRatioRange[0]>0&&Number.isFinite(w.latticeMass.densityRatioRange[1])):null;
+    const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&powerPassed!==false&&wakePassed!==false&&viewport.qualified&&massPassed!==false&&latticeMassPassed!==false;
     const totalMs=performance.now()-start;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
-      wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':'Volume penalization',
+      wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':f.latticeSurfaceWall?'Native triangle normal constraint and Spalding wall stress':'Volume penalization',
       cutGeometry:groups?.stats,implicitExterior:solver.outerTransport?{innerRadiusM:f.implicitRadiusM,...solver.outerTransport}:undefined,
       exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.apertureFlow?'relative flow integrated on each open polygon':f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
-      setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
+      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};

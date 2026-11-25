@@ -1,4 +1,6 @@
 import {gridWGSL} from './fixtures.mjs';
+import {wallResistanceWGSL} from './wall-law.mjs';
+import {latticeMass} from './lattice-mass.mjs';
 
 // A single packed lattice plus a snapshot of shared brick boundaries. A
 // workgroup reads its own complete tile before writing it; foreign boundary
@@ -13,7 +15,7 @@ export async function momentSolver(gpu,f,dt,wall,force){
   const u0=f.U*dt/f.h, tau=0.5+3*f.nu*dt/f.h**2;
   const links=!!f.interpolatedWall;
   if(links&&(f.axes||f.rotor))throw Error('Interpolated lattice links require a stationary geometry on a uniform physical lattice');
-  const loads=links?gpu.buffer('CFD link momentum exchange',count*16):null;
+  const loads=gpu.buffer('CFD body moment and transverse impulse',count*16);
   const directions=[];
   for(let z=-1;z<=1;z++)for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)
     if(x*x+y*y+z*z<=2)directions.push(`vec3i(${x},${y},${z})`);
@@ -28,6 +30,7 @@ export async function momentSolver(gpu,f,dt,wall,force){
       return w*(m.rho+3.*ej+(4.5*ej*ej-1.5*dot(j,j))/rho+4.5*contraction);
     }`;
   const tiles=f.dims.map((n,k)=>Math.ceil(n/[8,4,4][k])),shell=momentShell();
+  const exchange=f.latticeMassAudit?gpu.buffer('CFD lattice boundary mass in each brick',tiles.reduce((a,b)=>a*b)*16):null;
   const addressing=`const SHELL=array<i32,128>(${shell.map.join(',')});
     fn address(p:vec3i)->vec3i{return ${f.periodicTangents?'vec3i((p.x+DIMS.x)%DIMS.x,clamp(p.y,0,DIMS.y-1),(p.z+DIMS.z)%DIMS.z)':'clamp(p,vec3i(0),DIMS-1)'};}
     fn available(p:vec3i)->bool{return ${f.periodicTangents?'p.y>=0&&p.y<DIMS.y':'inside(p)'};}
@@ -44,22 +47,20 @@ export async function momentSolver(gpu,f,dt,wall,force){
     @group(0) @binding(1) var<storage,read_write> boundaries:array<Moments>;
     @compute @workgroup_size(8,4,4) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) lane:u32){
       let p=vec3i(g);if(inside(p)&&SHELL[lane]>=0){boundaries[shellId(p)]=src[index(p)];}}`);
-  const pipe=await gpu.kernel('CFD regularized moment collision and streaming',header+addressing+`
+  const pipe=await gpu.kernel('CFD regularized moment collision and streaming',header+addressing+(f.latticeSurfaceWall?wallResistanceWGSL:'')+`
     @group(0) @binding(0) var<storage,read_write> state:array<Moments>;
     @group(0) @binding(1) var<storage,read> boundaries:array<Moments>;
     @group(0) @binding(2) var<storage,read> wall:array<vec4f>;
     @group(0) @binding(3) var<storage,read_write> force:array<f32>;
-    ${links?'@group(0) @binding(4) var<storage,read_write> load:array<vec4f>;':''}
+    @group(0) @binding(4) var<storage,read_write> load:array<vec4f>;
+    ${exchange?'@group(0) @binding(5) var<storage,read_write> transfer:array<vec4f>;var<workgroup> exchanges:array<vec4f,128>;':''}
     var<workgroup> tile:array<Moments,360>;
     fn localId(p:vec3i)->u32{return u32(p.x+10*(p.y+6*p.z));}
-    @compute @workgroup_size(8,4,4) fn main(@builtin(workgroup_id) block:vec3u,@builtin(local_invocation_id) local:vec3u,@builtin(local_invocation_index) lane:u32){
-      let origin=vec3i(block)*vec3i(8,4,4);
-      for(var k=lane;k<360u;k+=128u){let h=vec3i(vec3u(k%10u,(k/10u)%6u,k/60u));let q=address(origin+h-1);
-        if(all(q/vec3i(8,4,4)==vec3i(block))){tile[k]=state[index(q)];}else{tile[k]=boundaries[shellId(q)];}}
-      workgroupBarrier();storageBarrier();let p=origin+vec3i(local);if(!inside(p)){return;}let i=index(p);let here=vec3i(local)+1;
-      ${links?`let cellWall=wall[i];if(cellWall.x<=0.){return;}
-      let localState=tile[localId(here)];var wallImpulse=vec3f(0);var axialMoment=0.;
-      let arm=vec3f(${f.origin.join(',')})+(vec3f(p)+.5)*${f.h};`:''}
+    fn collide(p:vec3i,here:vec3i)->vec4f{
+      var balance=vec4f(0);if(!inside(p)){return balance;}let i=index(p);
+      let arm=vec3f(${f.origin.join(',')})+(vec3f(p)+.5)*${f.h};
+      ${links?`let cellWall=wall[i];if(cellWall.x<=0.){return balance;}
+      let localState=tile[localId(here)];var wallImpulse=vec3f(0);var axialMoment=0.;`:''}
       var drho=0.;var j=vec3f(0);var diag=vec3f(0);var shear=vec3f(0);var incomingH=0.;
       for(var q=0u;q<19u;q++){
         let d=E[q];let e=vec3f(d);let n=p-d;let d2=dot(e,e);
@@ -79,14 +80,18 @@ export async function momentSolver(gpu,f,dt,wall,force){
             // Gauge-subtracted momentum exchange. Opposing equilibrium weights
             // cancel exactly on a closed lattice body. Use the wall rest frame.
             let reaction=-(outgoing+pop)*e+(pop-outgoing)*uw;
+            ${exchange?'balance.z+=pop-outgoing;':''}
             wallImpulse+=reaction;axialMoment+=cross(arm-fraction*e*${f.h},reaction).x;
           }else`:''}{pop=distribution(tile[localId(here-d)],e,w);}
         }
-        else if(${f.name==='ahmed'} && n.y<0){pop=distribution(tile[localId(here)],-e,w);}
+        else if(${f.name==='ahmed'||!!f.movingRoad} && n.y<0){let local=tile[localId(here)];pop=distribution(local,-e,w);
+          ${f.movingRoad?`pop+=6.*w*(1.+local.rho)*e.x*${u0};`:''}}
         else if(${!f.rotor} && n.x>=DIMS.x){
           var exterior=tile[localId(here)];let density=1.+exterior.rho;exterior.rho=0.;
           exterior.jx/=density;exterior.jy/=density;exterior.jz/=density;pop=distribution(exterior,e,w);}
         else {pop=distribution(far(),e,w);}
+        ${exchange?`if(!available(n)){let outgoing=distribution(tile[localId(here)],-e,w);
+          balance.x+=pop-outgoing;balance.w+=abs(pop)+abs(outgoing);}`:''}
         let positive=max(w+pop,1e-20);incomingH+=positive*log(positive/w);
         drho+=pop;j+=e*pop;diag+=e*e*pop;shear+=vec3f(e.x*e.y,e.x*e.z,e.y*e.z)*pop;
       }
@@ -94,7 +99,7 @@ export async function momentSolver(gpu,f,dt,wall,force){
       diag-=vec3f(drho/3.)+j*u;shear-=vec3f(j.x*u.y,j.x*u.z,j.y*u.z);
       // Smagorinsky stress regularization on unresolved scales.
       let stress=sqrt(dot(diag,diag)+2.*dot(shear,shear));
-      let tau=0.5*(${tau}+sqrt(${tau*tau}+18.*sqrt(2.)*${f.sphere?0:0.14**2}*stress/rho));
+      let tau=0.5*(${tau}+sqrt(${tau*tau}+18.*sqrt(2.)*${f.sphere||f.laminar?0:0.14**2}*stress/rho));
       var relax=1.-1./tau;
       // Test entropy at conserved pre-forcing moments. Only back off an
       // overrelaxed collision that loses positivity or increases discrete H.
@@ -108,18 +113,38 @@ export async function momentSolver(gpu,f,dt,wall,force){
         }
         if(positive && entropy<=incomingH+4e-7){break;}relax*=0.5;
       }
-      ${links?`force[i]+=wallImpulse.x;load[i]+=vec4f(0.,axialMoment,wallImpulse.yz);`:`let solid=wall[i];let damping=1.-exp(-${10*f.maxSpeed*dt/f.h}*solid.w);
+      ${links?`force[i]+=wallImpulse.x;load[i]+=vec4f(0.,axialMoment,wallImpulse.yz);`:f.latticeSurfaceWall?`
+      let d=wall[2u*i];let area=d.x+d.y+d.z;
+      if(area>1e-8){let c=wall[2u*i+1u].xyz;
+        let A=mat3x3f(vec3f(d.x,c.x,c.y),vec3f(c.x,d.y,c.z),vec3f(c.y,c.z,d.z));
+        let slip=u-vec3f(0.,-arm.z,arm.y)*${f.omega*dt/f.h};
+        let normal=A*slip;let tangent=slip-normal/area;
+        let rate=area*wallResistance(length(tangent),max(.5,abs(d.w)),${f.nu*dt/f.h**2});
+        let reaction=rho*(normal/max(1.,area)+tangent*(rate/(1.+rate)));
+        j-=reaction;force[i]+=reaction.x;load[i]+=vec4f(0.,cross(arm,reaction).x,reaction.yz);
+      }`:`let solid=wall[i];let damping=1.-exp(-${10*f.maxSpeed*dt/f.h}*solid.w);
       let reaction=damping*(j-rho*vec3f(0.,solid.yz));
-      j-=reaction;force[i]+=reaction.x;`}
+      j-=reaction;force[i]+=reaction.x;load[i]+=vec4f(0.,cross(arm,reaction).x,reaction.yz);`}
       // Reservoir relaxation occupies the downstream buffer beyond the test body.
       let layer=smoothstep(0.83,1.,(f32(p.x)+0.5)/f32(NX));
       let sponge=select(1.,exp(-${2*f.maxSpeed*dt/f.h}*layer),${!f.rotor&&!f.periodicTangents});
-      drho*=sponge;j=mix(vec3f(${u0},0.,0.),j,sponge);relax*=sponge;
+      let streamed=drho;drho*=sponge;balance.y=drho-streamed;j=mix(vec3f(${u0},0.,0.),j,sponge);relax*=sponge;
       state[i]=Moments(drho,j.x,j.y,j.z,pack2x16float(relax*diag.xy),pack2x16float(relax*vec2f(diag.z,shear.x)),pack2x16float(relax*shear.yz));
+      return balance;
+    }
+    @compute @workgroup_size(8,4,4) fn main(@builtin(workgroup_id) block:vec3u,@builtin(local_invocation_id) local:vec3u,@builtin(local_invocation_index) lane:u32){
+      let origin=vec3i(block)*vec3i(8,4,4);
+      for(var k=lane;k<360u;k+=128u){let h=vec3i(vec3u(k%10u,(k/10u)%6u,k/60u));let q=address(origin+h-1);
+        if(all(q/vec3i(8,4,4)==vec3i(block))){tile[k]=state[index(q)];}else{tile[k]=boundaries[shellId(q)];}}
+      workgroupBarrier();storageBarrier();let balance=collide(origin+vec3i(local),vec3i(local)+1);
+      ${exchange?`exchanges[lane]=balance;
+        for(var d=64u;d>0u;d/=2u){workgroupBarrier();if(lane<d){exchanges[lane]+=exchanges[lane+d];}}
+        if(lane==0u){transfer[brickId(vec3i(block))]+=exchanges[0];}`:''}
     }`);
-  const saved=gpu.bind(snapshot,[a,halo]),binding=gpu.bind(pipe,[a,halo,wall,force,...loads?[loads]:[]]);
+  const saved=gpu.bind(snapshot,[a,halo]),binding=gpu.bind(pipe,[a,halo,wall,force,loads,...exchange?[exchange]:[]]);
+  const mass=exchange?await latticeMass(gpu,f,dt,a,exchange):null;
   const encode=e=>{gpu.dispatch(e,snapshot,saved,tiles);gpu.dispatch(e,pipe,binding,tiles);};
-  return {bytesPerStateNode:28,residentStateBytes:a.size,globalHaloBytes:halo.size,tileBytes:360*28,
+  return {bytesPerStateNode:28,residentStateBytes:a.size,globalHaloBytes:halo.size,tileBytes:360*28+(exchange?2048:0),mass,
     moments:a,loads,hasPressureSplit:false,encode,
     step(){const e=gpu.device.createCommandEncoder();encode(e);gpu.device.queue.submit([e.finish()]);}};
 }

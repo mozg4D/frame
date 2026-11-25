@@ -23,14 +23,17 @@ const sceneBytes=scenePath?await readFile(scenePath):null;
 const experimentalWebNN=args.includes('--experimental-webnn');
 if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a single Cartesian spacing');
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
-  graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform'))};
+  graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform')&&!args.includes('--solver=mr-lbm'))};
 selection.trace=args.includes('--trace-steps');
 selection.measuredPlanform=args.includes('--uiuc-planform');
 if(selection.measuredPlanform&&(scenePath||nativeSphere||nativeAhmed||selection.fixture&&selection.fixture!=='propeller'))
   throw Error('UIUC planform data apply only when creating the propeller reference geometry');
 selection.apertureFlow=args.includes('--aperture-flow');
 selection.interpolatedWall=args.includes('--interpolated-lattice-wall');
-if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&selection.fixture==='ahmed'))
+selection.latticeSurfaceWall=args.includes('--lattice-surface-wall');
+if(selection.latticeSurfaceWall&&(selection.interpolatedWall||!wallOnly&&(selection.solver!=='mr-lbm'||!scenePath&&!nativeRotor&&!nativeAhmed&&!nativeSphere)))
+  throw Error('Lattice surface forcing requires a native uniform-lattice reference or its manufactured wall control');
+if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&(nativeAhmed||nativeSphere||selection.fixture==='ahmed')))
   throw Error('Select the stationary Ahmed MR-LBM case or the manufactured wall check for interpolated links');
 if(selection.inertialRotor&&(nativeRotor||scenePath))throw Error('Captured shaft motion uses its verified rotating frame');
 const layerArg=args.find(a=>a.startsWith('--graph-wall-mm='));
@@ -83,7 +86,10 @@ const seconds=args.find(s=>s.startsWith('--budget-seconds='))?.slice(17);
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
 if(selection.fixture&&!['sphere','ahmed','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
 if(selection.solver&&!['cartesian-fvm','sdf-graph','mr-lbm'].includes(selection.solver))throw Error('Unknown CFD candidate');
-if((nativeSphere||nativeAhmed)&&selection.solver==='mr-lbm')throw Error('The native volume reference currently runs Cartesian or graph finite volumes');
+if((scenePath||nativeSphere||nativeAhmed||nativeRotor)&&selection.solver==='mr-lbm'&&selection.graded)
+  throw Error('Native MR-LBM uses a uniform physical lattice');
+if(nativeRotor&&selection.solver==='sdf-graph')throw Error('The graph candidate requires stationary evaluated geometry');
+if(scenePath&&selection.solver==='sdf-graph')throw Error('Saved-scene graph qualification needs an independent wall and motion certificate');
 const focused=Boolean(selection.fixture||selection.solver);
 const tier=Number(args.find(s=>s.startsWith('--tier='))?.slice(7)??1);
 if(![1,2].includes(tier))throw Error('Use --tier=1 or --tier=2');
@@ -138,6 +144,13 @@ try{
     const momentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded);
     if(!momentum.pass)throw Error('Fluid/body impulse mismatch: '+JSON.stringify(momentum));
     const latticeWall=selection.interpolatedWall?await (await import('./plugins/cfd/tests/m0/lattice-wall-check.mjs')).verifyLatticeWall(device):null;
+    const latticeMotion=selection.solver==='mr-lbm'||wallOnly?
+      await (await import('./plugins/cfd/tests/m0/lattice-motion-check.mjs')).verifyLatticeMotion(device):null;
+    if(latticeMotion&&!latticeMotion.pass)throw Error('Rotating lattice wall failed physical pose and momentum balance: '+JSON.stringify(latticeMotion));
+    const latticeMass=latticeMotion?await (await import('./plugins/cfd/tests/m0/lattice-mass-check.mjs')).verifyLatticeMass(device):null;
+    if(latticeMass&&!latticeMass.pass)throw Error('Packed lattice mass disagrees with boundary and reservoir exchanges: '+JSON.stringify(latticeMass));
+    const latticeSurface=selection.latticeSurfaceWall?await (await import('./plugins/cfd/tests/m0/lattice-surface-check.mjs')).verifyLatticeSurface(device):null;
+    if(latticeSurface&&!latticeSurface.pass)throw Error('Native lattice surface failed area or wrench balance: '+JSON.stringify(latticeSurface));
     if(latticeWall&&!latticeWall.pass)throw Error('Interpolated lattice wall failed Couette velocity or shear: '+JSON.stringify(latticeWall));
     const subcell=selection.subcellSurface?await (await import('./plugins/cfd/tests/m0/subcell-metric-check.mjs')).verifySubcellSurface(device):null;
     if(subcell&&!subcell.pass)throw Error('Subcell slab measure or first moment mismatch: '+JSON.stringify(subcell));
@@ -184,16 +197,17 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,apertureFlow,skinPressure,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
   if(fp32Only && (result.webnn||result.features.includes('shader-f16')))throw Error('Optional backends were enabled in the fallback trial');
   if(saveFixture){await mkdir(dirname(resolve(saveFixture)),{recursive:true});await writeFile(resolve(saveFixture),Buffer.from(fixture.base64,'base64'),{flag:'wx'});}
-  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&c.field&&Number.isFinite(c.field.relativeDivergenceMax));
-    report.sceneStudyConverged=result.flow.cases.every(c=>c.stable&&c.massPassed);
-    if(!report.sceneStudyCompleted)throw Error('Saved scene study did not produce finite completed windows and a flux certificate');}
+  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&(c.kind==='mr-lbm'?
+      c.windows.length>0&&c.windows.every(w=>Number.isFinite(w.latticeMass?.relativeGlobalMassDefect)):Number.isFinite(c.field?.relativeDivergenceMax)));
+    report.sceneStudyConverged=result.flow.cases.every(c=>c.stable&&(c.kind==='mr-lbm'?c.latticeMassPassed:c.massPassed));
+    if(!report.sceneStudyCompleted)throw Error('Saved scene study did not produce finite completed windows and a mass certificate');}
   report.harnessCompleted=true;
   report.gatePassed=Boolean(result.pressure?.selected&&result.flow?.contests.qualified);
   if(result.pressure)console.log('Pressure:',JSON.stringify(result.pressure.selected));

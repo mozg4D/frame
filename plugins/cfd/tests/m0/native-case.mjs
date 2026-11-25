@@ -26,7 +26,7 @@ export async function benchmarkNativeSphere(device,tier,budgetMs,progress,graded
   const f={...flowFixture('sphere',tier),...selection,U:speed,maxSpeed:speed,rho:air.rho,nu:air.nu,period:.08/speed,
     normalization:.5*air.rho*speed**2*Math.PI*.04**2,budgetMs,trace,globalPressure,geometry:'Frame Sphere primitive evaluated in a CFD Box'};
   const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
-    await runCase(device,graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
+    await runCase(device,graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,selection.solver??'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
 }
 
@@ -66,7 +66,7 @@ export async function benchmarkNativeRotor(device,tier,progress,selection){
       'Evaluated keyed UIUC test-specimen chord and pitch, APC design sweep, rake, profiles and hub':
       'Evaluated keyed Frame polygon blades and shaft hub'};
   const grid=selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f;
-  const result=await runCase(device,grid,'cartesian-fvm',progress,capture);await assertCurrent();
+  const result=await runCase(device,grid,selection.solver??'cartesian-fvm',progress,capture);await assertCurrent();
   return {...result,motion,nominalDiameterM:diameter,sourceSignature:capture.signature};
 }
 
@@ -118,7 +118,7 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
     geometry:supportBounds.length?'Mounted native Ahmed body and four cylinder supports on the fixed tunnel floor, combined loads':
       'Evaluated native Ahmed polygon surface on a fixed floor, body-only load'};
   const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
-    await runCase(device,selection.graded?gradedFixture(f,tier,hull.bounds):f,'cartesian-fvm',progress,capture);
+    await runCase(device,selection.graded?gradedFixture(f,tier,hull.bounds):f,selection.solver??'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent,supportBoundsM:supportBounds,sourceSignature:capture.signature};
 }
 
@@ -159,10 +159,10 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
       budgetMs,globalPressure,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
       faceHistory:!!motion||settings.faceHistory,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
       faceReconstruction:settings.faceReconstruction,subcellSurface:settings.subcellSurface,apertureFlow:!!motion&&settings.apertureFlow,mergeToFluid:settings.mergeToFluid,wakeDistance:settings.wakeDistance,ddes:settings.ddes,
-      surfacePressure:settings.surfacePressure,normalization:motion?fluid.rho*rps**2*diameter**4:1,
+      surfacePressure:settings.surfacePressure,latticeSurfaceWall:settings.latticeSurfaceWall,normalization:motion?fluid.rho*rps**2*diameter**4:1,
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
-    const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);
+    const result=await runCase(device,mesh,settings.solver??'cartesian-fvm',progress,capture);
     const windows=result.windows.slice(-2),axes=boxAxes(ctx.document.world(box.hash));
     const average=key=>windows.reduce((sum,w)=>sum+w[key],0)/windows.length;
     const forceLocalN=windows.length?[0,1,2].map(k=>windows.reduce((sum,w)=>sum+(k===0?w.forceN:w.transverseForcesInBoxN[k-1]),0)/windows.length):null;

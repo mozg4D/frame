@@ -7,6 +7,8 @@ import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 import {extendWallDistance} from './wall-distance.mjs';
 import {subcellMetricWGSL} from './subcell-metric.mjs';
 import {surfacePressure} from './surface-pressure.mjs';
+import {latticeWallMotion} from './lattice-motion.mjs';
+import {latticeSurface} from './lattice-surface.mjs';
 
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
@@ -108,6 +110,24 @@ export async function nativeGraphMetric(device,f,capture){
     const sm={...f,graphNative:true,h:band.h,origin:band.origin.map(v=>v-.5*band.h),dims:band.dims,domain,surfaceBounds:bounds};
     return {sm,field,ms:performance.now()-start,peakGpuBytes:gpu.allocatedBytes,source:'Frame evaluated surface / native Unite raster, seed and extension'};
   }finally{gpu.close();}
+}
+
+export async function nativeLatticeGeometry(gpu,f,capture,dt){
+  if(f.axes)throw Error('A physical lattice requires uniform spacing');
+  const scratch=gpuScope(gpu.device),start=performance.now();
+  try{
+    const limit=Math.min(8000000,Math.floor(gpu.device.limits.maxStorageBufferBindingSize/12));
+    const band=capture.meshes.length?distanceBand(f,capture.meshes,limit,f.h/4):{origin:f.origin,h:f.h/4,dims:[3,3,3]};
+    const packed=await rasterize(scratch,band,capture),metric=await extendNativeMetric(scratch,band.dims,packed,12);
+    const distance=gpu.buffer('CFD material-frame native signed lattice metric',metric.size);
+    const e=gpu.device.createCommandEncoder();e.copyBufferToBuffer(metric,0,distance,0,metric.size);gpu.device.queue.submit([e.finish()]);
+    const surface=f.latticeSurfaceWall?await latticeSurface(gpu,f,capture,band,distance):null;
+    const geometry=await latticeWallMotion(gpu,f,dt,band,distance,surface);
+    await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();
+    return {...geometry,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / rotating native Unite metric',
+      geometryMs:performance.now()-start,occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),
+      bandDims:band.dims,bandPitchM:band.h,surfaceTensorDims:surface?.dims,scratchBytes:scratch.allocatedBytes}};
+  }finally{scratch.close();}
 }
 
 export async function nativeFlowGeometry(gpu,f,capture,dt){
