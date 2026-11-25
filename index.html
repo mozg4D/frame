@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 25 nov 02:30">
+<meta name="frame-version" content="2026 25 nov 10:00">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -18438,6 +18438,8 @@ const FramePlugins=(()=>{
   function bridge(entry){const own=hash=>{const n=frameNodeByHash(hash);if(owner(n)!==entry)throw Error('Invalid plugin owner');return n;};return {
     hash:FrameHash,math:window.frameEngine.pluginMath,
     fields:Object.freeze({authoringStamp:()=>window.frameEngine.pluginAuthoringStamp()}),
+    animation:Object.freeze({inspect:hashes=>window.frameEngine.pluginAnimationInputs(hashes),
+      sampleTransforms:(hashes,timeSec)=>window.frameEngine.pluginSampleTransforms(hashes,timeSec)}),
     document:Object.freeze({codec:FrameValue,changed:()=>FrameAuthorData.changed(),detach:(hash,atoms)=>window.frameEngine.detachInstances(own(hash),atoms),get nodes(){return nodes;},get current(){return current();},get frame(){return timelineFrame;},get playing(){return !!playing;},pause:()=>stop(),get exporting(){return !!window.frameEngine?.pluginExporting;},get selected(){return [...selected].map(node).filter(Boolean);},object:own,world:hash=>window.frameEngine.pluginWorld(hash),local:hash=>window.frameEngine.pluginLocal(hash),pivot:hash=>window.frameEngine.pluginPivot(hash),setPivot:(hash,m)=>window.frameEngine.pluginSetPivot(hash,m),setLocal:(hash,m)=>window.frameEngine.pluginSetLocal(hash,m),
       transaction:action=>commit(action),snapshot,checkpoint,restore,refresh:()=>render(),
       create:(type,parent=null,name)=>{if(types.get(type)!==entry)throw Error('Invalid plugin type');return create(type,parent?own(parent).id:null,name||definitions[type][0]);},
@@ -27608,9 +27610,31 @@ window.frameEngine=(()=>{
     function poseObjects(){const records=scene?.records;if(!records)return [];if(poseRecordCache?.records!==records)poseRecordCache={records,objects:nativeObjects(records)};return poseRecordCache.objects;}
     function objectLocal(h){return FM.unpack(nativeValue(h,'matrix'));}
     function transformParent(h,parent=nativeValue(h,'parent')?.[0]){if(!parent)return null;const objects=poseObjects(),byHash=poseRecordCache.byHash??=new Map(objects.map(o=>[o.hash,o]));return byHash.get(parent)?.spline?.type==='cloner'?null:parent;}
-    function objectWorld(h,seen=new Set()){
-      if(poseWorlds.has(h))return poseWorlds.get(h);if(seen.has(h))throw Error('Cyclic hierarchy');seen.add(h);
-      const parent=transformParent(h);let m=parent?FM.mul(objectWorld(parent,seen),objectLocal(h)):objectLocal(h);poseWorlds.set(h,m);const constraint=poseConstraints.get(h);if(constraint&&!seen.has(constraint.nativeHash)){const goal=FM.point(objectWorld(constraint.nativeHash,new Set(seen)),[0,0,0]),pivot=FM.point(m,FM.point(objectPivot(h),[0,0,0])),delta=FM.sub(goal,pivot);if(Math.hypot(...delta)>1e-10){const x=FM.unit(delta),oldX=FM.unit(FM.point(FM.mul(m,objectPivot(h)),[1,0,0],0)),cross=FM.cross(oldX,x),angle=Math.atan2(Math.hypot(...cross),Math.max(-1,Math.min(1,FM.dot(oldX,x)))),axis=Math.hypot(...cross)>1e-10?FM.unit(cross):FM.unit(FM.cross(oldX,Math.abs(oldX[1])<.9?[0,1,0]:[0,0,1]));const rotate=FM.rotation(axis,angle);m=FM.mul(FM.about(rotate,pivot),m);}}if(frameLoadNodes()?frameLoadNodes().byHash.get(h)?.type==='render':(frameNodeByHash(h)?.type==='render')){const rigid=FM.rigid(m),x=Array.from(rigid.slice(0,3)),cross=FM.cross(x,[0,1,0]),z=Math.hypot(...cross)>1e-10?FM.scale(FM.unit(cross),FM.dot(cross,Array.from(rigid.slice(8,11)))<0?-1:1):Array.from(rigid.slice(8,11)),y=FM.unit(FM.cross(z,x)),level=FM.I();level.set(x,0);level.set(y,4);level.set(z,8);level.set(m.slice(12,15),12);m=FM.mul(level,FM.mul(FM.inv(rigid),m));}poseWorlds.set(h,m);return m;
+    function orientWorldFrame(h,m,goal){
+      if(goal){
+        const localPivot=objectPivot(h),pivotFrame=FM.mul(m,localPivot),pivot=FM.point(pivotFrame,[0,0,0]),delta=FM.sub(goal,pivot);
+        if(Math.hypot(...delta)>1e-10){
+          const x=FM.unit(delta),oldX=FM.unit(FM.point(pivotFrame,[1,0,0],0)),cross=FM.cross(oldX,x),sine=Math.hypot(...cross);
+          const angle=Math.atan2(sine,Math.max(-1,Math.min(1,FM.dot(oldX,x))));
+          const axis=sine>1e-10?FM.unit(cross):FM.unit(FM.cross(oldX,Math.abs(oldX[1])<.9?[0,1,0]:[0,0,1]));
+          m=FM.mul(FM.about(FM.rotation(axis,angle),pivot),m);
+        }
+      }
+      if((frameLoadNodes()?frameLoadNodes().byHash.get(h):frameNodeByHash(h))?.type==='render'){
+        const rigid=FM.rigid(m),x=Array.from(rigid.slice(0,3)),oldZ=Array.from(rigid.slice(8,11)),cross=FM.cross(x,[0,1,0]);
+        const z=Math.hypot(...cross)>1e-10?FM.scale(FM.unit(cross),FM.dot(cross,oldZ)<0?-1:1):oldZ;
+        const level=FM.I();level.set(x,0);level.set(FM.unit(FM.cross(z,x)),4);level.set(z,8);level.set(m.slice(12,15),12);
+        m=FM.mul(level,FM.mul(FM.inv(rigid),m));
+      }
+      return m;
+    }
+    function objectWorld(h,seen=new Set(),cache=poseWorlds,frame=null){
+      if(cache.has(h))return cache.get(h);if(seen.has(h))throw Error('Cyclic hierarchy');seen.add(h);
+      const parent=transformParent(h),local=frame===null?objectLocal(h):sampledLocal(h,frame);
+      let m=parent?FM.mul(objectWorld(parent,seen,cache,frame),local):local;cache.set(h,m);
+      const target=poseConstraints.get(h)?.nativeHash;
+      const goal=target&&!seen.has(target)?FM.point(objectWorld(target,new Set(seen),cache,frame),[0,0,0]):null;
+      m=orientWorldFrame(h,m,goal);cache.set(h,m);return m;
     }
     function poseSplineLoadMesh(mesh,m){
       mesh.localBoundsMin??=[...mesh.boundsMin];mesh.localBoundsMax??=[...mesh.boundsMax];if(!mesh.replicaMatrix)poseUniform(renderer,mesh);writePoseUniform(mesh,m);const box=transformedBox(localMeshBox(mesh),m);mesh.boundsMin=box.min;mesh.boundsMax=box.max;
@@ -27645,11 +27669,61 @@ window.frameEngine=(()=>{
       else for(let j=0;j<3;j++){const size=Math.hypot(...m.slice(j*4,j*4+3));for(let i=0;i<3;i++)m[j*4+i]*=value[j]/size;}
       return m;
     }
+    function sampledLocal(hash,frame){
+      const n=frameNodeByHash(hash);let m=objectLocal(hash);
+      for(const [path,t]of frameChannels.get(n?.id)||[]){
+        if(FRAME_TRANSFORM_FIELDS.includes(path)&&t.keys.size)m=animationFrame(m,path,frameSampleRaw(t,frame));
+      }
+      return m;
+    }
     function animationWorld(hash,frame,cache=new Map()){
       if(!hash)return FM.I();if(cache.has(hash))return cache.get(hash);
-      const n=frameNodeByHash(hash);let m=objectLocal(hash);
-      for(const [path,t]of frameChannels.get(n?.id)||[])if(FRAME_TRANSFORM_FIELDS.includes(path)&&t.keys.size)m=animationFrame(m,path,frameSampleRaw(t,frame));
-      const parent=transformParent(hash);m=parent?FM.mul(animationWorld(parent,frame,cache),m):m;cache.set(hash,m);return m;
+      const local=sampledLocal(hash,frame),parent=transformParent(hash);
+      const m=parent?FM.mul(animationWorld(parent,frame,cache),local):local;cache.set(hash,m);return m;
+    }
+    function animationOwners(hashes){
+      if(!Array.isArray(hashes)||hashes.length<1||hashes.length>nodes.length)throw Object.assign(Error('Expected existing native transform owners'),{code:'INVALID_ARGUMENT'});
+      const owners=hashes.map(h=>frameNodeByHash(h));
+      if(owners.some(n=>!n)||new Set(hashes).size!==hashes.length)throw Object.assign(Error('Expected distinct existing native transform owners'),{code:'INVALID_ARGUMENT'});
+      return owners;
+    }
+    function nativeInputHashes(n,childIndex=null){
+      if(n.type==='extrude'||n.type==='spline_patch')return [...new Set(FrameSpline.generatorSources(n,childIndex).map(row=>(row.instances[0]||row.node).nativeHash))];
+      return (childIndex?childIndex.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash);
+    }
+    function pluginAnimationInputs(hashes){
+      const pending=animationOwners(hashes),sources=new Map(),seen=new Set(),objects=[],channels=[];
+      const byParent=new Map(),byHash=new Map();
+      for(const n of nodes){
+        if(n.nativeHash)byHash.set(n.nativeHash,n);
+        let list=byParent.get(n.parent);if(!list)byParent.set(n.parent,list=[]);list.push(n);
+      }
+      const geometry=new Set(hashes);
+      for(const id of geometry){
+        const n=byHash.get(id),references=Object.values(n.params||{}).filter(v=>byHash.has(v));
+        const dependencies=[...new Set([...nativeInputHashes(n,byParent),...references])];sources.set(id,dependencies);
+        for(const child of dependencies)if(byHash.has(child)&&!geometry.has(child)){geometry.add(child);pending.push(byHash.get(child));}
+      }
+      for(let i=0;i<pending.length;i++){
+        const n=pending[i],id=n.nativeHash;if(seen.has(id))continue;seen.add(id);
+        const parent=transformParent(id),target=poseConstraints.get(id)?.nativeHash??null;
+        objects.push({id,type:n.type,plugin:FramePlugins.owner(n)?.manifest.id??null,parent,target,sources:sources.get(id)??[]});
+        for(const dependency of [parent,target]){const o=dependency&&frameNodeByHash(dependency);if(o&&!seen.has(dependency))pending.push(o);}
+        for(const [path,t]of frameChannels.get(n.id)||[])if(t.keys.size)channels.push({id,path,track:framePackTrack(t)});
+      }
+      return {frame:timelineFrame,fps:FRAME_FPS,objects,channels};
+    }
+    function pluginSampleTransforms(hashes,timeSec){
+      const owners=animationOwners(hashes),frame=timeSec*FRAME_FPS;
+      if(!Number.isFinite(timeSec)||timeSec<0||frame>timelineTotal+1e-9)throw Object.assign(Error('Physical sample time lies outside the native timeline'),{code:'INVALID_ARGUMENT'});
+      if(frameCurves.morphPose)throw Object.assign(Error('Physical transforms require the normal animation timeline'),{code:'BUSY'});
+      const cache=new Map();
+      const objects=owners.map(n=>{
+        const world=objectWorld(n.nativeHash,new Set(),cache,frame);
+        if(!world.every(Number.isFinite))throw Error('Nonfinite sampled world transform');
+        return {id:n.nativeHash,world:Array.from(world)};
+      });
+      return {timeSec,frame,fps:FRAME_FPS,objects};
     }
     function motionTrack(n){return !frameCurves.morphPose&&frameGetTrack(n.id,'position');}
     function motionPoint(n,t,frame){return FM.point(animationWorld(transformParent(n.nativeHash),frame),frameSampleRaw(t,frame));}
@@ -37930,7 +38004,7 @@ function FramePolygonKernel(d){
       register('plugins.create','Load one installed plugin and add its object using native Undo.',required(obj({plugin:str,type:str}),'plugin'),false,async a=>{const n=await FramePlugins.create(a.plugin,a.type);await settle();return describe(n);});
       const resolve=ref=>frameNodeByReference(ref)||fail('NOT_FOUND','Object not found: '+ref),refs=ids=>ids.map(resolve),copy=v=>structuredClone(v),meshOf=n=>scene.meshes.find(m=>m.hashId===n.nativeHash);
       async function settle(allowGesture=false){await api.ready;await historySerial;await FramePlugins.loadUsed();await objectActionQueue;await clipboardSerial;await FrameMorph.flush();if(canvas.dataset.ready==='error'||!scene)fail('NOT_READY',canvas.dataset.operationError||'WebGPU is unavailable');await loadLibraryObjects();let pending;do{pending=selectionPending;await pending;await selectionQueue;}while(pending!==selectionPending);await gizmoSession?.completion;await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag){if(allowGesture)return;fail('BUSY','Finish the active editor gesture first');}let click;do{click=polygonClick;await click;}while(click!==polygonClick);await loopSerial;await FrameFileSources.flush();await FrameGeometry.flush();await FrameSpline.flush();await replicaQueue;await animationSerial;await FramePlugins.flush();for(const n of nodes)if(n.type==='mesh'&&n.tags.some(t=>t.kind==='morph'&&t.params.mode==='Solve'))await FrameMorph.apply(n);await selectionQueue;await editSerial;await appearanceQueue;await measureQueue;await flushCreasePolicies();const started=performance.now();while(wheelBusy||pendingWheel){if(performance.now()-started>30000)fail('BUSY','Navigation has not settled');await new Promise(requestAnimationFrame);}}
-      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash),params:copy(n.params),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!(m.splineGenerated||m.plantGeometryKey),visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
+      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:nativeInputHashes(n,inspection?.children),params:copy(n.params),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!(m.splineGenerated||m.plantGeometryKey),visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
       function inspectionIndex(){const index=boundsOwnerIndex();index.children=new Map();for(const n of nodes){let list=index.children.get(n.parent);if(!list)index.children.set(n.parent,list=[]);list.push(n);}return index;}
       function describeMany(list){const inspection=inspectionIndex();return list.map(n=>describe(n,inspection));}
       function selectionInfo(){const occurrence=objectOccurrenceTransform();return {occurrence:occurrence?{source:objectSelectionOccurrence.hash,key:objectSelectionOccurrence.key,curve:objectSelectionOccurrence.curve,matrix:Array.from(occurrence)}:null,tool:polygonTools.mode,preview:loopPreview?{hash:loopPreview.hash||loopPreview.spline?.hash,edges:loopPreview.result?.edges||loopPreview.spline?.edges||[]}:null,scope:selectionScope,mode:elementMode,objects:[...selected].map(id=>node(id)?.nativeHash||id),nativeObjects:[...objectSelection],spline:FrameSpline.editingHash,components:[...FrameSpline.selection()],counts:renderer?.boxSelection?.counts||[],bounds:selectionBox};}
@@ -38012,6 +38086,7 @@ function FramePolygonKernel(d){
       register('animation.loop','Enable or disable continuous simulation at timeline wrap.',required(obj({enabled:bool}),'enabled'),false,a=>setTimelineLoop(a.enabled));
       register('animation.play','Start the shared 60 fps timeline and await each simulation frame.',obj({}),false,()=>{playTimeline();return timelineStatus();});
       register('animation.pause','Pause the shared timeline after its current simulation frame.',obj({}),false,async()=>{stop();await timelineWork;return timelineStatus();});
+      register('animation.sampleTransforms','Sample native affine world matrices at physical seconds, including parent, Target and camera transforms, without seeking the timeline.',required(obj({ids:array(str,10000),timeSec:num}),'ids','timeSec'),true,a=>pluginSampleTransforms(refs(a.ids).map(n=>n.nativeHash),a.timeSec));
       register('animation.inspect','Read authored animation channels from the same timeline/curve editor.',obj({id:str}),true,a=>({...timelineStatus(),channels:frameSerializeChannels().filter(r=>!a.id||r[0]===animationOwner(a.id).id).map(([h,path,track])=>({id:node(h)?.nativeHash||h,path,track}))}));
       register('edit.copy','Copy selected native objects to the GPU-owned clipboard, preserving source-time geometry and authoring.',obj({}),false,()=>copySelection());
       register('edit.paste','Paste an independent clipboard copy through the native copy Undo transaction.',obj({}),false,async()=>{const hashes=await pasteSelection();await settle();return {objects:hashes.map(h=>describe(resolve(h)))};});
@@ -38324,7 +38399,7 @@ function FramePolygonKernel(d){
     }
 
     const api={dropCurvature,bendAdmission:hash=>({reason:bendAdmission(hash).reason}),setMeshCreaseAngle:(hash,angle)=>{const n=frameNodeByHash(hash);if(!framePolygonCreaseType(n?.type)||!scene)return;const owned=m=>m?.hashId===hash&&!m.replicaMatrix&&!m.replicaSource,candidate=scene.meshes[n.engineIndex],m=owned(candidate)?candidate:scene.meshes.find(owned);if(m)setPolygonCreaseAngle(m,angle);},get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));FrameAuthorData.changed();syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
-      pluginHistoryRecords:()=>[...metaUndo,...metaRedo].flatMap(action=>[...action.before?.objects||[],...action.after?.objects||[]].flatMap(o=>Object.values(o.authoring?.recordValues||{}))),retirePluginHistory:()=>{const stack=metaUndo.length?metaUndo:metaRedo;if(!stack.length)return false;releaseMetadataAction(stack.shift());return true;},detachInstances,pluginPivot:hash=>Array.from(objectPivot(hash)),pluginSetPivot:(hash,m)=>{putFrame(hash,'pivot',Float64Array.from(m));if(!gizmoSession&&!coreNumeric)FrameAuthorData.changed();notifyTransformUI();draw(true);},pluginMath:FM,pluginWorld:hash=>Array.from(objectWorld(hash)),pluginLocal:hash=>Array.from(objectLocal(hash)),pluginSetLocal:(hash,m)=>{putFrame(hash,'matrix',Float64Array.from(m));if(!gizmoSession&&!coreNumeric)FrameAuthorData.changed();syncPoseWorld();},get pluginExporting(){return renderExporting;},
+      pluginHistoryRecords:()=>[...metaUndo,...metaRedo].flatMap(action=>[...action.before?.objects||[],...action.after?.objects||[]].flatMap(o=>Object.values(o.authoring?.recordValues||{}))),retirePluginHistory:()=>{const stack=metaUndo.length?metaUndo:metaRedo;if(!stack.length)return false;releaseMetadataAction(stack.shift());return true;},detachInstances,pluginPivot:hash=>Array.from(objectPivot(hash)),pluginSetPivot:(hash,m)=>{putFrame(hash,'pivot',Float64Array.from(m));if(!gizmoSession&&!coreNumeric)FrameAuthorData.changed();notifyTransformUI();draw(true);},pluginMath:FM,pluginAnimationInputs,pluginSampleTransforms,pluginWorld:hash=>Array.from(objectWorld(hash)),pluginLocal:hash=>Array.from(objectLocal(hash)),pluginSetLocal:(hash,m)=>{putFrame(hash,'matrix',Float64Array.from(m));if(!gizmoSession&&!coreNumeric)FrameAuthorData.changed();syncPoseWorld();},get pluginExporting(){return renderExporting;},
       pluginComponents:(hash,bounds)=>{selectionGeneration++;selectionScope='components';objectSelection=[];selectedMeshes=[];selectedMesh=null;componentPivot=null;measurementCache=coordinateCache=null;selectionBox=bounds?transformedBox(bounds,objectWorld(hash)):null;notifyTransformUI();draw(true);},
       pluginProject:p=>worldScreen(p),pluginView:()=>({index:frameViewKind(viewIndex),instance:viewIndex,depth:renderer.depth,camera:Array.from(new Float32Array(cameraUniform(renderer.width,renderer.height))),rect:(()=>{const r=canvas.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};})()}),
       pluginPlane:(x,y,hash)=>{const normal=FM.unit(inverseView([0,0,1])),target=frameViewKind(viewIndex)?[0,0,0]:orbitPivot.map((v,k)=>v/scene.scale+scene.center[k]);let p=pointerWorld({clientX:x,clientY:y},target,normal);if(p&&frameViewKind(viewIndex)&&quantize){const step=quantStepForView();const u=FM.unit(inverseView([1,0,0])),v=FM.unit(inverseView([0,1,0]));p=FM.add(p,FM.add(FM.scale(u,Math.round(FM.dot(p,u)/step)*step-FM.dot(p,u)),FM.scale(v,Math.round(FM.dot(p,v)/step)*step-FM.dot(p,v))));}return p&&FM.point(FM.inv(objectWorld(hash)),p);},

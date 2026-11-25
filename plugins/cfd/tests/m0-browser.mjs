@@ -25,6 +25,7 @@ if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a s
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform')&&!args.includes('--solver=mr-lbm'))};
 selection.trace=args.includes('--trace-steps');
+selection.projectionShape=args.includes('--projection-shape');
 selection.measuredPlanform=args.includes('--uiuc-planform');
 if(selection.measuredPlanform&&(scenePath||nativeSphere||nativeAhmed||selection.fixture&&selection.fixture!=='propeller'))
   throw Error('UIUC planform data apply only when creating the propeller reference geometry');
@@ -155,6 +156,13 @@ try{
     if(regularPressure&&!regularPressure.pass)throw Error('Whole-domain regular inverse failed: '+JSON.stringify(regularPressure));
     const coarsePressure=selection.coarseSpectral?await (await import('./plugins/cfd/tests/m0/coarse-spectral-check.mjs')).verifyCoarseSpectral(device):null;
     if(coarsePressure&&!coarsePressure.pass)throw Error('Coarse spectral pressure missed the independent force-free pressure solution: '+JSON.stringify(coarsePressure));
+    const physicalTime=wallOnly?await (await import('./plugins/cfd/tests/m0/physical-time-check.mjs')).verifyPhysicalTime(device):null;
+    if(physicalTime&&!physicalTime.pass)throw Error('Native physical-time wall motion failed: '+JSON.stringify(physicalTime));
+    const projectionShape=selection.projectionShape?await (await import('./plugins/cfd/tests/m0/projection-shape-check.mjs')).verifyProjectionShape(device):null;
+    if(projectionShape&&!projectionShape.pass)throw Error('Pressure force sensitivity failed the independent cut-plane perturbations: '+JSON.stringify(projectionShape));
+    const nativeProjectionShape=selection.projectionShape?await (await import('./plugins/cfd/tests/m0/native-shape-check.mjs')).verifyNativeProjectionShape(device):null;
+    if(nativeProjectionShape&&!nativeProjectionShape.pass)throw Error('Pressure force sensitivity failed the re-authored native vertex perturbations: '+JSON.stringify(nativeProjectionShape));
+    if(nativeProjectionShape)await window.cfdProgress('Shape: pressure projection passed independent 3D cut-plane and native vertex perturbations');
     const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device,selection.graded,selection.globalPressure);
     if(!piston.pass)throw Error('Immersed pressure/force reference failed: '+JSON.stringify(piston.checks));
     await window.cfdProgress('Frame piston: buffer mesh and paged instance passed pressure, force, visibility and source revision checks');
@@ -223,7 +231,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

@@ -12,7 +12,7 @@ import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
-import {axialTrackRate} from './m0/rigid-spin.mjs';
+import {axialTrackRate} from '../plugin.js';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
 import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
