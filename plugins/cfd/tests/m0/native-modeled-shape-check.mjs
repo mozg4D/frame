@@ -114,7 +114,7 @@ export async function verifyNativeModeledShape(device){
       adjointResidual:Math.max(...base.defects.map(d=>d[1])),samples:base.samples,mass:base.mass,estimates});
   }
   const b=rows[0].replay;
-  return {pass:b?.restored&&b.identicalPrimal&&b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.replayedSteps>steps&&
+  return {pass:b?.restored&&b.identicalPrimal&&b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.replayedSteps===21&&
     rows.every(r=>r.mass<1e-6&&r.inletDefect<3e-6&&r.adjointResidual<3e-6&&r.estimates.every(e=>
     e.sameFlux&&e.sameMomentum&&e.volumeError<1e-12&&e.mass<1e-6&&e.relativeError<.05)),dims:f.dims,steps,dtS:dt,rows};
 }

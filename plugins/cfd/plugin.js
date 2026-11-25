@@ -534,15 +534,16 @@ function physicalHistory(gpu,solver,expectedSteps){
   }};
 }
 
-// A segment with m spare checkpoints and r replays per level can cover a
-// binomial number of time levels. Put the longer prefix on the branch that
-// keeps all m slots. A half split becomes quadratic on a large fine grid.
-function checkpointSplit(span,slots){
-  if(slots===1)return span-1;
+// Include the interval's start in the binomial capacity. At replay depth r,
+// the tail can use one fewer checkpoint, while the prefix pays for its first
+// forward traverse. Both bounds matter when the final level is partly filled.
+export function checkpointSplit(span,spare){
+  const slots=spare+1;
   let covered=1,replays=0;
   while(covered<span){replays++;covered=covered*(slots+replays)/replays;}
   const suffix=Math.round(covered*slots/(slots+replays));
-  return Math.max(1,span-suffix);
+  const prefixFloor=Math.round(covered*replays*(replays-1)/((slots+replays)*(slots+replays-1)));
+  return Math.max(1,prefixFloor,span-suffix);
 }
 
 // Differentiate the actual mean over the reported windows, including the
@@ -593,7 +594,7 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
   }
   let replayed=0,reversed=0,pressureDefect=0,inletDefect=null,krylovIterations=0,failureReason=null,maxPressureAdjoint=0,nextIterations=12;
   const tolerance=3e-6;
-  async function reverse(t,previous){
+  async function reverse(t,previous,livePredictor=false){
     check();submit(e=>{
       copy(e,solver.pressure,endpoint);
       if(t===steps-1)gpu.dispatch(e,directional,bindForce,[Math.ceil(n/128)]);
@@ -602,7 +603,7 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
     let defect=Infinity;
     for(let iterations=nextIterations;;iterations=Math.min(128,2*iterations)){
       if(iterations!==nextIterations)submit(e=>copy(e,endpoint,solver.pressure));
-      await scheduler.perform(op.reverseStages(previous,iterations),check);check();
+      await scheduler.perform(op.reverseStages(previous,iterations,livePredictor),check);check();
       const residual=await op.projection.relative();
       defect=residual.relative;maxPressureAdjoint=Math.max(maxPressureAdjoint,residual.magnitude);krylovIterations+=iterations;
       if(!Number.isFinite(defect)||defect<=tolerance||iterations===128){
@@ -622,6 +623,18 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
   async function interval(lo,hi,start,free){
     if(failureReason)return;
     if(hi-lo===1){await reverse(lo,start);return;}
+    if(!free){
+      // The predictor transpose reads the old velocity and both discharges in
+      // place. Only the pressure has to move aside for the endpoint constraint.
+      for(let t=hi-1;t>lo&&!failureReason;t--){
+        submit(e=>{copy(e,solver.pressure,endpoint);solver.restore(e,start);});
+        for(let s=lo;s<t;s++){await solver.replay(s,scheduler,check);replayed++;}
+        submit(e=>{copy(e,solver.pressure,pressure);copy(e,endpoint,solver.pressure);});
+        await reverse(t,pressure,true);
+      }
+      if(!failureReason)await reverse(lo,start);
+      return;
+    }
     submit(e=>{copy(e,solver.pressure,pressure);solver.restore(e,start);});
     if(hi-lo<=free+1){
       const level=[start];
@@ -2768,14 +2781,15 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const volumes=phase('combine group volume derivatives',e=>{
       gpu.dispatch(e,ratio,reduceRatio,grid);gpu.dispatch(e,scatter,spreadRatio,grid);
     });
-    function reverseStages(previous,iterations=24){
+    function reverseStages(previous,iterations=24,livePredictor=false){
       return [phase('restore physical predictor for transposition',e=>{
-        copyCheckpoint(e,previous,false,false);model.predict(e);
+        if(!livePredictor)copyCheckpoint(e,previous,false,false);
+        model.predict(e);
       }),...projection.stages(iterations),phase('transpose stored face history',e=>{
         history.encode(e);gpu.dispatch(e,prepare,before,grid);
       }),phase('transpose wall and SST momentum transport',model.encode),phase('combine previous-state and material derivatives',e=>{
         gpu.dispatch(e,join,after,grid);gpu.dispatch(e,collect,collectBind,grid);
-        e.copyBufferToBuffer(previous,3*length,mg.p,0,mg.p.size);
+        e.copyBufferToBuffer(previous,livePredictor?0:3*length,mg.p,0,mg.p.size);
       }),volumes];
     }
     return {old:model.old,face:model.face,geometry:cutGeometry,projection,history,model,checkpointSize,reverseStages,

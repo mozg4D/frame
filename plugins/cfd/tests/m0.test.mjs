@@ -12,12 +12,24 @@ import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
-import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,gradeCapturedDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse,forceUncertainty,pairedDrag} from '../plugin.js';
+import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,gradeCapturedDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse,forceUncertainty,pairedDrag,checkpointSplit} from '../plugin.js';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh,wakeTunnel} from './m0/ahmed.mjs';
 import {tunnelProfiles} from './m0/wake.mjs';
+test('limited-memory time adjoint attains the minimum number of repeated physical steps',()=>{
+  const length=80,minimum=[Array.from({length:length+1},(_,n)=>n*(n-1)/2)];
+  for(let spare=1;spare<=6;spare++){
+    const row=[0,0];minimum.push(row);
+    for(let n=2;n<=length;n++){
+      const cost=prefix=>prefix+row[prefix]+minimum[spare-1][n-prefix];
+      row.push(Math.min(...Array.from({length:n-1},(_,k)=>cost(k+1))));
+      if(n<=spare+1)assert.equal(n-1,row[n]);
+      else assert.equal(cost(checkpointSplit(n,spare)),row[n]);
+    }
+  }
+});
 test('wind tunnel retains physical bounds, a single pressure outlet and fixed LDA stations on graded axes',()=>{
   const box=wakeTunnel(flowFixture('ahmed-wake',1)),bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
   const grid=rectilinearDomain(box,bounds,[.04,.02,.03],750000);
