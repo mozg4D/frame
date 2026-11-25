@@ -81,10 +81,15 @@ export async function verifyLiveSurfaceReport(device){
   const expected=[quantile(rows,'p','pa',.05),quantile(rows,'p','pa',.95),quantile(rows,'abs','pa',.975),quantile(rows,'loss','area',.975),quantile(rows,'shape','shapeArea',.975)];
   const values=[p.p05Pa,p.p95Pa,s.pressurePa,s.lossDensity,s.shapeNPerM3],area=rows.reduce((sum,x)=>sum+x.pa,0);
   const inFace=p.maxCoord.every((x,k)=>1000*x>=Math.min(...peak.map(q=>q[k]))-.001&&1000*x<=Math.max(...peak.map(q=>q[k]))+.001);
+  const v=r.validity,y=v.yPlusPercentiles;
   await op('pressure-map');await op('separation-map');await op('shape-map');const reused=await op('results');
   return {pass:current.state==='ready'&&r.shape?.state==='ready'&&r.validity.stationary&&inFace&&
     values.every((v,i)=>v===expected[i])&&p.minPa===Math.min(...withPressure.map(v=>v.p))&&p.maxPa===Math.max(...withPressure.map(v=>v.p))&&
-    Math.abs(p.sampledAreaM2/area-1)<3e-6&&reused.job.id===current.job.id,
+    Math.abs(p.sampledAreaM2/area-1)<3e-6&&reused.job.id===current.job.id&&
+    y.p50>0&&y.p95>=y.p50&&Math.abs(y.sampledAreaM2/area-1)<3e-6&&y.meanSecondDistanceM>y.meanFirstDistanceM&&
+    v.maxMach>=r.referenceMach&&v.maxMach>=v.maxSampledWallRelativeMach&&v.maxFluidMach>0,
     job:current.job.id,triangles:faces.length,pressure:p,separation:r.separationStats,colorScale:s,independentQuantiles:expected,
-    independentlySampledAreaM2:area,shape:r.shape?.state,maxDivergencePerS:r.validity.maxDivergencePerS,reference};
+    independentlySampledAreaM2:area,shape:r.shape?.state,maxDivergencePerS:r.validity.maxDivergencePerS,
+    regime:{maxMach:v.maxMach,maxFluidMach:v.maxFluidMach,maxSampledWallRelativeMach:v.maxSampledWallRelativeMach,
+      referenceMach:v.referenceMach,compressibilityErrorEstimate:v.compressibilityErrorEstimate,yPlusPercentiles:y},reference};
 }

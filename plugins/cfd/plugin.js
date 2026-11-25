@@ -577,7 +577,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       ...(history.paired?{paired:{baselineJob:history.prior.id,baselineGridHash:history.prior.gridHash,
         baselineWallTopologyHash:history.prior.wallTopologyHash,deltaDragN:-history.prior.drag}}:{}),
       uncertainty:{blocks:0,standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
-      validity:{stationary:true,maxDivergencePerS:0,relativeDivergenceMax:0,temporalConvergence:'exact'}});
+      validity:{stationary:true,maxDivergencePerS:0,relativeDivergenceMax:0,temporalConvergence:'exact',
+        ...regimeNumbers(U,null,U,fluid.soundSpeedMps),yPlusPercentiles:{p50:null,p95:null,sampledAreaM2:0,method:'no-wall-samples'}}});
     return true;
   }
   const diameter=motion?await sweptDiameter(device,capture):0;check();
@@ -666,8 +667,9 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     }
     async function publishFinished(value){
       const statistics=await nativeSurfaceStatistics(device,geom.skin.chunks,display.chunks,domain.region,source,check);
+      const regime=await nativeFlowRegime(device,f,dt,solver.state,geom.response,geom.skin.chunks,fluid.soundSpeedMps,check);
       check();display.colorScale=statistics.surfaceColorScale;
-      publishSample({...value,...statistics});
+      publishSample({...value,validity:{...value.validity,...regime},...statistics});
     }
     async function retain(drag,transportWeights=null){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
@@ -4754,6 +4756,83 @@ export async function nativeSurfaceStatistics(device,chunks,shown,region,frame,c
     }
     return {pressureStats:pressure,separationStats:separation,surfaceColorScale:{percentile:97.5,pressurePa:values[2],lossDensity:values[3],shapeNPerM3:values[4]}};
   }finally{scratch.close();}
+}
+
+function regimeNumbers(fluidSpeed,wallRelativeSpeed,referenceSpeed,soundSpeed){
+  const maxFluidMach=fluidSpeed/soundSpeed,maxSampledWallRelativeMach=wallRelativeSpeed===null?null:wallRelativeSpeed/soundSpeed,referenceMach=referenceSpeed/soundSpeed;
+  const maxMach=Math.max(maxFluidMach,maxSampledWallRelativeMach??0,referenceMach);
+  return {maxMach,maxFluidMach,maxSampledWallRelativeMach,referenceMach,incompressibleMachLimitExceeded:maxMach>.25,
+    compressibilityErrorEstimate:.5*maxMach**2,compressibilityEstimateBasis:'dynamic-pressure / isentropic bulk modulus'};
+}
+
+// Audit the terminal field. A surface sample uses exactly the two physical,
+// fully exterior stencils of the native pressure quadrature. The distance
+// in y+ is the physical first-probe distance, which is recorded explicitly.
+export async function nativeFlowRegime(device,f,dt,state,mobility,chunks,soundSpeed,check){
+  const gpu=gpuScope(device),n=countOf(f.dims),speed=f.h/dt;
+  // Separate zero, underflow and overflow bins. Positive interior bins bound
+  // the quantiles in log2 steps of 1/32 (1.1% geometric-midpoint error).
+  const bins=1027,summary=2*bins,words=summary+8;
+  try{
+    const hist=gpu.buffer('CFD near-wall resolution and Mach extrema',4*words),stage=gpu.staging('CFD bounded regime readback',4*words);
+    const bulk=await gpu.kernel('CFD absolute fluid speed in the translating inertial frame',`
+      @group(0) @binding(0) var<storage,read> u:array<vec4f>;@group(0) @binding(1) var<storage,read> m:array<vec4f>;
+      @group(0) @binding(2) var<storage,read_write> hist:array<atomic<u32>>;
+      var<workgroup> peaks:array<u32,128>;
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) k:u32){
+        var value=0.;if(g.x<arrayLength(&m)){if(m[g.x].w>0.){value=length(u[2u*g.x].xyz)*${speed};}}
+        peaks[k]=bitcast<u32>(value);
+        for(var stride=64u;stride>0u;stride/=2u){workgroupBarrier();if(k<stride){peaks[k]=max(peaks[k],peaks[k+stride]);}}
+        if(k==0u){atomicMax(&hist[${summary+4}],peaks[0]);}
+      }`);
+    const cfg=gpu.buffer('CFD unit wall-area coverage',new Float32Array([1]));
+    const surface=await gpu.kernel('CFD native wall-normal resolution and blade-relative Mach',gridWGSL(f)+metricWGSL(f)+wallResistanceWGSL+profileHistogram(3)+`
+      struct Site{point:vec4f,normal:vec4f,near:vec4f,far:vec4f}
+      @group(0) @binding(0) var<storage,read> site:array<Site>;
+      @group(0) @binding(1) var<storage,read> u:array<vec4f>;
+      @group(0) @binding(2) var<storage,read> cover:array<f32>;
+      const NU=f32(${f.nu});
+      fn sample(s:vec4f)->vec3f{
+        let i=bitcast<u32>(s.w);var v=vec3f(0);
+        for(var k=0u;k<8u;k++){let d=vec3u(k&1u,(k>>1u)&1u,k>>2u);
+          let w=select(1.-s.xyz,s.xyz,d!=vec3u(0));v+=w.x*w.y*w.z*u[2u*(i+d.x+NX*(d.y+NY*d.z))].xyz;}
+        return v*${speed};
+      }
+      fn position(s:vec4f)->vec3f{
+        let p=point(bitcast<u32>(s.w));return vec3f(${f.origin.join(',')})+${f.h}*mix(cellCenters(p),cellCenters(p+1),s.xyz);
+      }
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i>=arrayLength(&site)){return;}let s=site[i];let a=s.point.w*cover[min(i,arrayLength(&cover)-1u)];
+        if(a<=0.||s.normal.w<0.){return;}let normal=s.normal.xyz;let wall=vec3f(0.,-s.point.z,s.point.y)*f32(${f.omega??0});
+        let u1=sample(s.near)-wall;let u2=sample(s.far)-wall;let d1=dot(position(s.near)-s.point.xyz,normal);
+        let d2=dot(position(s.far)-s.point.xyz,normal);if(d1<=0.||d2<=d1){return;}
+        let tangential=tangentialSlip(u1,normal);
+        let utau=${f.wallModeled?'sqrt(length(tangential)*wallResistance(length(tangential),d1,NU))':
+          'sqrt(NU*length(((1.+s.normal.w)/d1)*tangential-(s.normal.w/d2)*tangentialSlip(u2,normal)))'};
+        let y=d1*utau/NU;
+        atomicMax(&hist[${summary+5}],bitcast<u32>(max(length(u1),length(u2))));
+        if(bitcast<u32>(abs(y))>=0x7f800000u){atomicStore(&hist[${summary+6}],1u);return;}
+        var bin=0u;if(y>0.){bin=u32(clamp(floor(32.*log2(y))+514.,1.,1026.));}
+        addProfile(bin,a);addProfile(${bins}u,a*d1);addProfile(${bins+1}u,a*d2);
+      }`);
+    const encoder=device.createCommandEncoder();gpu.dispatch(encoder,bulk,gpu.bind(bulk,[state,mobility,hist]),[Math.ceil(n/128)]);
+    for(const c of chunks)gpu.dispatch(encoder,surface,gpu.bind(surface,[c.site,state,c.cover??cfg,hist],metricBuffer(gpu,f)),[Math.ceil(3*c.triangles/64)]);
+    device.queue.submit([encoder.finish()]);const data=await gpu.read(hist,stage,words);check();
+    const bits=new Uint32Array(data.buffer),mass=i=>data[2*i]+data[2*i+1],areas=Array.from({length:bins},(_,i)=>mass(i));
+    const area=areas.reduce((s,v)=>s+v,0);
+    if(bits[summary+6]||![area,data[summary+4],data[summary+5]].every(Number.isFinite))
+      throw failure('NONFINITE_REGIME','The sampled terminal velocity or wall resolution is nonfinite.');
+    function quantile(q){
+      if(!area)return null;let sum=0;
+      for(let i=0;i<bins;i++){sum+=areas[i];if(sum>=q*area){
+        if(i===0)return 0;if(i===1||i===bins-1)return null;return 2**((i-514+.5)/32);
+      }}return null;
+    }
+    return {...regimeNumbers(data[summary+4],area?data[summary+5]:null,f.maxSpeed,soundSpeed),
+      yPlusPercentiles:{p50:quantile(.5),p95:quantile(.95),sampledAreaM2:area,method:f.wallModeled?'Spalding smooth-wall shear':'two-point no-slip viscous shear',
+        distance:'native first fully fluid probe',meanFirstDistanceM:area?mass(bins)/area:null,meanSecondDistanceM:area?mass(bins+1)/area:null,
+        outsideHistogramAreaM2:areas[1]+areas.at(-1),log2BinWidth:1/32}};
+  }finally{gpu.close();}
 }
 
 // Three equal-area quadrature sites belong to each original native triangle.
