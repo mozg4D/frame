@@ -3,7 +3,7 @@ import {metricSampler} from './metric.mjs';
 
 export function pressureHierarchy(fine){
   const levels=[fine];
-  while(levels.length<4 && levels.at(-1).diag.length>20){
+  while((levels.length<4||levels.at(-1).diag.length>96)&&levels.at(-1).diag.length>20){
     const l=levels.at(-1),n=l.diag.length,group=new Int32Array(n).fill(-1);let groups=0;
     for(let i=0;i<n;i++){
       if(group[i]>=0)continue;

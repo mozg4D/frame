@@ -14,6 +14,7 @@ import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
 import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
+import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh} from './m0/ahmed.mjs';
 import {cutBlockInverse} from './m0/cut-block-factor.mjs';
 test('cut-brick inverse resolves a weakly connected fluid region and preserves pressure differences in a sealed pocket',()=>{
@@ -60,6 +61,15 @@ test('authored Ahmed polygons enclose the analytic nose, body and slant with out
   const radius=100,angle=25*Math.PI/180,nose=4*radius*(44*94.5+(44+94.5)*radius*Math.PI/4+2*radius**2/3);
   const expected=nose+(1044-radius)*288*389-.5*389*222**2*Math.cos(angle)*Math.sin(angle);
   assert.ok([...edges.values()].every(x=>x===0));assert.ok(Math.abs(volume/expected-1)<.0001);
+});
+test('the coarse graph inverse solves an irregular grounded resistance network',()=>{
+  const l={offset:[0,2,4,7,8],nbr:[1,2,0,2,0,1,3,2],c:[1,.2,1,3,.2,3,.04,.04],diag:[1.9,4,3.24,.04],boundary:[.7,0,0,0]};
+  const inv=coarseGraphInverse(l);
+  for(let col=0;col<4;col++)for(let i=0;i<4;i++){
+    const v=inv[4*i+col];let row=l.boundary[i]*v;
+    for(let e=l.offset[i];e<l.offset[i+1];e++)row+=l.c[e]*(v-inv[4*l.nbr[e]+col]);
+    assert.ok(Math.abs(row-Number(i===col))<5e-6);assert.equal(v,inv[4*col+i]);
+  }
 });
 test('whole-domain pressure modes satisfy the variable-width boundary stencil and mass normalization',()=>{
   const w=[.35,.5,.8,1,1.2,1.9,3,4];

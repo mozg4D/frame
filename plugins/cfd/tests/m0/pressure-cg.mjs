@@ -8,11 +8,12 @@ export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrec
   const scaled=buffer('scaled residual',4*count),z=buffer('block correction',4*count),partials=buffer('partial sums',4*groups[0]),control=buffer('coefficients',16);
   const storage=(i,name,t,write=false)=>`@group(0) @binding(${i}) var<storage,${write?'read_write':'read'}> ${name}:array<${t}>;`;
   const run=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<${count}u){${body}}}`;
-  const row=operator+storage(0,'pressure','f32')+storage(1,'mobility','vec4f');
-  const initial=await gpu.kernel('CFD true immersed residual',row+storage(2,'rhs','f32')+storage(3,'pair','vec2f',true)+storage(4,'scaled','f32',true)+run(`
-    let a=pressureRow(i);var s=0.;var r=0.;if(a.x>0.){s=sqrt(6./a.x);r=rhs[i]-a.y;}
+  const geometry=level.rowBuffers??[level.weight],next=1+geometry.length;
+  const row=operator+storage(0,'pressure','f32')+(level.rowBindings??storage(1,'mobility','vec4f'));
+  const initial=await gpu.kernel('CFD true pressure residual',row+storage(next,'rhs','f32')+storage(next+1,'pair','vec2f',true)+storage(next+2,'scaled','f32',true)+run(`
+    let a=pressureRow(i);var s=0.;var r=0.;if(a.x>0.){s=${level.equilibrate===false?'1.':'sqrt(6./a.x)'};r=rhs[i]-a.y;}
     pair[i]=vec2f(r,s);scaled[i]=r*s;`));
-  const initialGroup=gpu.bind(initial,[level.p,level.weight,level.rhs,pair,scaled]);
+  const initialGroup=gpu.bind(initial,[level.p,...geometry,level.rhs,pair,scaled]);
   const partial=(single,finish='sums[group.x]=lanes[0];')=>`var<workgroup> lanes:array<f32,128>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){
       let i=g.x;var value=0.;${single}
@@ -21,9 +22,9 @@ export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrec
   const rz=await gpu.kernel('CFD preconditioned residual norm',storage(0,'pair','vec2f')+storage(1,'z','f32')+storage(2,'sums','f32',true)+
     partial(`if(i<${count}u){let r=pair[i];value=r.x*(r.y*z[i]);}`));
   const rzGroup=gpu.bind(rz,[pair,z,partials]);
-  const multiply=await gpu.kernel('CFD immersed pressure direction',row+storage(2,'ad','f32',true)+storage(3,'sums','f32',true)+
+  const multiply=await gpu.kernel('CFD pressure direction product',row+storage(next,'ad','f32',true)+storage(next+1,'sums','f32',true)+
     partial(`if(i<${count}u){let a=pressureRow(i);ad[i]=a.y;value=pressure[i]*a.y;}`));
-  const productGroup=gpu.bind(multiply,[d,level.weight,ad,partials]);
+  const productGroup=gpu.bind(multiply,[d,...geometry,ad,partials]);
   const advance=await gpu.kernel('CFD immersed Krylov update',storage(0,'pressure','f32',true)+storage(1,'pair','vec2f',true)+storage(2,'d','f32')+
     storage(3,'ad','f32')+storage(4,'scaled','f32',true)+storage(5,'control','vec4f')+run(`
       let alpha=control[0].y;let old=pair[i];let r=old.x-alpha*ad[i];pair[i]=vec2f(r,old.y);
