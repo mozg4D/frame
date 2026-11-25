@@ -1230,17 +1230,36 @@ export const addFlowWGSL=`
   fn addFlow(high:f32,low:f32,delta:f32)->vec2f{
     let d=twoSum(low,delta);let s=twoSum(high,d.x);return twoSum(s.x,s.y+d.y);}`;
 
+// A fixed domain plane may have a tangential wall velocity. The same
+// reflected ghost state drives molecular diffusion and its exact transpose.
+function domainWalls(f){
+  const walls=f.domainWalls??[null,null,f.fixedFloor||f.movingRoad?[f.movingRoad?f.U:0,0,0]:null,null,null,null];
+  if(walls.length!==6||walls.some((v,i)=>v&&(v.length!==3||!v.every(Number.isFinite)||v[i>>1]!==0)))
+    throw Error('Domain walls need six optional tangential velocities in m/s.');
+  return walls;
+}
+function domainWallWGSL(f,dt){
+  const cases=domainWalls(f).map((v,i)=>v?`if(a==${i>>1}u&&s==${i%2?1:-1}){return vec4f(${v.map(x=>x*dt/f.h).join(',')},1.);}`:'').join('');
+  return `fn domainWall(a:u32,s:i32)->vec4f{${cases}return vec4f(0);}`;
+}
+function atDomainWalls(f,formula){
+  return domainWalls(f).map((v,i)=>{
+    if(!v)return '';
+    const a=i>>1,upper=i%2,edge=upper?'DIMS['+a+']-1':'0';
+    return `if(p[${a}]==${edge}){let a=${a}u;let wallVelocity=domainWall(a,${upper?1:-1}).xyz;
+      var normal=vec3f(0);normal[a]=${upper?'-1.':'1.'};${formula}}`;
+  }).join('');
+}
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null,skin=null,fields=null){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const coords=metricBuffer(gpu,f);
-  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+`
+  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+domainWallWGSL(f,dt)+`
     const NU=${nu};const U=${inlet.toFixed(10)};const K0=${1.5*(.005*cref)**2};
     const O0=${1.5*(.005*cref)**2/(5*nu)};
     struct Cell {uk:vec4f,wt:vec2f,padding:vec2f}
     struct Flux {hi:vec4f,lo:vec4f}
     fn far()->Cell{return Cell(vec4f(U,0.,0.,K0),vec2f(O0,0.),vec2f(0));}
-    fn floorFace(axis:u32,side:i32)->bool{return ${!!(f.fixedFloor||f.movingRoad)} && axis==1u && side<0;}
   `;
   const s0=gpu.buffer('CFD momentum and SST',count*32), pred=gpu.buffer('CFD predicted state',count*32);
   const flux=gpu.buffer('CFD conservative corrected face flux',count*32);
@@ -1285,7 +1304,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           let q=(faceFlow-area[axis]*meshSpeed)*dir/(volume*groupRatio);
           var invD=1./widths[axis];if(inside(j)){invD=spacingInv(axis,p[axis],side);}
           if(!inside(j)){
-            if(floorFace(axis,side)){b.uk=vec4f(vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u,k);b.wt=a.wt;}
+            let faceWall=domainWall(axis,side);
+            if(faceWall.w>0.){b.uk=vec4f(2.*faceWall.xyz-u,k);b.wt=a.wt;}
             ${f.tunnelSymmetry?'else if(axis!=0u){b=a;b.uk[axis]=-u[axis];}':''}
             else if(!openFace(axis,side)||q<0.){b=far();}
           }
@@ -1305,7 +1325,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
             let blocked=(1.-open)*area[axis];cutArea[axis]+=blocked;normalHint[axis]-=dir*blocked;
             sdfGradient[axis]+=gradWeight*(wall[k].x-solid.x);lap*=open;
             ${f.sstWall?'coverage*=open;gradWeight*=open;':''}
-          }else if(floorFace(axis,side)){lap=0.;${f.sstWall?'coverage=0.;gradWeight=0.;':''}}`:''}
+          }else if(domainWall(axis,side).w>0.){lap=0.;${f.sstWall?'coverage=0.;gradWeight=0.;':''}}`:''}
           ${f.sstWall?'gradientCoverage[axis]+=coverage;':''}
           diff+=(NU+nut)*lap*change.xyz;grad[axis]+=gradWeight*change.xyz;
           ${f.faceHistory?'transportDiagonal+=max(q,0.)+(NU+nut)*lap;':''}
@@ -1317,7 +1337,11 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       var kn=share*K0;var wn=share*O0;var nut=0.;var strainLimit=0.;
       if(${!f.laminar}){
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
-      let dist=max(0.5,select(solid.x,min(solid.x,axisMetric(1u,p.y).x),${!!(f.fixedFloor||f.movingRoad)}));
+      var distance=solid.x;
+      ${domainWalls(f).map((v,i)=>{if(!v)return '';const a=i>>1,center=`axisMetric(${a}u,p[${a}]).x`;
+        const end=`axisMetric(${a}u,DIMS[${a}]-1)`;
+        return `distance=min(distance,${i%2?end+'.x+.5*'+end+'.y-':''}${center});`;}).join('')}
+      let dist=max(.5,distance);
       let cd=max(2.*0.856*dot(gk,gw)/omega,1e-14);
       let a1=sqrt(k)/(0.09*omega*dist);let a2=500.*NU/(dist*dist*omega);
       let f1=tanh(pow(min(10.,min(max(a1,a2),4.*0.856*k/(cd*dist*dist))),4.));
@@ -1361,10 +1385,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           ${f.fullMoment?'load[CELLS+i]+=vec4f(0.,0.,volume*groupRatio*cross(arm,reaction).yz);':''}
           ${f.profileViscousTorque?'force[CELLS+i]+=volume*groupRatio*cross(arm,reaction).x;':''}
         }
-        if(p.y==0&&floorFace(1u,-1)){
-          let road=vec3f(${f.movingRoad?'U':'0.'},0.,0.);
-          tentative-=wallIncrement(${f.cutCells?'u':'tentative'}-road,vec3f(0,1,0),.5*widths.y,1./(widths.y*groupRatio));
-        }
+        ${atDomainWalls(f,`tentative-=wallIncrement(${f.cutCells?'u':'tentative'}-wallVelocity,normal,.5*widths[a],1./(widths[a]*groupRatio));`)}
       }`:''}
       out[i]=Cell(vec4f(tentative,kn),vec2f(wn,nut),vec2f(${f.faceHistory?'transportDiagonal':'0.'},strainLimit));`));
   const pressureRhs=decl(0,'s','Cell')+decl(1,'wall','vec4f')+decl(2,'mu','vec4f')+immersedFaceWGSL+`
@@ -1373,7 +1394,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(inside(j)){let other=index(j);let owner=select(other,i,side>0);let right=select(i,other,side>0);
         ${f.axes?`let m=axisMetric(axis,min(p[axis],j[axis]));let v=mix(s[owner].uk[axis],s[right].uk[axis],.5*m.y*m.z);`:'let v=.5*(s[owner].uk[axis]+s[right].uk[axis]);'}
         return ${f.cutCells?'vec3f(v-body(owner)[axis],0.,mu[owner][axis])':'vec3f(v,body(owner)[axis],mu[owner][axis])'};}
-      var v=s[i].uk[axis];if(!openFace(axis,side)){v=select(0.,U,axis==0u);}return vec3f(v${f.cutCells?'-body(i)[axis]':''},0.,1.);}`;
+      var v=s[i].uk[axis];if(!openFace(axis,side)){v=select(0.,U,axis==0u&&domainWall(axis,side).w==0.);}return vec3f(v${f.cutCells?'-body(i)[axis]':''},0.,1.);}`;
   const rhs=await gpu.kernel('CFD immersed flux imbalance',base+pressureRhs+decl(3,'b','f32',true)+main(`
     let area=faceAreas(cellWidths(p));var div=0.;for(var a=0u;a<3u;a++){let hi=face(i,p,a,1);let lo=face(i,p,a,-1);
       div+=area[a]*(projectFace(hi.x,hi.y,hi.z,0.).x-projectFace(lo.x,lo.y,lo.z,0.).x);}b[i]=-div;`));
@@ -1501,7 +1522,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         var reference=area[a]*${f.cutCells?'w*(u-moving)':'mix(moving,u,w)'};
         var change=w*area[a]*mix(pred[l].uk[a]-un,pred[r].uk[a]-vn,t);
         let diag=mix(pred[l].padding.x,pred[r].padding.x,t);let relax=diag/(1.+diag);
-        if(!insideFace&&!openFace(a,side)){reference=area[a]*select(0.,U,a==0u);change=0.;}
+        if(!insideFace&&!openFace(a,side)){reference=area[a]*select(0.,U,a==0u&&domainWall(a,side).w==0.);change=0.;}
         let high=select(primary[i].lo[a],primary[i].hi[a],side>0);
         let low=select(tail[i].lo[a],tail[i].hi[a],side>0);
         let v=addFlow(high,low,change-relax*((high-reference)+low));
@@ -1644,13 +1665,12 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
 // Keep the selected limiter branches fixed while differentiating that trace.
 export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
   const count=countOf(f.dims),grid=[Math.ceil(count/128)],coords=metricBuffer(gpu,f);
-  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+`
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+`
     struct Flux{hi:vec4f,lo:vec4f}
     struct Face{value:vec3f,branch:u32}
     struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
     const NU=f32(${f.nu*dt/f.h**2});const U=f32(${(f.U*dt/f.h).toFixed(10)});
-    fn unit(a:u32)->vec3i{var e=vec3i(0);e[a]=1;return e;}
-    fn floorFace(a:u32,s:i32)->bool{return ${!!(f.fixedFloor||f.movingRoad)}&&a==1u&&s<0;}`;
+    fn unit(a:u32)->vec3i{var e=vec3i(0);e[a]=1;return e;}`;
   const faces=gpu.buffer('CFD linearized conservative donor traces',48*count);
   const storage=(b,name,type,write=false)=>`@group(0) @binding(${b}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
   const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
@@ -1686,7 +1706,8 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
           adj+=NU*area[a]*spacingInv(a,p[a],s)*(lambda[id].xyz-l);
         }else{
           var b=u;var db=1.;
-          if(floorFace(a,s)){b=vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u;db=-1.;}
+          let faceWall=domainWall(a,s);
+          if(faceWall.w>0.){b=2.*faceWall.xyz-u;db=-1.;}
           else if(!openFace(a,s)||sign*flow<0.){b=vec3f(U,0.,0.);db=0.;}
           let donor=select(b,u,sign*flow>=0.);let dd=select(db,1.,sign*flow>=0.);
           flowAdj=-sign*dot(l,donor);
@@ -1726,7 +1747,7 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
   const p0=gpu.buffer('CFD saved primal pressure',bytes),gradient=gpu.buffer('CFD steady force derivative per immersed fraction',4*bytes);
   const peak=gpu.buffer('CFD momentum and pressure adjoint defects',8),stage=gpu.staging('CFD adjoint residual readback',8);
   const momentum=await laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse);
-  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+`
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+`
     struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
     struct Face{rawAdj:f32,weight:f32,mu:f32,area:f32,invD:f32,share:f32,pressureAdj:f32}
     const OBJECTIVE=vec3f(${direction.join(',')});const U=f32(${(f.U*dt/f.h).toFixed(10)});
@@ -1771,7 +1792,7 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
         let jump=f32(s)*(z[i]-select(0.,z[j],inside(q)));
         let corr=t.weight-t.area*jump;
         next[a]+=t.share*(t.rawAdj+t.mu*corr)/vol;
-        var raw=select(select(0.,U,a==0u),v[a],openFace(a,s));
+        var raw=select(select(0.,U,a==0u&&domainWall(a,s).w==0.),v[a],openFace(a,s));
         if(inside(q)){raw=t.share*v[a]+(1.-t.share)*pred[2u*j][a];}
         rawMean[a]+=.5*raw;
         if(s>0&&inside(q)){deriv[a]=corr*(raw-t.invD*(primalP[j]-primalP[i]));}
@@ -1920,7 +1941,8 @@ export function gridWGSL(f){
 }
 
 function pressureBoundarySides(f){
-  return f.pressureOpen??[!!f.rotor,true,!(f.fixedFloor||f.movingRoad),true,true,true];
+  const open=f.pressureOpen??[!!f.rotor,true,!(f.fixedFloor||f.movingRoad),true,true,true];
+  return f.domainWalls?open.map((value,i)=>value&&!f.domainWalls[i]):open;
 }
 
 export function openBoundaries(f){
@@ -2736,7 +2758,7 @@ export async function fluidCentreLinks(gpu,f,mu,wall,parents){
 // exact at the aperture centroid. All velocity samples stay on the fluid side.
 export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tail){
   const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
-  const head=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+addFlowWGSL+`
+  const head=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+addFlowWGSL+`
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Flux{hi:vec4f,lo:vec4f}
     struct Centers{t:array<vec2f,3>}
     @group(0) @binding(0) var<storage,read> star:array<Cell>;
@@ -2781,7 +2803,7 @@ export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tai
               let diag=mix(star[li].padding.x,star[ri].padding.x,t);
               v=addFlow(high,low,weight*(speed-oldSpeed)-(diag/(1.+diag))*((high-reference)+low));`:
               'v.x=weight*(speed-frame);'}
-            if(!internal&&!openFace(a,side)){v=vec2f(area[a]*(select(0.,${f.U*dt/f.h},a==0u)-frame),0.);}
+            if(!internal&&!openFace(a,side)){v=vec2f(area[a]*(select(0.,${f.U*dt/f.h},a==0u&&domainWall(a,side).w==0.)-frame),0.);}
           }
           if(side>0){primary[i].hi[a]=v.x;tail[i].hi[a]=v.y;}else{primary[i].lo[a]=v.x;tail[i].lo[a]=v.y;}
         }}
@@ -2890,7 +2912,7 @@ export async function cutFaceTransport(gpu,f,dt,old,predictor,mu,centers,wall,fl
 // volume. Weight corner and floor contributions by their exposed areas.
 export async function mergedSstWall(gpu,f,dt,groups,wall,mu,previous,predictor){
   const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)];
-  const code=gridWGSL(f)+metricWGSL(f)+sstWallWGSL+`
+  const code=gridWGSL(f)+metricWGSL(f)+sstWallWGSL+domainWallWGSL(f,dt)+`
     const NU=${f.nu*dt/f.h**2};
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f}
     struct Links{root:u32,head:u32,next:u32}
@@ -2922,9 +2944,7 @@ export async function mergedSstWall(gpu,f,dt,groups,wall,mu,previous,predictor){
           let uw=vec3f(0.,-arm.z,arm.y)*${f.rotatingFrame?f.omega*dt/f.h:0};
           surface+=contribution(u-uw,normal,y,exposed);
         }
-        if(p.y==0&&${!!(f.fixedFloor||f.movingRoad)}){
-          surface+=contribution(u-vec3f(${f.movingRoad?f.U*dt/f.h:0},0.,0.),vec3f(0,1,0),.5*width.y,area.y);
-        }
+        ${atDomainWalls(f,'surface+=contribution(u-wallVelocity,normal,.5*width[a],area[a]);')}
         j=select(links[j].next,links[root].head,j==root);if(j==0xffffffffu){break;}
       }
       var s=pred[i];var k=s.uk.w;var omega=max(1e-8,s.wt.x);
