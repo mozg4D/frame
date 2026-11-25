@@ -130,6 +130,21 @@ test('a laminar preview budgets each brick axis and bounds every neighbouring wi
     }
   }
 });
+test('a shaft resolves its fixed blade section inside a wide measurement box',()=>{
+  const bounds={min:[-.0084,-.127,-.01165],max:[.0101,.127,.01165]};
+  const f={origin:[-1.27,-1.02,-1.27],domainEnd:[2.53,1.58,1.27],dims:[40,32,32],h:.1,rotatingFrame:true};
+  for(const [tier,cap] of [[.45,32768],[1,750000]]){
+    const grid=gradeCapturedDomain(f,bounds,tier,cap),cells=grid.dims.reduce((p,n)=>p*n);
+    assert.ok(cells<=cap&&grid.dims.every(n=>cells+8*cells/n>cap));
+    for(const [a,axis] of grid.axes.entries()){
+      assert.equal(axis[0],f.origin[a]);assert.equal(axis.at(-1),f.domainEnd[a]);
+      const widths=axis.slice(1).map((v,i)=>v-axis[i]);
+      assert.ok(widths.every((h,i)=>h>0&&(!i||Math.max(h/widths[i-1],widths[i-1]/h)<=2.000001)));
+      const surfaceWidth=widths[axis.findIndex(v=>v>=bounds.max[a])-1];
+      assert.ok(surfaceWidth<(tier===1?.0025:.01));
+    }
+  }
+});
 test('surface-focused axes preserve the box extent and refine both geometric extrema',()=>{
   const axis=surfaceGradedAxis(-2,4,-.2,2,0,1,.04,.01),widths=axis.slice(1).map((v,i)=>v-axis[i]);
   const pitch=x=>widths[axis.findIndex((v,i)=>i>0&&v>=x)-1];

@@ -4,6 +4,9 @@ import {dirname,resolve} from 'node:path';
 import {launch,ready} from '../../../tools/browser.mjs';
 
 const cases={
+  'shaft-preview':['shaft-preview-check','verifyShaftPreviewResolution'],
+  'shaft-standard':['shaft-preview-check','verifyShaftStandardResolution'],
+  'shaft-preview-thrust':['shaft-preview-check','verifyShaftPreviewThrust'],
   'cut-member-order':['cut-member-order-check','verifyCutMemberOrder'],
   'native-modeled-shape':['native-modeled-shape-check','verifyNativeModeledShape'],
   'modeled-shape':['modeled-shape-check','verifyModeledTimeShape'],
@@ -65,6 +68,7 @@ if(!Object.hasOwn(cases,which))throw Error('Choose --case='+Object.keys(cases).j
 const [moduleName,method]=cases[which],name='plugins/cfd/tests/m0/'+moduleName+'.mjs',output=resolve(args.find(v=>v.startsWith('--out='))?.slice(6)??'tests/results/cfd-live-'+which+'.json');
 const files=[...new Set(['index.html','plugins/cfd/plugin.js','plugins/cfd/plugin.json','plugins/cfd/tests/native-flow.mjs',
   'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,
+  ...moduleName==='shaft-preview-check'?['native-case','rigid-spin','native-geometry','rotor','rotor-sections','fixtures'].map(s=>'plugins/cfd/tests/m0/'+s+'.mjs'):[],
   ...moduleName==='steady-shape-check'||['surface-components','surface-extents'].includes(which)?['plugins/cfd/tests/m0/native-geometry.mjs','plugins/cfd/tests/m0/pressure-barrier.mjs']:[],
   ...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[],
   ...['modeled-shape','modeled-refinement','native-modeled-shape'].includes(which)?['plugins/cfd/tests/m0/local-shape-fixture.mjs']:[],

@@ -307,7 +307,7 @@ export function gradeCapturedDomain(f,bounds,tier,cap){
   if(!(size>0))return f;
   const spanPitch=Math.sqrt(size*Math.max(size/16,Math.min(...extent)))/22;
   const pitches=extent.map(d=>Math.max(size/128,Math.min(spanPitch,Math.max(d,size/16)/16))/tier);
-  if(tier<1&&f.laminar){
+  if(f.rotatingFrame||tier<1&&f.laminar){
     // Allocate whole pressure bricks independently on the three axes. The
     // outermost neighbours can approach 2:1 while the near-body pitch is
     // uniform. Increasing every pitch together can discard two useful
@@ -317,13 +317,27 @@ export function gradeCapturedDomain(f,bounds,tier,cap){
       const h=pitches[a],pad=Math.max(2*h,.15*extent[a]),wake=a===0?Math.min(size,Math.max(4*h,extent[a])):pad;
       return gradedAxis(f.origin[a],end[a],bounds.min[a]-pad,bounds.max[a]+wake,h,Math.log(2),count);
     };
+    const smallest=row=>row.subarray(1).reduce((h,x,i)=>Math.min(h,x-row[i]),Infinity);
+    if(f.rotatingFrame){
+      // The wall is fixed in this frame. Spend the next whole brick on the
+      // least resolved material direction while retaining the exterior faces.
+      const dims=[8,8,8],axes=dims.map((n,a)=>axis(a,n)),minPitch=axes.map(smallest);
+      for(;;){
+        const cells=countOf(dims);let best=-1;
+        for(let a=0;a<3;a++)if(cells+8*cells/dims[a]<=cap&&
+          (best<0||minPitch[a]/pitches[a]>minPitch[best]/pitches[best]))best=a;
+        if(best<0)break;
+        dims[best]+=8;axes[best]=axis(best,dims[best]);minPitch[best]=smallest(axes[best]);
+      }
+      return {...f,axes,dims,h:Math.min(...minPitch),minPitch,domainEnd:end};
+    }
     const desired=pitches.map((_,a)=>axis(a).length-1),dims=desired.slice();
     while(countOf(dims)>cap){
       let best=-1,retained=-1;
       for(let a=0;a<3;a++)if(dims[a]>8&&(dims[a]-8)/desired[a]>retained){best=a;retained=(dims[a]-8)/desired[a];}
       if(best<0)throw Error('The preview budget cannot contain one pressure brick');dims[best]-=8;
     }
-    const axes=dims.map((n,a)=>axis(a,n)),minPitch=axes.map(row=>row.subarray(1).reduce((h,x,i)=>Math.min(h,x-row[i]),Infinity));
+    const axes=dims.map((n,a)=>axis(a,n)),minPitch=axes.map(smallest);
     return {...f,axes,dims,h:Math.min(...minPitch),minPitch,domainEnd:end};
   }
   return rectilinearDomain(f,bounds,pitches,cap);
