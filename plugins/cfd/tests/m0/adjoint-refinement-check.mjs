@@ -1,4 +1,4 @@
-import {adjointTransportWeights,gpuScope,laminarMomentumAdjoint,refineAdjointGrid} from '../../plugin.js';
+import {adjointTransportWeights,gpuScope,laminarMomentumAdjoint,nestedParentCoordinates,refineAdjointGrid} from '../../plugin.js';
 
 // Cell averages of a polynomial have an exact face value and derivative.
 // A jump in the dual at a single interior face isolates that face's defect.
@@ -40,9 +40,15 @@ export async function verifyTransportWeights(device){
   }
   const weights=dims.map((n,k)=>Array.from({length:n},(_,i)=>k===0&&i>=4&&i<12?1:0));
   const refined=refineAdjointGrid(f,weights,1536),nested=axes.every((axis,a)=>Array.from(axis).every(v=>refined.grid.axes[a].includes(v)));
+  const map=nestedParentCoordinates(f,refined.grid);let widthError=0,offset=0;
+  for(const [a,axis] of refined.grid.axes.entries()){
+    const sum=new Float64Array(dims[a]);
+    for(let j=0;j+1<axis.length;j++)sum[map[offset++]]+=axis[j+1]-axis[j];
+    for(let j=0;j<sum.length;j++)widthError=Math.max(widthError,Math.abs(sum[j]-(axes[a][j+1]-axes[a][j])));
+  }
   let limited=false;try{refineAdjointGrid(f,weights,n);}catch(e){limited=e.code==='CFD_REFINEMENT_UNAVAILABLE';}
-  return {pass:results.every(v=>v.pass)&&nested&&limited&&refined.details.cells===1536&&refined.details.selectedIndicatorFraction===1,
-    results,nested,budgetEnforced:limited,refinement:refined.details};
+  return {pass:results.every(v=>v.pass)&&nested&&limited&&widthError<1e-12&&refined.details.cells===1536&&refined.details.selectedIndicatorFraction===1,
+    results,nested,maxParentWidthError:widthError,budgetEnforced:limited,refinement:refined.details};
 }
 
 export async function verifyAdjointRefinement(){
@@ -51,8 +57,8 @@ export async function verifyAdjointRefinement(){
   const body=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':5}});
   await call('transform.set',{ids:[body.hash],channel:'position',axis:1,value:100,coordinates:'world'});
   const op=(operation,args={})=>call('plugins.command',{id:owner.hash,operation,args});
-  async function solve(label,fidelityBudget,refineFromJob){
-    const start=performance.now();await op('solve-frame',{fidelityBudget,...refineFromJob?{refineFromJob}:{}});
+  async function solve(label,fidelityBudget,refineFromJob,warmStart=true){
+    const start=performance.now();await op('solve-frame',{fidelityBudget,warmStart,...refineFromJob?{refineFromJob}:{}});
     for(;;){
       await new Promise(resolve=>setTimeout(resolve,200));const s=await op('results');
       if(s.state==='ready'){
@@ -70,16 +76,19 @@ export async function verifyAdjointRefinement(){
   while(levels.length<4&&levels.at(-1).relativeError>.05){
     levels.push(await solve('nested refinement '+levels.length,'standard',levels.at(-1).job));
   }
+  const best=levels.at(-1),cold=await solve('same nested grid from uniform inflow','standard',levels.at(-2).job,false);
   const independent=await solve('independently graded','standard');
   await call('scene.update',{id:owner.hash,params:{Speed:U*1.01}});
   let changedRejected=false;try{await op('solve-frame',{fidelityBudget:'standard',refineFromJob:parent.job});}catch{changedRejected=true;}
   const d=child.validity.refinement;
-  const best=levels.at(-1);
   return {pass:changedRejected&&d?.parentJob===parent.job&&d.parentGridHash===parent.validity.gridHash&&
-    child.validity.gridHash!==parent.validity.gridHash&&child.initialization.kind==='uniform-inflow'&&
+    child.validity.gridHash!==parent.validity.gridHash&&child.initialization.kind==='projected-nested-predictor'&&
     child.cells>parent.cells&&child.cells<=2*parent.cells&&child.relativeError<parent.relativeError&&
     levels.every((v,i)=>!i||v.validity.refinement?.parentJob===levels[i-1].job&&v.cells<=2*levels[i-1].cells)&&
-    [...levels,independent].every(v=>v.shape==='ready'&&v.validity.stationary&&v.validity.maxDivergencePerS<1e-6)&&
+    cold.validity.gridHash===best.validity.gridHash&&cold.validity.wallTopologyHash===best.validity.wallTopologyHash&&
+    cold.initialization.kind==='uniform-inflow'&&Math.abs(best.cd/cold.cd-1)<.01&&
+    levels.slice(1).every((v,i)=>v.initialization.fromJob===levels[i].job&&v.initialization.maxDivergencePerS<1e-6)&&
+    [...levels,cold,independent].every(v=>v.shape==='ready'&&v.validity.stationary&&v.validity.maxDivergencePerS<1e-6)&&
     best.relativeError<=.05&&best.cells<independent.cells,
-    referenceCd:1.087,changedOperatingPointRejected:changedRejected,levels,independent};
+    referenceCd:1.087,changedOperatingPointRejected:changedRejected,levels,cold,independent};
 }
