@@ -185,6 +185,7 @@ export async function runCase(device,f,kind,progress,capture=null){
   f.sstWall=!!f.sstWall&&f.cutCells;
   f.faceReconstruction=!!f.faceReconstruction&&f.cutCells&&48*f.dims.reduce((a,b)=>a*b)<=device.limits.maxStorageBufferBindingSize;
   f.sheetLinks=!!f.sheetLinks&&f.cutCells&&!!(capture||f.rotor);
+  if(f.apertureFlow&&!(f.cutCells&&f.faceHistory&&f.rotatingFrame))throw Error('Relative aperture flow requires rigid rotation and transported cut faces');
   if(f.implicitOuterSpin){
     if(!f.rotatingFrame||!f.axes||!f.cutCells||!(f.sweptDiameterM>0))throw Error('The implicit exterior needs a measured swept cylinder, graded grid and stabilized cut volumes');
     f.implicitRadiusM=.625*f.sweptDiameterM;
@@ -217,7 +218,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       dt=groups.stableStep;
     }
     const periodSteps=Math.round(f.period/dt);
-    const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers):await momentSolver(gpu,f,dt,geom.wall,force);
+    const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,geom.skin):await momentSolver(gpu,f,dt,geom.wall,force);
     const trace=f.trace&&solver.pressure?await stepMonitor(gpu,solver,count):null;
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
     const transverse=solver.transverseImpulse?await sumForce(gpu,solver.transverseImpulse,count,4):null;
@@ -234,7 +235,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
     for(let window=0;window<32;window++){
       await f.checkKinematics?.();
-      clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null);
+      clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null,geom.skin?.mean);
       // Round cumulative times; each measured rotor window spans one revolution.
       const end=Math.round((window+1)*f.period/dt),first=step;
       while(step<end){
@@ -270,7 +271,9 @@ export async function runCase(device,f,kind,progress,capture=null){
       if(complete&&measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
       const radialProfile=annular&&complete?await annular(scale,forceN,load[1]):null;
+      const nativePressure=geom.skin?await geom.skin.measure(f.rho*(f.h/dt)**2/(step-first),f.omega):null;
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
+        ...nativePressure?{nativePressure}:{},
         ...radialProfile?{radialProfile,shaftPowerFromViscousStressW:radialProfile.reduce((a,b)=>a-f.omega*b.viscousTorqueNm,0),
           shaftPowerFromPressureW:radialProfile.reduce((a,b)=>a-f.omega*b.pressureTorqueNm,0)}:{},
         ...measureWake?{wakeLengthM:isolatedWake}:{},
@@ -311,7 +314,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
-      faceMomentum:f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
+      faceMomentum:f.apertureFlow?'relative flow integrated on each open polygon':f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
       setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
@@ -340,7 +343,7 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
     const f={...flowFixture(name,tier,selection.measuredPlanform),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,interpolatedWall:selection.interpolatedWall,graphWallLayers:selection.graphWallLayers,graphTangentM:selection.graphTangentM,
-      cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction,mergeToFluid:selection.mergeToFluid};
+      cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction,mergeToFluid:selection.mergeToFluid,apertureFlow:selection.apertureFlow};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
       device.pushErrorScope('validation');

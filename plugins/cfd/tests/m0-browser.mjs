@@ -28,6 +28,7 @@ selection.trace=args.includes('--trace-steps');
 selection.measuredPlanform=args.includes('--uiuc-planform');
 if(selection.measuredPlanform&&(scenePath||nativeSphere||nativeAhmed||selection.fixture&&selection.fixture!=='propeller'))
   throw Error('UIUC planform data apply only when creating the propeller reference geometry');
+selection.apertureFlow=args.includes('--aperture-flow');
 selection.interpolatedWall=args.includes('--interpolated-lattice-wall');
 if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&selection.fixture==='ahmed'))
   throw Error('Select the stationary Ahmed MR-LBM case or the manufactured wall check for interpolated links');
@@ -52,6 +53,8 @@ selection.cutCells=args.includes('--cut-cells');
 selection.mergeToFluid=args.includes('--merge-to-fluid');
 if(selection.mergeToFluid&&!selection.cutCells)throw Error('Finding connected full-fluid roots requires cut volumes');
 selection.subcellSurface=args.includes('--subcell-surface');
+selection.surfacePressure=args.includes('--surface-pressure');
+if(selection.surfacePressure&&!wallOnly&&!(scenePath||nativeAhmed||nativeRotor))throw Error('Surface pressure needs evaluated native geometry');
 if(selection.subcellSurface&&(!selection.cutCells||!wallOnly&&!(nativeAhmed||nativeRotor||scenePath)))throw Error('Subcell integration requires captured cut-volume geometry');
 selection.implicitOuterSpin=args.includes('--implicit-outer-spin');
 if(selection.implicitOuterSpin&&args.includes('--explicit-outer-spin'))throw Error('Choose a single exterior transport scheme');
@@ -138,6 +141,8 @@ try{
     if(latticeWall&&!latticeWall.pass)throw Error('Interpolated lattice wall failed Couette velocity or shear: '+JSON.stringify(latticeWall));
     const subcell=selection.subcellSurface?await (await import('./plugins/cfd/tests/m0/subcell-metric-check.mjs')).verifySubcellSurface(device):null;
     if(subcell&&!subcell.pass)throw Error('Subcell slab measure or first moment mismatch: '+JSON.stringify(subcell));
+    const skinPressure=selection.surfacePressure?await (await import('./plugins/cfd/tests/m0/surface-pressure-check.mjs')).verifySurfacePressure(device):null;
+    if(skinPressure&&!skinPressure.pass)throw Error('Native surface pressure disagrees with the analytic wrench: '+JSON.stringify(skinPressure));
     const exteriorMomentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true);
     if(!exteriorMomentum.pass)throw Error('Exterior traction or smooth-wall relation failed: '+JSON.stringify(exteriorMomentum));
     const cutMetric=selection.cutCells?await (await import('./plugins/cfd/tests/m0/cut-metric.mjs')).verifyCutMetric(device):null;
@@ -151,6 +156,8 @@ try{
     const outerTransport=selection.implicitOuterSpin?await (await import('./plugins/cfd/tests/m0/outer-transport-check.mjs')).verifyOuterTransport(device):null;
     if(outerTransport&&!outerTransport.pass)throw Error('Implicit momentum transport disagrees with the independent solution: '+JSON.stringify(outerTransport));
     const spinningLoad=nativeRotor||savedScene||wallOnly?await (await import('./plugins/cfd/tests/m0/rotating-loads.mjs')).verifyRotatingLoads(device):null;
+    const apertureFlow=selection.apertureFlow?await (await import('./plugins/cfd/tests/m0/aperture-predictor-check.mjs')).verifyAperturePredictor(device):null;
+    if(apertureFlow&&!apertureFlow.pass)throw Error('Relative aperture flow disagrees with the independent surface integral: '+JSON.stringify(apertureFlow));
     if(spinningLoad&&!spinningLoad.pass)throw Error('Phase-resolved force failed: '+JSON.stringify(spinningLoad));
     const sheet=selection.sheetLinks?await (await import('./plugins/cfd/tests/m0/sheet-check.mjs')).verifySheetLinks(device,selection.graded):null;
     const faceTransport=selection.faceReconstruction?await (await import('./plugins/cfd/tests/m0/face-transport-check.mjs')).verifyFaceTransport(device,selection.graded):null;
@@ -177,7 +184,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,apertureFlow,skinPressure,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

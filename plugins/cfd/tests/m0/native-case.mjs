@@ -158,8 +158,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
       checkKinematics:assertCurrent,sweptDiameterM:diameter,implicitOuterSpin:!!motion&&graded&&(settings.implicitOuterSpin||settings.autoOuterSpin),pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
       budgetMs,globalPressure,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
       faceHistory:!!motion||settings.faceHistory,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
-      faceReconstruction:settings.faceReconstruction,subcellSurface:settings.subcellSurface,mergeToFluid:settings.mergeToFluid,wakeDistance:settings.wakeDistance,ddes:settings.ddes,
-      normalization:motion?fluid.rho*rps**2*diameter**4:1,
+      faceReconstruction:settings.faceReconstruction,subcellSurface:settings.subcellSurface,apertureFlow:!!motion&&settings.apertureFlow,mergeToFluid:settings.mergeToFluid,wakeDistance:settings.wakeDistance,ddes:settings.ddes,
+      surfacePressure:settings.surfacePressure,normalization:motion?fluid.rho*rps**2*diameter**4:1,
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);

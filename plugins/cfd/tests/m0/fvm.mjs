@@ -8,6 +8,7 @@ import {mergedSstWall} from './sst-wall.mjs';
 import {cutFaceTransport} from './face-transport.mjs';
 import {rotatingLoads} from './rotating-loads.mjs';
 import {outerSpinWGSL,outerTransport} from './outer-transport.mjs';
+import {aperturePredictor} from './aperture-predictor.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -34,7 +35,7 @@ export const addFlowWGSL=`
   fn addFlow(high:f32,low:f32,delta:f32)->vec2f{
     let d=twoSum(low,delta);let s=twoSum(high,d.x);return twoSum(s.x,s.y+d.y);}`;
 
-export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null){
+export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null,skin=null){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const coords=metricBuffer(gpu,f);
@@ -62,6 +63,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       lo[a]=relative[a]*area[a]*select(1.,mu[bounded(l)][a],inside(l));}
     flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`:'s[i]=far();let q=vec4f(U*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);'));
   gpu.run(init,[s0,flux,...f.cutCells?[mobility,wall]:[]],grid,coords);
+  const apertures=f.apertureFlow?await aperturePredictor(gpu,f,dt,s0,pred,mobility,centers,flux,fluxTail):null;
+  if(apertures){const e=gpu.device.createCommandEncoder();apertures.initial(e);gpu.device.queue.submit([e.finish()]);}
   const wallBindings=f.wallModeled?[force,loads,mobility]:[];
   const wallFunctions=f.wallModeled?wallResistanceWGSL+
     decl(5,'force','f32',true)+decl(6,'load','vec4f',true)+decl(7,'permeability','vec4f')+`
@@ -267,6 +270,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const group=gpu.bind(turbulence,[pred,mobility]);mergePred.push(phase('merged SST state',e=>gpu.dispatch(e,turbulence,group,grid)));
   }
   const mergeState=groups?[phase('combine projected cut-cell momentum',groups.merge(s0))]:[];
+  if(skin)mergeState.push(phase('accumulate sampled surface pressure',skin.bind(mg.p)));
   if(f.linearWallPressure){
     if(!centers||!groups)throw Error('Linear pressure traction requires physical cut-face centroids');
     const linear=await linearCutPressure(gpu,f,mobility,centers,wall,mg.p,s0,force,loads);
@@ -320,9 +324,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const forecast=[false,true].map(cold=>[
     ...(cold||(f.rotor&&!f.rotatingFrame)?[phase('geometry coarsening',mg.updateGeometry)]:[]),
     ...outer?[]:[predictMomentum],...mergePred,
-    phase('flux imbalance',!cold&&predictStored?predictStored:e=>gpu.dispatch(e,rhs,r,grid)),
+    phase('flux imbalance',apertures?e=>{apertures.predict(e,cold);gpu.dispatch(e,imbalance,residualGroup,grid);}:
+      !cold&&predictStored?predictStored:e=>gpu.dispatch(e,rhs,r,grid)),
     ...projection(f.globalPressure?(cold?16:f.rotor?5:3):(cold?24:f.rotor?10:6)),
-    phase('pressure reaction',!cold&&prepareStored?e=>{prepareStored(e);gpu.dispatch(e,refineFlux,refineGroup,grid);}:
+    phase('pressure reaction',(!cold||apertures)&&prepareStored?e=>{prepareStored(e);gpu.dispatch(e,refineFlux,refineGroup,grid);}:
       e=>{gpu.dispatch(e,project,c,grid);e.clearBuffer(fluxTail);})
   ]);
   function refinement(n){

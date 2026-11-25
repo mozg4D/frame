@@ -6,6 +6,7 @@ import {metricWGSL,metricBuffer} from './rectilinear.mjs';
 import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 import {extendWallDistance} from './wall-distance.mjs';
 import {subcellMetricWGSL} from './subcell-metric.mjs';
+import {surfacePressure} from './surface-pressure.mjs';
 
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
@@ -160,8 +161,9 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
     if(rep)crossed.encode(e);seal?.(e);
     gpu.device.queue.submit([e.finish()]);await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();
     const wallDistance=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h):null;
+    const skin=f.surfacePressure?await surfacePressure(gpu,f,capture,band,distance,response):null;
     capture.assertCurrent();
-    return {wall,response,centers,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
+    return {wall,response,centers,skin,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
       occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,subdivisionsPerAxis:f.subcellSurface?4:1,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }
