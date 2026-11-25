@@ -189,11 +189,11 @@ export async function runCase(device,f,kind,progress,capture=null){
   const windows=[];
   const budget=f.budgetMs??caseBudgetMs;
   const force=gpu.buffer('CFD window body impulse',count*4);
-  const clear=(loads,plane)=>{const e=device.createCommandEncoder();e.clearBuffer(force);if(loads)e.clearBuffer(loads);if(plane)e.clearBuffer(plane);device.queue.submit([e.finish()]);};
+  const clear=(...buffers)=>{const e=device.createCommandEncoder();for(const b of buffers)if(b)e.clearBuffer(b);device.queue.submit([e.finish()]);};
   let stopMonitor=viewportMonitor();
   try{
     const finiteVolume=kind==='cartesian-fvm';
-    const geom=capture?await (await import('./native-volume.mjs')).nativeFlowGeometry(gpu,f,capture):await geometryKernel(gpu,f,dt,finiteVolume);
+    const geom=capture?await (await import('./native-volume.mjs')).nativeFlowGeometry(gpu,f,capture,dt):await geometryKernel(gpu,f,dt,finiteVolume);
     geom.update(0);
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;
     if(groups&&dt>groups.stableStep){
@@ -210,6 +210,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers):await momentSolver(gpu,f,dt,geom.wall,force);
     const trace=f.trace&&solver.pressure?await stepMonitor(gpu,solver,count):null;
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
+    const transverse=solver.transverseImpulse?await sumForce(gpu,solver.transverseImpulse,count,4):null;
     const sectionLoads=solver.loads?await axialLoads(gpu,f,force,solver.loads):null;
     const measureWake=!!solver.plane&&(f.sphere||f.name==='ahmed'),requireWake=measureWake&&(f.sphere||f.id==='ahmed-wake');
     const planeStage=measureWake?gpu.staging('CFD complete wake window',solver.plane.size):null;
@@ -217,13 +218,14 @@ export async function runCase(device,f,kind,progress,capture=null){
     const setupMs=performance.now()-start;
     const scheduler=solver.advance?viewportBudget(device,stopMonitor.lastFrame):null;
     let step=0,batch=1,maxBatchMs=0;
-    let budgetExhausted=false,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
-    periods: for(let window=0;window<32;window++){
-      clear(solver.loads,measureWake?solver.plane:null);
+    let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
+    for(let window=0;window<32;window++){
+      await f.checkKinematics?.();
+      clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null);
       // Round cumulative times; each measured rotor window spans one revolution.
       const end=Math.round((window+1)*f.period/dt),first=step;
       while(step<end){
-        if(performance.now()-start>=budget){budgetExhausted=true;break periods;}
+        if(performance.now()-start>=budget){budgetExhausted=true;break;}
         geom.assertCurrent?.();const n=Math.min(batch,end-step),since=performance.now();
         for(let j=0;j<n;j++,step++){
           if(f.rotor&&!f.rotatingFrame)geom.update(step);
@@ -237,9 +239,12 @@ export async function runCase(device,f,kind,progress,capture=null){
         const ms=performance.now()-since;maxBatchMs=Math.max(maxBatchMs,ms);
         batch=Math.max(1,Math.min(12,Math.round(0.5*batch+0.5*n*5/Math.max(ms,0.1))));
       }
+      if(step===first)break;
+      const complete=step===end;
       const scale=f.rho*f.h**4/(dt**2*(step-first)),forceN=await reduce()*scale;
       const load=otherLoads?(await otherLoads()).map(v=>v*scale):null;
-      if(sectionLoads){
+      const lateral=transverse?(await transverse()).map(v=>v*scale):null;
+      if(complete&&sectionLoads){
         const bins=await sectionLoads(),steps=step-first;
         const average=(i)=>(bins[i]+(previousSections?.bins[i]??0))*scale*steps/(steps+(previousSections?.steps??0));
         axialProfile=Array.from({length:f.dims[0]},(_,i)=>({xM:cellCenter(f,0,i),widthM:f.h*cellWidth(f,0,i),
@@ -248,13 +253,19 @@ export async function runCase(device,f,kind,progress,capture=null){
       }
       const coefficient=forceN/f.normalization;
       let isolatedWake=null;
-      if(measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
+      if(complete&&measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
-      windows.push({period:window+1,physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
+      const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
         ...measureWake?{wakeLengthM:isolatedWake}:{},
-        ...load?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0],torqueXNm:load[1],transverseForcesInSolverFrameN:load.slice(2),
-          ...f.rotor?{shaftPowerToFluidW:-load[1]*f.omega,powerCoefficient:-load[1]*f.omega/f.powerNormalization}:{}}:{}});
-      progress(f.id+' '+kind+' period '+(window+1)+' '+(f.id==='scene'?'axial force (N)':f.rotor?'CT':'CD')+' '+coefficient.toPrecision(5));
+        ...load?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0],torqueXNm:load[1],
+          transverseForcesInSolverFrameN:lateral?lateral.slice(0,2):load.slice(2),transverseForcesInBoxN:lateral?lateral.slice(2):load.slice(2),
+          ...f.rotor?{shaftPowerToFluidW:-load[1]*f.omega,powerCoefficient:-load[1]*f.omega/f.powerNormalization}:{}}:{}};
+      if(!complete){
+        partialWindow={...measured,fromTimeS:first*dt,sampleCount:step-first,periodFraction:(step-first)*dt/f.period};
+        break;
+      }
+      windows.push({...measured,period:window+1});
+      progress(f.id+' '+kind+' period '+(window+1)+' '+(f.rotor?'CT':f.id==='scene'?'axial force (N)':'CD')+' '+coefficient.toPrecision(5));
       if(!Number.isFinite(coefficient)||settledPeriods(windows,requireWake))break;
     }
     const viewport=stopMonitor();stopMonitor=null;
@@ -282,7 +293,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
-      setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,mean,relativeError,stable,field,axialProfile,
+      setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};

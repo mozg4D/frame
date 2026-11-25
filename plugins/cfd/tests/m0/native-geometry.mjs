@@ -40,7 +40,7 @@ export function captureFlowSurfaces(device,context,owner,origin=[0,0,0]){
     }
     return {...mesh,bounds,matrix:context.math.mul(shift,mesh.matrix)};
   });
-  return {meshes,assertCurrent,signature:snapshot.signature,params:snapshot.params};
+  return {meshes,assertCurrent,signature:snapshot.signature,contentSignature:snapshot.contentSignature,params:snapshot.params};
 }
 
 // Exact bindings used by the isolated host. Production callers receive these

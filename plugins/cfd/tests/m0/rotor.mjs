@@ -28,27 +28,58 @@ export function rotorTable(){
   return new Float32Array(values);
 }
 
-export function rotorTriangles(){
-  const vertices=[],indices=[],samples=eppler63.length;
-  const fractions=[.08,...stations.map(s=>s[0]).filter(r=>r>.08)];
-  for(const blade of [-1,1]){
-    const base=vertices.length/3;
-    const vid=(row,side,k)=>base+(2*row+side)*samples+k;
-    const quad=(a,b,c,d)=>indices.push(a,b,c,a,c,d);
-    for(let row=0;row<fractions.length;row++){
-      const r=fractions[row],s=bladeStation(r),cs=Math.cos(s.twist),sn=Math.sin(s.twist);
-      for(let side=0;side<2;side++)for(let k=0;k<samples;k++){
-        const [x,ec,eh,nc,nh]=sectionOrdinates(k);
-        const mean=ec+s.blend*(nc-ec),half=eh+s.blend*(nh-eh);
-        const ordinate=s.chord*(mean+(2*side-1)*s.thickness*half);
-        vertices.push(s.rake-s.chord*x*sn+ordinate*cs,blade*r*radius,blade*(s.sweep-s.chord*x*cs-ordinate*sn));
-        if(row&&k){const a=vid(row-1,side,k-1),b=vid(row-1,side,k),c=vid(row,side,k),d=vid(row,side,k-1);
-          if(side)quad(a,b,c,d);else quad(d,c,b,a);}
-      }
-      if(!row||row===fractions.length-1){
-        for(let k=1;k<samples;k++)quad(vid(row,0,k-1),vid(row,1,k-1),vid(row,1,k),vid(row,0,k));
-      }
+// Closed, outward-oriented polygon components. The blade roots overlap the
+// annular hub outside its bore; the native solid raster unions the components.
+export function rotorParts(){
+  const samples=eppler63.length,fractions=[.04,...stations.map(s=>s[0]).filter(r=>r>.04)];
+  function part(name){
+    const vertices=[],indices=[];
+    function vertex(x,y,z){vertices.push(x,y,z);return vertices.length/3-1;}
+    function quad(a,b,c,d){
+      if(a!==b&&b!==c&&a!==c)indices.push(a,b,c);
+      if(a!==c&&c!==d&&a!==d)indices.push(a,c,d);
     }
+    return {name,vertices,indices,vertex,quad};
+  }
+  const pieces=[];
+  for(const blade of [-1,1]){
+    const m=part('APC blade '+(blade<0?'A':'B'));pieces.push(m);let last=null;
+    for(const [row,r] of fractions.entries()){
+      const s=bladeStation(r),cs=Math.cos(s.twist),sn=Math.sin(s.twist),ids=[[],[]];
+      for(let side=0;side<2;side++)for(let k=0;k<samples;k++){
+        if(side&&(k===0||k===samples-1)){ids[side][k]=ids[0][k];continue;}
+        const [x,ec,eh,nc,nh]=sectionOrdinates(k),mean=ec+s.blend*(nc-ec),half=eh+s.blend*(nh-eh);
+        const ordinate=s.chord*(mean+(2*side-1)*s.thickness*half);
+        ids[side][k]=m.vertex(s.rake-s.chord*x*sn+ordinate*cs,blade*r*radius,blade*(s.sweep-s.chord*x*cs-ordinate*sn));
+      }
+      for(let k=1;k<samples;k++){
+        if(last)for(let side=0;side<2;side++){
+          const a=last[side][k-1],b=last[side][k],c=ids[side][k],d=ids[side][k-1];
+          if(side)m.quad(a,b,c,d);else m.quad(d,c,b,a);
+        }
+        const a=ids[0][k-1],b=ids[1][k-1],c=ids[1][k],d=ids[0][k];
+        if(row===0)m.quad(d,c,b,a);else if(row===fractions.length-1)m.quad(a,b,c,d);
+      }
+      last=ids;
+    }
+  }
+  const hub=part('APC shaft hub'),rings=[],steps=96;pieces.push(hub);
+  for(const x of [-.008382,.001778])for(const r of [.003175,.01016]){
+    rings.push(Array.from({length:steps},(_,k)=>hub.vertex(x,r*Math.cos(2*Math.PI*k/steps),r*Math.sin(2*Math.PI*k/steps))));
+  }
+  const [backInner,backOuter,frontInner,frontOuter]=rings;
+  for(let k=0;k<steps;k++){
+    const j=(k+1)%steps;
+    hub.quad(backOuter[k],backOuter[j],frontOuter[j],frontOuter[k]);hub.quad(backInner[k],frontInner[k],frontInner[j],backInner[j]);
+    hub.quad(frontInner[k],frontOuter[k],frontOuter[j],frontInner[j]);hub.quad(backInner[k],backInner[j],backOuter[j],backOuter[k]);
+  }
+  return pieces.map(({name,vertices,indices})=>({name,vertices:Float32Array.from(vertices),indices:Uint32Array.from(indices)}));
+}
+
+export function rotorTriangles(){
+  const vertices=[],indices=[];
+  for(const mesh of rotorParts()){
+    const base=vertices.length/3;for(const v of mesh.vertices)vertices.push(v);for(const i of mesh.indices)indices.push(base+i);
   }
   return {vertices:Float32Array.from(vertices),indices:Uint32Array.from(indices)};
 }

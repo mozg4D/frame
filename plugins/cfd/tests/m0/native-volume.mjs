@@ -91,7 +91,7 @@ async function rasterize(gpu,band,capture){
   return packed;
 }
 
-export async function nativeFlowGeometry(gpu,f,capture){
+export async function nativeFlowGeometry(gpu,f,capture,dt){
   const scratch=gpuScope(gpu.device),start=performance.now(),limit=Math.min(8000000,Math.floor(gpu.device.limits.maxStorageBufferBindingSize/12));
   const band=distanceBand(f,capture.meshes,limit),n=countOf(f.dims);
   try{
@@ -116,7 +116,9 @@ export async function nativeFlowGeometry(gpu,f,capture){
         fn surfaceDistance(v:vec3f)->f32{return sample(v*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')}));}`+cutGridWGSL:''}
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i>=CELLS){return;}
         let cell=point(i);let p=samplePoint(cell);let d=sample(p);
-        wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));
+        ${f.rotatingFrame?`let physical=vec3f(${f.origin.join(',')})+cellCenters(cell)*${f.h};
+        wall[i]=vec4f(d,vec2f(-physical.z,physical.y)*${f.omega*dt/f.h},1.-smoothstep(-.7,.7,d));`:
+          'wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));'}
         ${f.cutCells?`let q=cellSamples(cell);let m=cutMetric(q);response[i]=m;faceCenters[i]=cutFaceCenters(q,m);
           ${rep?'rep[i]=fluidRepresentative(cell,q,m.w);':''}`:`let w=cellWidths(cell)*${.5*f.h/band.h};var m=vec3f(0);
         if(d>0.){for(var a=0u;a<3u;a++){

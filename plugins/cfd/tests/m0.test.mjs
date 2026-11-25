@@ -9,7 +9,8 @@ import {crossesMetric} from './m0/metric.mjs';
 import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
-import {bladeStation} from './m0/rotor.mjs';
+import {bladeStation,rotorParts} from './m0/rotor.mjs';
+import {axialTrackRate} from './m0/rigid-spin.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
 import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
@@ -17,6 +18,30 @@ import {pressureAxis} from './m0/separable-pressure.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh} from './m0/ahmed.mjs';
 import {cutBlockInverse} from './m0/cut-block-factor.mjs';
+test('native rotor components are closed and the shaft bore retains its design volume',()=>{
+  const parts=rotorParts(),volumes=[];
+  for(const {vertices:v,indices:t} of parts){
+    const incidence=new Map();let volume=0;
+    for(let k=0;k<t.length;k+=3){
+      const ids=t.subarray(k,k+3),[a,b,c]=Array.from(ids,i=>v.subarray(3*i,3*i+3));
+      volume+=(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;
+      for(let j=0;j<3;j++){
+        const start=ids[j],end=ids[(j+1)%3],key=[Math.min(start,end),Math.max(start,end)].join('/');
+        const row=incidence.get(key)??[0,0];row[0]++;row[1]+=Math.sign(end-start);incidence.set(key,row);
+      }
+    }
+    assert.ok([...incidence.values()].every(([n,sign])=>n===2&&sign===0));assert.ok(volume>0);volumes.push(volume);
+  }
+  assert.ok(Math.abs(volumes[0]/volumes[1]-1)<1e-7);
+  assert.ok(Math.abs(volumes[2]/(Math.PI*(.01016**2-.003175**2)*.01016)-1)<.001);
+});
+test('unwrapped axial rates distinguish multiple full turns between native frames',()=>{
+  const keys=[0,6,12].map(t=>[t,{v:[5011*t/10,0,0],interp:'hard',axes:[0,1,2]}]);
+  assert.ok(Math.abs(axialTrackRate({keys},60).omega*60/(2*Math.PI)-5011)<1e-9);
+  assert.equal(axialTrackRate({keys:keys.map(([t,k])=>[t,{...k,axes:[0]}])},60).omega,axialTrackRate({keys},60).omega);
+  assert.equal(axialTrackRate({keys:[keys[0],[6,{...keys[1][1],interp:'soft'}]]},60),null);
+  assert.equal(axialTrackRate({keys:[keys[0],keys[1],[12,{v:[3100,0,0]}]]},60),null);
+});
 test('cut-brick inverse resolves a weakly connected fluid region and preserves pressure differences in a sealed pocket',()=>{
   const rows=new Float32Array(256),p=Float64Array.from({length:64},(_,i)=>Math.sin(i*.65)),rhs=new Float64Array(64),diag=new Float64Array(64);
   for(let i=0;i<64;i++){

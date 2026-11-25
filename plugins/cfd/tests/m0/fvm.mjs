@@ -6,6 +6,7 @@ import {cutGroups} from './cut-groups.mjs';
 import {linearCutPressure} from './cut-pressure.mjs';
 import {mergedSstWall} from './sst-wall.mjs';
 import {cutFaceTransport} from './face-transport.mjs';
+import {rotatingLoads} from './rotating-loads.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -135,7 +136,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(${f.rotor}){
         let domain=cellCenters(DIMS-1)+.5*cellWidths(DIMS-1);let x=cellCenters(p);
         let depth=min(x,domain-x)/domain;let edge=1.-smoothstep(0.,0.11,min(depth.x,min(depth.y,depth.z)));
-        let reservoir=1.-exp(-${cref}*edge);tentative=mix(tentative,vec3f(0),reservoir);
+        let reservoir=1.-exp(-${cref}*edge);tentative=mix(tentative,share*vec3f(U,0.,0.),reservoir);
         kn=mix(kn,share*K0,reservoir);wn=mix(wn,share*O0,reservoir);}
       ${f.wallModeled?`
       if(permeability[i].w>0.){
@@ -261,6 +262,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const linear=await linearCutPressure(gpu,f,mobility,centers,wall,mg.p,s0,force,loads);
     mergeState.unshift(phase('integrate linear wall pressure',linear));
   }
+  const spin=f.rotatingFrame?await rotatingLoads(gpu,loads):null;
+  if(spin)mergeState.push(phase('integrate fixed-frame transverse reaction',spin.encode));
   let predictStored,prepareStored;
   if(f.faceHistory){
     // Interpolate momentum increments onto the previous corrected face. The
@@ -329,8 +332,9 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     try{return new Float32Array(stage.getMappedRange())[0]*f.period/dt;}finally{stage.unmap();}
   }
   stats.exactBoundaryBlocks=mg.cutBlocks;
-  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,mobility,fluxConvergence:stats,
+  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,mobility,fluxConvergence:stats,
     async advance(i,sampling,scheduler,assertCurrent){
+      spin?.angle(f.omega*(i+.5)*dt);
       const checkPrimary=f.faceHistory&&i>=checkPrimaryAt;
       await scheduler.perform([...forecast[Number(i===0)],...checkPrimary?[]:first,check],assertCurrent);
       let maximum=await measure(),passes=checkPrimary?0:1;
@@ -363,6 +367,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(mergeState.length||sampling)await scheduler.perform([...mergeState,...sampling?[samplePlane]:[]],assertCurrent);
     },
     step(i,sampling){
+      spin?.angle(f.omega*(i+.5)*dt);
       const e=gpu.device.createCommandEncoder();for(const op of forecast[Number(i===0)])op.encode(e);
       for(let k=0;k<(f.axes?2:1);k++)for(const op of fixed)op.encode(e);
       for(const op of mergeState)op.encode(e);if(sampling)samplePlane.encode(e);gpu.device.queue.submit([e.finish()]);

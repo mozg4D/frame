@@ -13,10 +13,11 @@ const pressureOnly=args.includes('--pressure-only');
 const wallOnly=args.includes('--wall-only');
 const nativeSphere=args.includes('--native-sphere');
 const nativeAhmed=args.includes('--native-ahmed');
-if(nativeSphere&&nativeAhmed)throw Error('Choose a single native CFD reference');
+const nativeRotor=args.includes('--native-rotor');
+if([nativeSphere,nativeAhmed,nativeRotor].filter(Boolean).length>1)throw Error('Choose a single native CFD reference');
 const scenePath=args.find(s=>s.startsWith('--scene='))?.slice(8),saveFixture=args.find(s=>s.startsWith('--save-fixture='))?.slice(15);
-if(saveFixture&&!nativeSphere&&!nativeAhmed)throw Error('Saving requires a native reference scene');
-if(scenePath&&(nativeSphere||nativeAhmed||resolve(scenePath)===reportPath))throw Error('Use a separate report path for a saved scene');
+if(saveFixture&&!nativeSphere&&!nativeAhmed&&!nativeRotor)throw Error('Saving requires a native reference scene');
+if(scenePath&&(nativeSphere||nativeAhmed||nativeRotor||resolve(scenePath)===reportPath))throw Error('Use a separate report path for a saved scene');
 if(saveFixture&&resolve(saveFixture)===reportPath)throw Error('Use separate paths for the reference scene and its report');
 const sceneBytes=scenePath?await readFile(scenePath):null;
 const experimentalWebNN=args.includes('--experimental-webnn');
@@ -24,6 +25,7 @@ if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a s
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform'))};
 selection.trace=args.includes('--trace-steps');
+if(selection.inertialRotor&&(nativeRotor||scenePath))throw Error('Captured shaft motion uses its verified rotating frame');
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
 selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
 selection.cutCells=args.includes('--cut-cells');
@@ -80,7 +82,7 @@ try{
   page.on('pageerror',e=>errors.push(e.message));
   await page.exposeFunction('cfdProgress',line=>console.log(line));
   await page.goto(server.url+'/index.html');await ready(page);
-  const result=await page.evaluate(async({pressureOnly,wallOnly,nativeSphere,nativeAhmed,savedScene,saveFixture,graphOnly,tier,focused,selection})=>{
+  const result=await page.evaluate(async({pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene,saveFixture,graphOnly,tier,focused,selection})=>{
     const device=frameEngine.renderer.device, info=device.adapterInfo;
     const hardware=Object.fromEntries(['vendor','architecture','device','description','isFallbackAdapter'].map(k=>[k,info?.[k]]));
     if(info?.isFallbackAdapter!==false || !(info.vendor||info.architecture||info.device||info.description) || /swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(hardware)))throw Error('A verified hardware WebGPU device is required');
@@ -102,13 +104,15 @@ try{
     if(cutMomentum&&!cutMomentum.pass)throw Error('Cut-volume fluid/body impulse mismatch: '+JSON.stringify(cutMomentum));
     const affineWall=selection.linearWallPressure?await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyLinearWallPressure(device,selection.graded):null;
     if(affineWall&&!affineWall.pass)throw Error('Manufactured cut-wall pressure load failed: '+JSON.stringify(affineWall));
+    const spinningLoad=nativeRotor||savedScene||wallOnly?await (await import('./plugins/cfd/tests/m0/rotating-loads.mjs')).verifyRotatingLoads(device):null;
+    if(spinningLoad&&!spinningLoad.pass)throw Error('Phase-resolved force failed: '+JSON.stringify(spinningLoad));
     const sheet=selection.sheetLinks?await (await import('./plugins/cfd/tests/m0/sheet-check.mjs')).verifySheetLinks(device,selection.graded):null;
     const faceTransport=selection.faceReconstruction?await (await import('./plugins/cfd/tests/m0/face-transport-check.mjs')).verifyFaceTransport(device,selection.graded):null;
     if(faceTransport&&!faceTransport.pass)throw Error('Affine momentum flux or rigid rotation stress failed: '+JSON.stringify(faceTransport));
     if(sheet&&!sheet.pass)throw Error('A displaced pressure segment disagrees with an exact sheet crossing: '+JSON.stringify(sheet));
     await window.cfdProgress('Body impulse agrees with an independent fluid momentum balance on every axis');
     const {benchmarkPressure}=await import('./plugins/cfd/tests/m0/pressure.mjs');
-    const pressure=wallOnly||nativeSphere||nativeAhmed||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
+    const pressure=wallOnly||nativeSphere||nativeAhmed||nativeRotor||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
     const progress=s=>window.cfdProgress(s);
     let flow=null;
     if(savedScene){await frameAI.call('scene.open',savedScene);await frameAI.call('diagnostics.frame',{frames:4});
@@ -118,12 +122,14 @@ try{
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
     else if(nativeAhmed){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeAhmed(device,tier,progress,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
+    else if(nativeRotor){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeRotor(device,tier,progress,selection);
+      const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
     else if(!wallOnly&&!pressureOnly)flow=await (await import('./plugins/cfd/tests/m0/flow.mjs')).benchmarkFlow(device,progress,graphOnly,tier,selection);
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,regularPressure,pressure,flow,errors,lost,fixture};
-  },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,spinningLoad,regularPressure,pressure,flow,errors,lost,fixture};
+  },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
