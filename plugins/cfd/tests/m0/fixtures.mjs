@@ -48,10 +48,11 @@ export function gradedFixture(f,tier,bounds){
 }
 
 export function surfaceBand(f){
-  const h=f.h/2,min=f.sphere?[-.04,-.04,-.04]:[0,.05,-.1945],max=f.sphere?[.04,.04,.04]:[1.044,.338,.1945];
+  const h=Math.min(f.h/2,(f.graphTangentM??Infinity)/2);
+  const min=f.sphere?[-.04,-.04,-.04]:[0,.05,-.1945],max=f.sphere?[.04,.04,.04]:[1.044,.338,.1945];
   const lo=min.map((v,k)=>Math.max(0,Math.floor((v-f.origin[k])/h)-10));
-  const hi=max.map((v,k)=>Math.min(2*f.dims[k],Math.ceil((v-f.origin[k])/h)+10));
-  return {...f,h,origin:lo.map((v,k)=>f.origin[k]+v*h),dims:hi.map((v,k)=>v-lo[k]),domain:{origin:f.origin,dims:f.dims,h:f.h}};
+  const hi=max.map((v,k)=>Math.min(Math.ceil(f.dims[k]*f.h/h),Math.ceil((v-f.origin[k])/h)+10));
+  return {...f,h,origin:lo.map((v,k)=>f.origin[k]+v*h),dims:hi.map((v,k)=>v-lo[k]),surfaceBounds:{min,max},domain:{origin:f.origin,dims:f.dims,h:f.h}};
 }
 
 const floats=a=>a.map(v=>Number(v).toFixed(8)).join(',');

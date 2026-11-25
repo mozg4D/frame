@@ -339,7 +339,7 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   await frameAI.call('diagnostics.frame',{frames:8});
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
-    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,interpolatedWall:selection.interpolatedWall,
+    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,interpolatedWall:selection.interpolatedWall,graphWallLayers:selection.graphWallLayers,graphTangentM:selection.graphTangentM,
       cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction,mergeToFluid:selection.mergeToFluid};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){

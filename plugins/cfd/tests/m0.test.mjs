@@ -5,7 +5,9 @@ import {schurGeometry} from './m0/schur.mjs';
 import {verifyShape,verifyGoalRefinement} from './m0/shape.mjs';
 import {winningBackend} from './m0/pressure.mjs';
 import {verifyThinWalls} from './m0/graph-checks.mjs';
-import {crossesMetric} from './m0/metric.mjs';
+import {crossesMetric,metricSampler} from './m0/metric.mjs';
+import {flowFixture,surfaceBand} from './m0/fixtures.mjs';
+import {referenceComponents} from './m0/graph-build.mjs';
 import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
@@ -95,6 +97,21 @@ test('the coarse graph inverse solves an irregular grounded resistance network',
     for(let e=l.offset[i];e<l.offset[i+1];e++)row+=l.c[e]*(v-inv[4*l.nbr[e]+col]);
     assert.ok(Math.abs(row-Number(i===col))<5e-6);assert.equal(v,inv[4*col+i]);
   }
+});
+test('a closed fluid pair and one isolated site each keep their own pressure reference after GPU rounding',()=>{
+  const level={offset:[0,1,3,4,4],nbr:[1,0,2,1],c:[0,0,2,2],diag:[3,2,2,0],boundary:[3,0,0,0]};
+  assert.deepEqual(referenceComponents(level),{components:3,gauges:2});
+  assert.deepEqual(level.diag,[3,4,2,1]);assert.deepEqual(level.boundary,[3,2,0,1]);
+  // Opposite signed source and sink in the closed pair give the pressure difference 1/2.
+  const inv=coarseGraphInverse(level);
+  assert.ok(Math.abs((inv[5]-inv[6])-(inv[9]-inv[10])-.5)<1e-6);
+});
+test('refining tangential SDF samples retains the physical extent and the coarse far field',()=>{
+  const f=flowFixture('sphere',1),band=surfaceBand({...f,graphTangentM:.004});
+  assert.equal(band.h,.002);assert.equal(band.domain.h,f.h);assert.deepEqual(band.domain.dims,f.dims);
+  const n=band.dims.reduce((a,b)=>a*b),metric=metricSampler(band,new Float32Array(n).fill(.001));
+  assert.ok(metric.sample([.2,0,0])>=.15999);
+  assert.ok(Math.abs(metric.sample([0,0,0])-.001)<1e-8);
 });
 test('whole-domain pressure modes satisfy the variable-width boundary stencil and mass normalization',()=>{
   const w=[.35,.5,.8,1,1.2,1.9,3,4];

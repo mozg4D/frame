@@ -29,6 +29,20 @@ selection.interpolatedWall=args.includes('--interpolated-lattice-wall');
 if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&selection.fixture==='ahmed'))
   throw Error('Select the stationary Ahmed MR-LBM case or the manufactured wall check for interpolated links');
 if(selection.inertialRotor&&(nativeRotor||scenePath))throw Error('Captured shaft motion uses its verified rotating frame');
+const layerArg=args.find(a=>a.startsWith('--graph-wall-mm='));
+const tangentArg=args.find(a=>a.startsWith('--graph-tangent-mm='));
+if(tangentArg){
+  const mm=Number(tangentArg.slice('--graph-tangent-mm='.length));
+  if(selection.solver!=='sdf-graph'||!Number.isFinite(mm)||mm<=0)throw Error('Graph tangential spacing must be a positive distance in millimetres');
+  selection.graphTangentM=.001*mm;
+}
+if(layerArg){
+  const mm=layerArg.slice('--graph-wall-mm='.length).split(',').map(x=>x.trim()===''?NaN:Number(x));
+  if(mm[0]===0)mm.shift();
+  if(selection.solver!=='sdf-graph'||!mm.length||mm.some((v,i)=>!Number.isFinite(v)||v<=0||i>0&&v<=mm[i-1]))
+    throw Error('Graph wall distances in millimetres must be positive, finite and increasing');
+  selection.graphWallLayers=mm.map(v=>v*.001);
+}
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
 selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
 selection.cutCells=args.includes('--cut-cells');
@@ -63,6 +77,7 @@ const seconds=args.find(s=>s.startsWith('--budget-seconds='))?.slice(17);
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
 if(selection.fixture&&!['sphere','ahmed','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
 if(selection.solver&&!['cartesian-fvm','sdf-graph','mr-lbm'].includes(selection.solver))throw Error('Unknown CFD candidate');
+if((nativeSphere||nativeAhmed)&&selection.solver==='mr-lbm')throw Error('The native volume reference currently runs Cartesian or graph finite volumes');
 const focused=Boolean(selection.fixture||selection.solver);
 const tier=Number(args.find(s=>s.startsWith('--tier='))?.slice(7)??1);
 if(![1,2].includes(tier))throw Error('Use --tier=1 or --tier=2');
@@ -139,11 +154,14 @@ try{
     const {benchmarkPressure}=await import('./plugins/cfd/tests/m0/pressure.mjs');
     const pressure=wallOnly||nativeSphere||nativeAhmed||nativeRotor||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
     const progress=s=>window.cfdProgress(s);
+    const nativeGraphLinks=selection.solver==='sdf-graph'&&(nativeSphere||nativeAhmed)?
+      await (await import('./plugins/cfd/tests/m0/graph-contact-check.mjs')).verifyNativeGraphLinks(device):null;
+    if(nativeGraphLinks&&!nativeGraphLinks.pass)throw Error('Native triangles failed the graph crossing check: '+JSON.stringify(nativeGraphLinks));
     let flow=null;
     if(savedScene){await frameAI.call('scene.open',savedScene);await frameAI.call('diagnostics.frame',{frames:4});
       const cases=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).solveCapturedBoxes(device,tier,selection.budgetMs,progress,selection.graded,selection.globalPressure,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases,contests:scoreContests(cases)};}
-    else if(nativeSphere){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeSphere(device,tier,selection.budgetMs,progress,selection.graded,selection.trace,selection.globalPressure);
+    else if(nativeSphere){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeSphere(device,tier,selection.budgetMs,progress,selection.graded,selection.trace,selection.globalPressure,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
     else if(nativeAhmed){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeAhmed(device,tier,progress,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
@@ -153,7 +171,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

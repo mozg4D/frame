@@ -10,13 +10,13 @@ import {subcellMetricWGSL} from './subcell-metric.mjs';
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
 
-function distanceBand(f,meshes,limit){
+function distanceBand(f,meshes,limit,pitch=f.h/(f.subcellSurface?6:2)){
   const lo=[Infinity,Infinity,Infinity],hi=lo.map(v=>-v);
   for(const m of meshes)for(let k=0;k<3;k++){
     lo[k]=Math.min(lo[k],m.bounds.min[k]);hi[k]=Math.max(hi[k],m.bounds.max[k]);
   }
   const extent=f.dims.map((d,k)=>f.axes?f.axes[k].at(-1)-f.origin[k]:d*f.h);
-  let h=f.h/(f.subcellSurface?6:2);
+  let h=pitch;
   for(;;){
     const limits=extent.map(v=>Math.max(3,Math.ceil(v/h)));
     const first=lo.map((v,k)=>Math.max(0,Math.min(limits[k]-3,Math.floor((v-f.origin[k])/h)-12)));
@@ -91,6 +91,22 @@ async function rasterize(gpu,band,capture){
     await device.queue.onSubmittedWorkDone();assertCurrent();
   }
   return packed;
+}
+
+export async function nativeGraphMetric(device,f,capture){
+  const gpu=gpuScope(device),start=performance.now(),limit=Math.min(8000000,Math.floor(device.limits.maxStorageBufferBindingSize/12));
+  try{
+    if(!capture.meshes.length)throw Error('The native graph reference requires an evaluated surface');
+    const band=distanceBand(f,capture.meshes,limit,Math.min(f.h/2,(f.graphTangentM??Infinity)/2)),count=countOf(band.dims);
+    const packed=await rasterize(gpu,band,capture),distance=await extendNativeMetric(gpu,band.dims,packed,20);
+    const field=await gpu.read(distance,gpu.staging('CFD graph native signed distance',4*count),count);capture.assertCurrent();
+    for(let i=0;i<count;i++)field[i]*=-band.h;
+    const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+    for(const {bounds:b} of capture.meshes)for(let a=0;a<3;a++){bounds.min[a]=Math.min(bounds.min[a],b.min[a]);bounds.max[a]=Math.max(bounds.max[a],b.max[a]);}
+    const domain={origin:f.origin,dims:f.dims,h:f.h};
+    const sm={...f,graphNative:true,h:band.h,origin:band.origin.map(v=>v-.5*band.h),dims:band.dims,domain,surfaceBounds:bounds};
+    return {sm,field,ms:performance.now()-start,peakGpuBytes:gpu.allocatedBytes,source:'Frame evaluated surface / native Unite raster, seed and extension'};
+  }finally{gpu.close();}
 }
 
 export async function nativeFlowGeometry(gpu,f,capture,dt){

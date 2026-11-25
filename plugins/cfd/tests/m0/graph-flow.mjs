@@ -8,10 +8,19 @@ import {viewportMonitor,sumForce,settledPeriods,caseBudgetMs} from './flow.mjs';
 import {wallResistanceWGSL} from './wall-law.mjs';
 import {viewportBudget} from './viewport-budget.mjs';
 import {addFlowWGSL} from './fvm.mjs';
+import {nativeGraphMetric} from './native-volume.mjs';
+import {sealNativeGraph} from './graph-contact.mjs';
+import {fitNativeGraphAnchors} from './graph-anchors.mjs';
 
-async function build(f,field){
+async function build(device,f,field,capture){
   const worker=new Worker(new URL('./graph-build.mjs',import.meta.url),{type:'module'});
-  try{return await new Promise((ok,no)=>{worker.onmessage=e=>e.data.error?no(Error(e.data.error)):ok(e.data);
+  let wallFit;
+  try{return await new Promise((ok,no)=>{worker.onmessage=async({data})=>{try{
+    if(data.error)throw Error(data.error);
+    if(data.seeds){const fitted=await fitNativeGraphAnchors(device,data.seeds,data.layers,capture);
+      wallFit=fitted.stats;worker.postMessage({anchors:fitted.anchors});return;}
+    if(wallFit)data.stats.wallFit=wallFit;ok(data);
+  }catch(error){no(error);}};
     worker.onerror=e=>no(Error(e.message));worker.postMessage({f,field},[field.buffer]);});}
   finally{worker.terminate();}
 }
@@ -79,6 +88,27 @@ async function solver(gpu,f,g){
       let dx=coeff[2u*e+1u].xyz-.5*(node[2u*i].xyz+node[2u*j].xyz);speed+=.5*((slope[i]+slope[j])*dx);}
     var value=dot(speed,link.xyz);
     if(k==1u){value=${f.U.toFixed(8)}*link.x;}if(wall||link.w==0.){value=0.;}q[e]=vec2f(value,0.);`));
+  let advanceFace=null,faceBinding=null;
+  if(f.faceHistory){
+    advanceFace=await gpu.kernel('CFD transport projected graph face momentum',addFlowWGSL+faceCode+decl(2,'star','vec4f')+
+      decl(4,'node','vec4f')+decl(5,'slope','mat3x3f')+decl(6,'old','vec4f')+decl(7,'nut','f32')+edgeMain(`
+        if(wall||link.w==0.){q[e]=vec2f(0);return;}
+        if(k==1u){q[e]=vec2f(${f.U}*link.x,0);return;}
+        let cell=node[2u*i];let other=node[2u*j];let stored=q[e];
+        let oldVelocity=.5*(old[i].xyz+old[j].xyz);
+        var reconstructed=oldVelocity;
+        if(k==0u){
+          let offset=coeff[2u*e+1u].xyz-.5*(cell.xyz+other.xyz);
+          reconstructed+=.5*((slope[i]+slope[j])*offset);
+        }
+        let increment=.5*((star[i].xyz-old[i].xyz)+(star[j].xyz-old[j].xyz));
+        let mobility=${f.nu}+.5*(nut[i]+nut[j]);
+        let rate=.5*${dt}*(1./cell.w+1./other.w)*(.5*abs(stored.x+stored.y)+link.w*mobility);
+        let relax=rate/(1.+rate);
+        let change=dot(link.xyz,increment)-relax*((stored.x-dot(link.xyz,reconstructed))+stored.y);
+        q[e]=addFlow(stored.x,stored.y,change);`));
+    faceBinding=gpu.bind(advanceFace,[ends,coef,pred,flows,node,slopes,state,nut]);
+  }
   const project=await gpu.kernel('CFD minimum energy face correction',addFlowWGSL+faceCode+decl(2,'p','f32')+edgeMain(`
     if(!wall&&k!=1u&&link.w>0.){let old=q[e];q[e]=addFlow(old.x,old.y,link.w*(p[i]-select(0.,p[j],k==0u)));}`));
   const rhs=await gpu.kernel('CFD signed face imbalance',common+decl(3,'q','vec2f')+decl(4,'b','f32',true)+main(`
@@ -119,39 +149,60 @@ async function solver(gpu,f,g){
     return [phase('graph V-cycle',mg.cycle),phase('graph initial direction',mg.krylov.prepare),
       ...Array.from({length:iterations},(_,k)=>phase('graph Krylov iteration',e=>mg.krylov.iterate(e,k+1===iterations)))];
   }
-  const start=[4,16].map(k=>[phase('graph momentum',e=>{gpu.dispatch(e,visc,vb,grid);gpu.dispatch(e,m,mb,grid);}),
-    phase('graph face predictor',e=>{gpu.dispatch(e,forecast,fb,edgeGrid);gpu.dispatch(e,rhs,rb,grid);}),...pressure(k),
+  const start=[4,16].map((k,cold)=>[phase('graph momentum',e=>{gpu.dispatch(e,visc,vb,grid);gpu.dispatch(e,m,mb,grid);}),
+    phase('graph face predictor',e=>{if(!cold&&advanceFace)gpu.dispatch(e,advanceFace,faceBinding,edgeGrid);
+      else gpu.dispatch(e,forecast,fb,edgeGrid);gpu.dispatch(e,rhs,rb,grid);}),...pressure(k),
     phase('graph face projection',e=>{gpu.dispatch(e,project,pb,edgeGrid);gpu.dispatch(e,rhs,rb,grid);})]);
   function refinement(stages){return [phase('graph restart pressure',e=>{e.copyBufferToBuffer(mg.p,0,firstPressure,0,n*4);e.clearBuffer(mg.p);}),
     ...stages,phase('graph refine stored flows',e=>{
       gpu.dispatch(e,project,pb,edgeGrid);gpu.dispatch(e,addPressure,addBinding,grid);gpu.dispatch(e,rhs,rb,grid);
       e.clearBuffer(maximum);gpu.dispatch(e,norm,normBind,grid);e.copyBufferToBuffer(maximum,0,peakStage,0,4);
     })];}
-  const refine=refinement(pressure(8)),local=refinement([phase('graph local pressure smoothing',mg.smooth)]);
+  const restarts=[8,24,48,96].map(n=>refinement(pressure(n))),local=refinement([phase('graph local pressure smoothing',mg.smooth)]);
+  const wallSample=buf('area and y+ at each side of a solid face',g.nbr.length*8);
+  const wallStage=gpu.staging('CFD wall-resolution diagnostics',wallSample.size);
+  const wallDiagnostic=await gpu.kernel('CFD graph physical wall resolution',common+
+    decl(3,'v','vec4f')+decl(4,'sample','vec2f',true)+main(walk(`
+      if(k==7u){let area=length(A);let d=area/c;let slip=length(tangentialSlip(v[i].xyz,A/area));
+        let resistance=wallNu(v[i].xyz,A,c)/d;sample[e]=vec2f(area,d*sqrt(slip*resistance)/NU);}`)));
   const correct=phase('graph wall force and velocity',e=>gpu.dispatch(e,correction,cb,grid)),samplePlane=phase('graph wake sample',e=>gpu.dispatch(e,sample,sb,grid));
   const target=7e-7*Math.min(1,f.period);
-  const convergence={steps:0,additionalPasses:0,localPasses:0,maximumPasses:0,maxRelativeDivergence:0,maxDivergencePerS:0,missedSteps:0};
+  const convergence={steps:0,additionalPasses:0,localPasses:0,longRestarts:0,maximumPasses:0,maxRelativeDivergence:0,maxDivergencePerS:0,missedSteps:0,firstStepDivergencePerS:[]};
   return {dt,state,force,sum,mean,convergence,readMean:()=>gpu.read(mean,stage,n),
-    async step(sampling,scheduler){
-      await scheduler.perform([...start[Number(convergence.steps===0)],...refine]);let passes=1,peak,previousLocal=null;
+    async step(sampling,scheduler,assertCurrent){
+      await scheduler.perform([...start[Number(convergence.steps===0)],...restarts[0]],assertCurrent);
+      let passes=1,peak,previous=null,usedLocal=false,allowLocal=true,restart=0;
       for(;;){
         await peakStage.mapAsync(GPUMapMode.READ);
         try{peak=new Float32Array(peakStage.getMappedRange())[0];}finally{peakStage.unmap();}
         if(!Number.isFinite(peak))throw Error('Nonfinite stored SDF-graph flux');
-        if(peak<=target||passes>=10)break;
-        const useLocal=peak<=256*target&&(previousLocal===null||peak<.35*previousLocal);
-        if(useLocal)convergence.localPasses++;previousLocal=useLocal?peak:null;
-        await scheduler.perform(useLocal?local:refine);passes++;
+        if(!convergence.steps)convergence.firstStepDivergencePerS.push(peak/f.period);
+        if(peak<=target||passes>=16)break;
+        if(previous!==null){
+          if(usedLocal){allowLocal=peak<.35*previous;}
+          else if(peak>.05*previous){restart=Math.min(restarts.length-1,restart+1);}
+          else if(peak<.001*previous){restart=0;}
+        }
+        usedLocal=allowLocal&&peak<=256*target;previous=peak;
+        if(usedLocal)convergence.localPasses++;else if(restart>0)convergence.longRestarts++;
+        await scheduler.perform(usedLocal?local:restarts[restart],assertCurrent);passes++;
       }
       convergence.steps++;convergence.additionalPasses+=passes-1;
       convergence.lastRelativeDivergence=peak;
       convergence.maxDivergencePerS=Math.max(convergence.maxDivergencePerS,peak/f.period);
       if(peak>=1e-6||peak/f.period>=1e-6)convergence.missedSteps++;
       convergence.maximumPasses=Math.max(convergence.maximumPasses,passes);convergence.maxRelativeDivergence=Math.max(convergence.maxRelativeDivergence,peak);
-      await scheduler.perform(sampling?[correct,samplePlane]:[correct]);
+      await scheduler.perform(sampling?[correct,samplePlane]:[correct],assertCurrent);
     },
     async diagnostics(wakeLengthM){
       const v=await gpu.read(state,stage,n*4),q=await gpu.read(flows,stage,2*edges);
+      gpu.run(wallDiagnostic,[...geom,state,wallSample],grid);
+      const samples=await gpu.read(wallSample,wallStage,2*g.nbr.length),body=[];let areaM2=0,belowOne=0,belowThirty=0;
+      for(let e=0;e<g.nbr.length;e++){const area=samples[2*e],y=samples[2*e+1];if(!area)continue;
+        if(!Number.isFinite(area+y)||y<0)throw Error('Invalid graph wall resolution');body.push([y,area]);areaM2+=area;
+        if(y<=1)belowOne+=area;if(y<=30)belowThirty+=area;
+      }body.sort((a,b)=>a[0]-b[0]);
+      const quantile=q=>{let sum=0;for(const [y,area] of body){sum+=area;if(sum>=q*areaM2)return y;}return null;};
       let max=0,net=0,exterior=0,sealedMax=0;const yplus=[];
       for(let i=0;i<n;i++){
         let imbalance=0;
@@ -165,18 +216,24 @@ async function solver(gpu,f,g){
       }
       yplus.sort((a,b)=>a-b);
       return {maxDivergencePerS:max,relativeDivergenceMax:max*f.period,wakeLengthM,netBoundaryFlowM3PerS:exterior,
+        bodyWallResolution:areaM2>0?{areaM2,wallFaces:body.length,yPlusP10:quantile(.1),yPlusP50:quantile(.5),yPlusP90:quantile(.9),
+          fractionOfAreaAtMost1:belowOne/areaM2,fractionOfAreaAtMost30:belowThirty/areaM2}:null,
         internalCancellationErrorM3PerS:Math.abs(net-exterior),maxImpermeableFaceFlowM3PerS:sealedMax,faceFlowDegreesOfFreedom:edges,storedFaceScalars:2*edges,
         wallYPlusViscousEstimateP50:yplus[Math.floor(yplus.length*.5)]};
     }};
 }
 
-export async function benchmarkGraph(device,f,progress){
+export async function benchmarkGraph(device,f,progress,capture=null){
   const start=performance.now(),gpu=gpuScope(device),budget=f.budgetMs??caseBudgetMs;let stop=null;
   try{
     stop=viewportMonitor();
-    const sm=surfaceBand(f),metric=await fixtureMetric(device,sm);
-    const {packed,stats}=await build(sm,metric.field);
+    const sm=capture?null:surfaceBand(f),metric=capture?await nativeGraphMetric(device,f,capture):await fixtureMetric(device,sm);
+    const band=metric.sm??sm;
+    const {packed,stats}=await build(device,band,metric.field,capture);capture?.assertCurrent();
+    if(capture){stats.triangleCrossings=await sealNativeGraph(device,packed,capture);
+      stats.edges-=stats.triangleCrossings.closed;stats.blockedEdges+=stats.triangleCrossings.closed;}
     stats.gpuWeights=await graphWeights(device,f,packed);
+    stats.components=packed.components;stats.gauges=packed.gauges;
     const graphGenerationMs=performance.now()-start;
     progress(f.name+' SDF graph '+stats.sites+' nodes, '+stats.edges+' faces, '+graphGenerationMs.toFixed(0)+' ms');
     const s=await solver(gpu,f,packed);await device.queue.onSubmittedWorkDone();
@@ -189,7 +246,7 @@ export async function benchmarkGraph(device,f,progress){
       const end=Math.round(window*f.period/s.dt),first=step;
       while(step<end){
         if(performance.now()-start>=budget){budgetExhausted=true;break periods;}
-        await s.step(window>=4,scheduler);step++;
+        await s.step(window>=4,scheduler,capture?.assertCurrent);step++;
       }
       const forceN=await s.sum()/(step-first),coefficient=forceN/f.normalization;
       let windowWake=null;
@@ -207,11 +264,12 @@ export async function benchmarkGraph(device,f,progress){
     const forcePassed=!!ref.value&&stable&&samples.every(v=>Math.abs(v/ref.value-1)<=.05);
     const expectedWake=ref.wakeM??(ref.wakeDiameters??0)*.08;
     const wakePassed=expectedWake?Number.isFinite(field?.wakeLengthM)&&Math.abs(field.wakeLengthM/expectedWake-1)<=.05:null;
-    const totalMs=performance.now()-start;
+    const totalMs=performance.now()-start;capture?.assertCurrent();
     return {fixture:f.id,kind:'sdf-graph',dtS:s.dt,windows,mean,relativeError,forcePassed,stable,field,viewport,stats,wakePassed,diverged,
-      metric:{source:metric.source,dims:sm.dims,pitchM:sm.h,ms:metric.ms,peakGpuBytes:metric.peakGpuBytes},
+      faceMomentum:f.faceHistory?'transported staggered face flow':'interpolated predictor',
+      metric:{source:metric.source,dims:band.dims,pitchM:band.h,ms:metric.ms,peakGpuBytes:metric.peakGpuBytes},
       graphGenerationMs,setupMs,totalMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
-      ownedBufferBytes:Math.max(metric.peakGpuBytes,stats.gpuWeights.peakGpuBytes,gpu.allocatedBytes),solverBufferBytes:gpu.allocatedBytes,
+      ownedBufferBytes:Math.max(metric.peakGpuBytes,stats.wallFit?.peakGpuBytes??0,stats.triangleCrossings?.peakGpuBytes??0,stats.gpuWeights.peakGpuBytes,gpu.allocatedBytes),solverBufferBytes:gpu.allocatedBytes,
       fluxConvergence:s.convergence,scheduling:scheduler.measure(),
       timeToTargetMs:stable&&(!ref.value||forcePassed)&&wakePassed!==false&&viewport.qualified&&field?.relativeDivergenceMax<1e-6&&field?.maxDivergencePerS<1e-6&&
         s.convergence.maxRelativeDivergence<1e-6&&s.convergence.maxDivergencePerS<1e-6?totalMs:null};

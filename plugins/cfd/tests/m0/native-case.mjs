@@ -9,7 +9,7 @@ import {nativeAxialSpin} from './rigid-spin.mjs';
 
 // A native primitive is evaluated and converted to its renderer-backed mesh
 // by Frame. Only the scoring stage knows the analytic sphere reference.
-export async function benchmarkNativeSphere(device,tier,budgetMs,progress,graded=false,trace=false,globalPressure=false){
+export async function benchmarkNativeSphere(device,tier,budgetMs,progress,graded=false,trace=false,globalPressure=false,selection={}){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const context=researchSceneContext(frameEngine);
   const box=await call('scene.create',{type:'cfd',name:'Sphere control volume'});
@@ -23,10 +23,11 @@ export async function benchmarkNativeSphere(device,tier,budgetMs,progress,graded
   const bounds=initial.meshes[0].bounds,extent=bounds.max.map((v,k)=>v-bounds.min[k]);
   if(extent.some(d=>Math.abs(d-.08)>.001))throw Error('Unexpected native sphere extent in metres: '+extent);
   const center=bounds.min.map((v,k)=>(v+bounds.max[k])*.5),capture=captureFlowSurfaces(device,context,box.hash,center);
-  const f={...flowFixture('sphere',tier),U:speed,maxSpeed:speed,rho:air.rho,nu:air.nu,period:.08/speed,
+  const f={...flowFixture('sphere',tier),...selection,U:speed,maxSpeed:speed,rho:air.rho,nu:air.nu,period:.08/speed,
     normalization:.5*air.rho*speed**2*Math.PI*.04**2,budgetMs,trace,globalPressure,geometry:'Frame Sphere primitive evaluated in a CFD Box'};
-  const result=await runCase(device,graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
-  return {...result,sourceExtentM:extent};
+  const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
+    await runCase(device,graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
+  return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
 }
 
 function mergedBounds(bounds){
@@ -78,7 +79,8 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
   const capture=captureFlowSurfaces(device,ctx,box.hash,origin),U=capture.params.Speed;
   const f={...flowFixture(reference,tier),...selection,U,maxSpeed:U,period:1.044/U,rho:air.rho,nu:air.nu,normalization:.5*air.rho*U**2*.389*.288,
     geometry:'Evaluated native Ahmed polygon surface; fixed wind-tunnel floor, support tare omitted'};
-  const result=await runCase(device,selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
+  const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
+    await runCase(device,selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
 }
 

@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {pressureHierarchy} from './graph-build.mjs';
+import {pressureHierarchy,referenceComponents} from './graph-build.mjs';
 
 // Topology remains distinct from the metric. Each incident cell references
 // the same physical face with opposite sign. A cut edge may have two wall
@@ -52,10 +52,10 @@ export async function graphWeights(device,f,g){
       for(let k=0;k<3;k++)g.faceMetric[8*i+4+k]+=g.pos[origin+k];
     }
     const offset=new Uint32Array(n+1),nbr=[],conductances=[],diag=new Float32Array(n),boundary=new Float64Array(n);
-    let maxClosure=0,maxVolumeDifference=0,maxAffineFluxError=0,minC=Infinity;
+    let maxClosure=0,maxVolumeDifference=0,maxAffineFluxError=0,minC=Infinity,dt=Infinity;
     const moment=new Float64Array(9);
     for(let i=0;i<n;i++){
-      const sum=[0,0,0];moment.fill(0);let surface=0,volume=0,d=0;
+      const sum=[0,0,0];moment.fill(0);let surface=0,volume=0,d=0,sumC=0;
       for(let e=g.offset[i];e<g.offset[i+1];e++){
         const k=g.kind[e],c=coeff[4*e+3],a=Math.hypot(coeff[4*e],coeff[4*e+1],coeff[4*e+2]);
         // Float32 can collapse a tiny clipped polygon. Its contribution to
@@ -67,7 +67,7 @@ export async function graphWeights(device,f,g){
           sum[j]+=coeff[4*e+j];
           for(let a=0;a<3;a++)moment[3*j+a]+=coeff[4*e+j]*(g.faceMetric[centroid+a]-g.pos[4*i+a]);
         }
-        volume+=a*a/c*(k===0?1/6:1/3);surface+=a;
+        volume+=a*a/c*(k===0?1/6:1/3);surface+=a;sumC+=c;
         if(k===0){nbr.push(g.nbr[e]);conductances.push(c);d+=c;}
         else if(k<=6&&k!==1&&!(k===3&&f.name==='ahmed')){boundary[i]+=c;d+=c;}
       }
@@ -75,12 +75,14 @@ export async function graphWeights(device,f,g){
       for(let j=0;j<9;j++)maxAffineFluxError=Math.max(maxAffineFluxError,Math.abs(moment[j]/volume-Number(j%4===0)));
       maxVolumeDifference=Math.max(maxVolumeDifference,Math.abs(volume/g.pos[4*i+3]-1));
       offset[i+1]=nbr.length;diag[i]=d;g.pos[4*i+3]=volume;
+      dt=Math.min(dt,.75*volume/(.5*f.maxSpeed*surface+2*f.nu*sumC));
     }
-    if(g.gauges!==0)throw Error('This exterior pressure benchmark requires an open reference in each component');
     if(!(maxClosure<3e-6&&maxVolumeDifference<2e-5&&maxAffineFluxError<5e-4))
       throw Error('GPU face integration failed volume or linear-flux certification: '+JSON.stringify({maxClosure,maxVolumeDifference,maxAffineFluxError}));
-    g.levels=pressureHierarchy({offset,nbr:Uint32Array.from(nbr),c:Float32Array.from(conductances),diag,boundary});
-    g.coeff=coeff;g.faces=null;
-    return {uniqueFaces:faceCount,minC,maxClosure,maxVolumeDifference,maxAffineFluxError,ms:performance.now()-start,peakGpuBytes:gpu.allocatedBytes};
+    const fine={offset,nbr:Uint32Array.from(nbr),c:Float32Array.from(conductances),diag,boundary};
+    const {components,gauges}=referenceComponents(fine);
+    g.levels=pressureHierarchy(fine);g.components=components;g.gauges=gauges;
+    g.coeff=coeff;g.faces=null;g.dt=dt;
+    return {uniqueFaces:faceCount,components,gauges,minC,maxClosure,maxVolumeDifference,maxAffineFluxError,ms:performance.now()-start,peakGpuBytes:gpu.allocatedBytes};
   }finally{gpu.close();}
 }

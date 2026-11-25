@@ -47,6 +47,11 @@ export function metricSampler(f,field){
       const u=t.map((v,i)=>v-lo[i]);let d=0;
       for(let z=0;z<2;z++)for(let y=0;y<2;y++)for(let x=0;x<2;x++)
         d+=field[(lo[0]+x)+nx*(lo[1]+y+ny*(lo[2]+z))]*(x?u[0]:1-u[0])*(y?u[1]:1-u[1])*(z?u[2]:1-u[2]);
+      if(f.surfaceBounds){
+        const {min,max}=f.surfaceBounds;
+        const dx=Math.max(0,min[0]-p[0],p[0]-max[0]),dy=Math.max(0,min[1]-p[1],p[1]-max[1]),dz=Math.max(0,min[2]-p[2],p[2]-max[2]);
+        if(dx||dy||dz)d=Math.max(d,Math.hypot(dx,dy,dz));
+      }
       return d;
     }
     function normal(p){

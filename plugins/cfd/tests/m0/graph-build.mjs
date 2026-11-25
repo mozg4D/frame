@@ -1,5 +1,6 @@
-import {sitesFromMetric,buildGraph} from './voronoi.mjs';
+import {surfaceAnchors,sitesFromMetric,buildGraph,graphLayerDistances} from './voronoi.mjs';
 import {metricSampler} from './metric.mjs';
+import {graphEdgeTree} from './graph-contact.mjs';
 
 export function pressureHierarchy(fine){
   const levels=[fine];
@@ -36,6 +37,25 @@ function scalarLevel(rows,boundary){
 }
 const isOpen=(type,f)=>type>0&&type<=6&&!(type===1&&!f.rotor)&&!(type===3&&f.name==='ahmed');
 
+// Give one pressure a reference in each component with only prescribed flux.
+// Use the final conductances; a polygon can round to zero on the device.
+export function referenceComponents(level){
+  const {offset,nbr,c,diag,boundary}=level,n=diag.length,seen=new Uint8Array(n);
+  const todo=new Uint32Array(n);let components=0,gauges=0;
+  for(let seed=0;seed<n;seed++){
+    if(seen[seed])continue;
+    components++;todo[0]=seed;seen[seed]=1;let count=1,open=false;
+    for(let k=0;k<count;k++){
+      const i=todo[k];if(boundary[i]>0)open=true;
+      for(let e=offset[i];e<offset[i+1];e++){
+        const j=nbr[e];if(c[e]>0&&!seen[j]){seen[j]=1;todo[count++]=j;}
+      }
+    }
+    if(!open){const gauge=diag[seed]||1;boundary[seed]+=gauge;diag[seed]+=gauge;gauges++;}
+  }
+  return {components,gauges};
+}
+
 export function packGraph(graph,f){
   const nodes=graph.nodes,rows=nodes.map(n=>n.links),offset=offsets(rows),m=offset.at(-1),n=nodes.length;
   const nbr=new Uint32Array(m),kind=new Uint32Array(m),linkFace=new Int32Array(m),coeff=new Float32Array(4*m),pos=new Float32Array(4*n),wallDist=new Float32Array(n);
@@ -52,30 +72,31 @@ export function packGraph(graph,f){
     dt=Math.min(dt,.75*cell.vol/(.5*f.maxSpeed*area+2*f.nu*sumC));
     pressureRows.push(row);
   }
-  // A pressure reference is required in each isolated Neumann component.
-  const seen=new Uint8Array(n);let components=0,gauges=0;
-  for(let seed=0;seed<n;seed++)if(!seen[seed]){
-    const todo=[seed];seen[seed]=1;let dirichlet=false;components++;
-    for(let k=0;k<todo.length;k++){const i=todo[k];if(boundary[i]>0)dirichlet=true;
-      for(const [j] of pressureRows[i])if(!seen[j]){seen[j]=1;todo.push(j);}}
-    if(!dirichlet){boundary[seed]+=pressureRows[seed].reduce((a,e)=>a+e[1],0)||1;gauges++;}
-  }
+  const fine=scalarLevel(pressureRows,boundary),{components,gauges}=referenceComponents(fine);
   return {offset,nbr,kind,linkFace,faces:graph.faces,coeff,pos,dt,components,gauges,wallDist,
-    levels:pressureHierarchy(scalarLevel(pressureRows,boundary))};
+    levels:pressureHierarchy(fine)};
 }
 
-export function graphFromField(f,field){
-  const t=performance.now(),metric=metricSampler(f,field),cloud=sitesFromMetric(metric),seedsMs=performance.now()-t;
+export function graphFromField(f,field,anchors=null){
+  if(f.graphNative&&!anchors)throw Error('Native graph construction requires surface-fitted anchors');
+  const t=performance.now(),metric=metricSampler(f,field),cloud=sitesFromMetric(metric,anchors),seedsMs=performance.now()-t;
   const graph=buildGraph(cloud,metric,null,true);
   const voronoiMs=performance.now()-t-seedsMs,packed=packGraph(graph,f);
+  if(f.graphNative)packed.nativeEdges=graphEdgeTree(packed);
   for(let i=0;i<graph.nodes.length;i++)if(!Number.isFinite(packed.wallDist[i]))packed.wallDist[i]=Math.max(f.h*.1,metric.sample(graph.nodes[i].p));
   return {packed,stats:{sites:graph.nodes.length,edges:graph.edges,blockedEdges:graph.cuts,maxDegree:graph.maxDegree,
-    maxRelativeClosure:graph.maxClosure,minVolumeM3:graph.minVolume,anchors:cloud.anchors,tangentM:cloud.tangent,firstLayerM:cloud.firstLayer,
+    maxRelativeClosure:graph.maxClosure,minVolumeM3:graph.minVolume,anchors:cloud.anchors,tangentM:cloud.tangent,firstLayerM:cloud.firstLayer,wallLayerDistancesM:cloud.layers,
     components:packed.components,gauges:packed.gauges,levels:packed.levels.map(l=>l.diag.length),seedsMs,voronoiMs,totalCpuMs:performance.now()-t}};
 }
 if(typeof WorkerGlobalScope!=='undefined' && self instanceof WorkerGlobalScope){
+  let pending=null;
   self.onmessage=({data})=>{try{
-    const result=graphFromField(data.f,data.field),transfer=new Set();
+    if(data.f?.graphNative){
+      pending=data;
+      self.postMessage({seeds:surfaceAnchors(metricSampler(data.f,data.field)),layers:graphLayerDistances(data.f)});return;
+    }
+    const source=pending??data;pending=null;
+    const result=graphFromField(source.f,source.field,data.anchors),transfer=new Set();
     function collect(obj){if(ArrayBuffer.isView(obj))transfer.add(obj.buffer);else if(obj&&typeof obj==='object')Object.values(obj).forEach(collect);}
     collect(result);self.postMessage(result,[...transfer]);
   }catch(e){self.postMessage({error:e.stack});}};

@@ -23,9 +23,9 @@ function morton(p,lo,hi){
   return result;
 }
 
-export function sitesFromMetric(metric){
-  const {f,field,sample,normal}=metric,h=f.h,d=f.dims,domain=f.domain??f,lo=domain.origin,hi=domain.dims.map((v,k)=>lo[k]+v*domain.h);
-  const tangent=2.25*h,coarse=6*h, surface=[],hash=new Buckets(tangent),points=[];
+export function surfaceAnchors(metric){
+  const {f,field,normal}=metric,h=f.h,d=f.dims;
+  const tangent=f.graphTangentM??2.25*h,surface=[],hash=new Buckets(tangent);
   const n=d[0]*d[1]*d[2], stride=[1,d[0],d[0]*d[1]];
   for(let i=0;i<n;i++){
     const q=[i%d[0],Math.floor(i/d[0])%d[1],Math.floor(i/stride[2])];
@@ -39,25 +39,43 @@ export function sitesFromMetric(metric){
       hash.put(p,surface.length);surface.push({p,n:normalAt});
     }
   }
-  const all=new Buckets(h);
+  return surface;
+}
+
+export function graphLayerDistances(f){
+  const h=f.h,background=(f.domain?.h??2*h)/2;
+  const layers=f.graphWallLayers?[...f.graphWallLayers]:[.32*h,1.15*h,2.8*h,5.2*h];
+  if(f.graphWallLayers||f.graphTangentM){
+    for(let offset=1.7*layers.at(-1);offset<4.4*background;offset*=1.7)layers.push(offset);
+    if(5.2*background>1.25*layers.at(-1))layers.push(5.2*background);
+  }
+  return layers;
+}
+
+export function sitesFromMetric(metric,fitted=null){
+  const {f,sample}=metric,h=f.h,domain=f.domain??f,lo=domain.origin,hi=domain.dims.map((v,k)=>lo[k]+v*domain.h);
+  const tangent=f.graphTangentM??2.25*h,background=(f.domain?.h??2*h)/2,coarse=6*background;
+  const surface=fitted??surfaceAnchors(metric),layers=graphLayerDistances(f),offsets=[-layers[0],...layers],all=new Buckets(h),points=[];
+  const minLayerWidth=Math.min(...layers.map((d,i)=>d-(i?layers[i-1]:0)));
+  const tolerance=f.graphWallLayers?Math.min(.18*h,.2*minLayerWidth):.18*h;
   function insert(p,solid,layer){
     if(p.some((v,k)=>v<=lo[k]+h*.01||v>=hi[k]-h*.01))return;
-    let duplicate=false;all.near(p,.18*h,j=>{if(norm(sub(p,points[j].p))<.18*h)duplicate=true;});
+    let duplicate=false;all.near(p,tolerance,j=>{if(norm(sub(p,points[j].p))<tolerance)duplicate=true;});
     if(!duplicate){all.put(p,points.length);points.push({p,solid,layer});}
   }
   for(const s of surface){
-    for(const offset of [-.32,.32,1.15,2.8,5.2]){
-      const p=addScaled(s.p,s.n,offset*h);
-      if((sample(p)<0)===(offset<0))insert(p,offset<0,offset);
+    for(const [k,offset] of offsets.entries()){
+      const p=addScaled(s.p,s.n,offset);
+      if(s.clear?s.clear[k]:(sample(p)<0)===(offset<0))insert(p,offset<0,offset/h);
     }
   }
   const nd=hi.map((v,k)=>Math.max(1,Math.round((v-lo[k])/coarse)));
   for(let z=0;z<nd[2];z++)for(let y=0;y<nd[1];y++)for(let x=0;x<nd[0];x++){
     const p=[x,y,z].map((v,k)=>lo[k]+(v+.5)*(hi[k]-lo[k])/nd[k]);
-    if(sample(p)>4.4*h)insert(p,false,Infinity);
+    if(sample(p)>Math.min(4.4*background,0.85*layers.at(-1)))insert(p,false,Infinity);
   }
   points.sort((a,b)=>morton(a.p,lo,hi)-morton(b.p,lo,hi));
-  return {points,lo,hi,spacing:coarse,anchors:surface.length,tangent,firstLayer:.32*h};
+  return {points,lo,hi,spacing:coarse,anchors:surface.length,tangent,firstLayer:layers[0],layers};
 }
 
 function boxFaces(lo,hi){
@@ -92,14 +110,21 @@ function clip(faces,site,direction,offset,eps){
 }
 function cellFaces(i,cloud,bins){
   const {points,lo,hi,spacing}=cloud,p=points[i].p,eps=spacing*1e-9;
-  let faces=boxFaces(sub(lo,p),sub(hi,p)),radius=2*spacing,processed=0;
+  let faces=boxFaces(sub(lo,p),sub(hi,p)),radius=2*(Number.isFinite(points[i].layer)?cloud.tangent??spacing:spacing),processed=0;
+  let extent=norm(lo.map((v,k)=>Math.max(p[k]-v,hi[k]-p[k])));
   while(true){
     const neighbours=[];bins.near(p,radius,j=>{
       const v=sub(points[j].p,p),d=norm(v);if(j!==i&&d>processed&&d<=radius)neighbours.push({j,v,d});
     });
     neighbours.sort((a,b)=>a.d-b.d);
-    for(const {j,v,d} of neighbours)faces=clip(faces,j,v.map(x=>x/d),.5*d,eps);
-    let extent=0;for(const face of faces)for(const v of face.vertices)extent=Math.max(extent,norm(v));
+    for(let k=0;k<neighbours.length;k++){
+      const {j,v,d}=neighbours[k];
+      if(d>2*extent+2*eps)break;
+      faces=clip(faces,j,v.map(x=>x/d),.5*d,eps);
+      if(k%8===7||k===neighbours.length-1){
+        extent=0;for(const face of faces)for(const vertex of face.vertices)extent=Math.max(extent,norm(vertex));
+      }
+    }
     if(2*extent<=radius+eps)break;
     processed=radius;radius=Math.min(2*extent+eps,radius*2);
   }
@@ -131,7 +156,7 @@ export function buildGraph(cloud,metric,certificate=null,keepFaces=false){
       const A=n.map(v=>v*area);
       if(id<0||index[id]<0){cell.links.push({j:-1,type:id<0?-id:7,A,c:area/dist,face:canonical(face,dist)});continue;}
       const j=index[id];if(j<=k)continue;
-      const through=certificate?.(cell.p,nodes[j].p)||crossesMetric(metric,cell.p,nodes[j].p);
+      const through=certificate?.(cell.p,nodes[j].p)||(!metric.f?.graphNative&&crossesMetric(metric,cell.p,nodes[j].p));
       const c=area/(2*dist),minus=A.map(v=>-v),faceId=canonical(face,through?dist:2*dist);
       if(through){
         cuts++;cell.links.push({j:-1,type:7,A,c:2*c,face:faceId});nodes[j].links.push({j:-1,type:7,A:minus,c:2*c,face:~faceId});
