@@ -11,7 +11,7 @@ import {referenceComponents} from './m0/graph-build.mjs';
 import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
-import {bladeStation,rotorParts} from './m0/rotor.mjs';
+import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
 import {axialTrackRate} from './m0/rigid-spin.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
@@ -36,6 +36,28 @@ test('native rotor components are closed and the shaft bore retains its design v
   }
   assert.ok(Math.abs(volumes[0]/volumes[1]-1)<1e-7);
   assert.ok(Math.abs(volumes[2]/(Math.PI*(.01016**2-.003175**2)*.01016)-1)<.001);
+});
+test('the measured APC stations reach the native mesh and the lattice section table',()=>{
+  const blade=rotorParts(true)[1],table=rotorTable(true),rings=new Map(),start=.95*.127;
+  let radius=0;
+  for(let i=0;i<blade.vertices.length;i+=3){
+    const [x,y,z]=blade.vertices.subarray(i,i+3),cap=Math.sqrt(.127**2-z**2);
+    const r=y>start?start+(y-start)*(.127-start)/(cap-start):y,key=Math.round(r/.127*1e6);
+    radius=Math.max(radius,Math.hypot(y,z));
+    if(!rings.has(key))rings.set(key,[]);
+    rings.get(key).push([x,z]);
+  }
+  assert.ok(Math.abs(2*radius-.254)<2e-8);
+  for(const [r,chord,beta] of [[.15,.138,37.86],[.2,.154,45.82],[.5,.195,24.67],[.75,.129,16.74],[.95,.061,12.72],[1,.040,11.53]]){
+    const ring=rings.get(Math.round(r*1e6)),[ax,az]=ring[0],[bx,bz]=ring[ring.length/2];
+    assert.ok(Math.abs(Math.hypot(ax-bx,az-bz)/.127-chord)<1e-7);
+    assert.ok(Math.abs(Math.atan2(ax-bx,az-bz)*180/Math.PI-beta)<.0001);
+    const i=Math.floor(256*r),t=256*r-i;
+    const at=j=>table[8*i+j]+t*(table[8*Math.min(i+1,256)+j]-table[8*i+j]);
+    assert.ok(Math.abs(at(0)/.127-chord)<.0005);
+    assert.ok(Math.abs(at(3)*180/Math.PI-beta)<.22);
+  }
+  assert.deepEqual(bladeStation(.08,true),bladeStation(.08,false));
 });
 test('unwrapped axial rates distinguish multiple full turns between native frames',()=>{
   const keys=[0,6,12].map(t=>[t,{v:[5011*t/10,0,0],interp:'hard',axes:[0,1,2]}]);

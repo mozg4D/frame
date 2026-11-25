@@ -25,6 +25,9 @@ if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a s
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform'))};
 selection.trace=args.includes('--trace-steps');
+selection.measuredPlanform=args.includes('--uiuc-planform');
+if(selection.measuredPlanform&&(scenePath||nativeSphere||nativeAhmed||selection.fixture&&selection.fixture!=='propeller'))
+  throw Error('UIUC planform data apply only when creating the propeller reference geometry');
 selection.interpolatedWall=args.includes('--interpolated-lattice-wall');
 if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&selection.fixture==='ahmed'))
   throw Error('Select the stationary Ahmed MR-LBM case or the manufactured wall check for interpolated links');
@@ -121,6 +124,9 @@ try{
     const errors=[];let lost=null;
     device.addEventListener('uncapturederror',e=>errors.push(e.error.message));
     device.lost.then(e=>{lost={reason:e.reason,message:e.message};});
+    const fixtureGeometry=selection.measuredPlanform||selection.fixture==='ahmed-wake'?
+      await (await import('./plugins/cfd/tests/m0/fixture-geometry-check.mjs')).verifyFixtureGeometry(device):null;
+    if(fixtureGeometry&&!fixtureGeometry.pass)throw Error('Reference geometry mismatch: '+JSON.stringify(fixtureGeometry));
     const regularPressure=selection.globalPressure?await (await import('./plugins/cfd/tests/m0/separable-pressure.mjs')).verifySeparablePressure(device):null;
     if(regularPressure&&!regularPressure.pass)throw Error('Whole-domain regular inverse failed: '+JSON.stringify(regularPressure));
     const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device,selection.graded,selection.globalPressure);
@@ -171,7 +177,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

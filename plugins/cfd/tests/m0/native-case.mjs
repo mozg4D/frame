@@ -36,12 +36,12 @@ function mergedBounds(bounds){
   return {min,max};
 }
 
-export async function benchmarkNativeRotor(device,tier,progress,selection){
+export async function createNativeRotorFixture(device,measuredPlanform=false){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Static propeller control volume'});
   await call('scene.update',{id:box.hash,params:{Speed:0}});
   const authored=await call('animation.inspect'),end=60,angle=5011*360/60*end/authored.fps,ids=[];
-  for(const [index,m] of rotorParts().entries()){
+  for(const [index,m] of rotorParts(measuredPlanform).entries()){
     const part=await call('mesh.create',{name:m.name,vertices:Array.from(m.vertices,v=>1000*v),
       indices:Array.from(m.indices),storage:index===1?'texture':'auto'});
     ids.push(part.hash);
@@ -51,37 +51,75 @@ export async function benchmarkNativeRotor(device,tier,progress,selection){
   for(const [frame,value] of [[0,0],[end,angle]])
     await call('animation.key',{id:shaft.hash,path:'rotation',frame,value:[value,0,0],interpolation:'hard'});
   await call('animation.seek',{frame:0});await call('diagnostics.frame',{frames:4});
-  const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash),fluid=mediumProperties('Air',0),diameter=.254;
+  const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash),diameter=.254;
   if(Math.abs(motion.diameterM/diameter-1)>.005)throw Error('Evaluated APC swept diameter disagrees with its nominal size');
+  return {capture,motion,assertCurrent,diameter,boxHash:box.hash};
+}
+
+export async function benchmarkNativeRotor(device,tier,progress,selection){
+  const {capture,motion,assertCurrent,diameter}=await createNativeRotorFixture(device,selection.measuredPlanform);
+  const fluid=mediumProperties('Air',0);
   const rps=Math.abs(motion.omega)/(2*Math.PI);
   const f={...flowFixture('propeller',tier),...selection,sweptDiameterM:motion.diameterM,omega:motion.omega,period:1/rps,nu:fluid.nu,rho:fluid.rho,
     maxSpeed:.5*motion.diameterM*Math.abs(motion.omega),normalization:fluid.rho*rps**2*diameter**4,
-    powerNormalization:fluid.rho*rps**3*diameter**5,checkKinematics:assertCurrent,geometry:'Evaluated keyed Frame polygon blades and shaft hub'};
+    powerNormalization:fluid.rho*rps**3*diameter**5,checkKinematics:assertCurrent,geometry:selection.measuredPlanform?
+      'Evaluated keyed UIUC test-specimen chord and pitch, APC design sweep, rake, profiles and hub':
+      'Evaluated keyed Frame polygon blades and shaft hub'};
   const grid=selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f;
   const result=await runCase(device,grid,'cartesian-fvm',progress,capture);await assertCurrent();
   return {...result,motion,nominalDiameterM:diameter,sourceSignature:capture.signature};
 }
 
-export async function benchmarkNativeAhmed(device,tier,progress,selection){
+export async function createNativeAhmedFixture(device,reference='ahmed'){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Ahmed control volume'});
-  const reference=selection.fixture??'ahmed',air=mediumProperties('Air',0);
+  const air=mediumProperties('Air',0);
   const speed=reference==='ahmed-wake'?768000*air.nu/.288:60;
   await call('scene.update',{id:box.hash,params:{Speed:speed}});
   await call('transform.set',{ids:[box.hash],channel:'size',axis:0,value:1800,coordinates:'world'});
   const body=await call('mesh.create',ahmedMesh());
+  // Wind-tunnel mounting drawing, Fig. 1 of Guilmineau et al., ECCOMAS
+  // 2016. The drag reference is tared to the body. The measured wake is
+  // downstream of the entire mounted model, including its four supports.
+  const supports=[];
+  if(reference==='ahmed-wake'){
+    for(const station of [202,672])for(const z of [-163.5,163.5]){
+      const cylinder=await call('scene.create',{type:'cylinder',name:'Ahmed tunnel support',
+        params:{diameter:30,height:50,'angle approximation':5}});
+      for(const [axis,value] of [[0,station-522],[2,z]]){
+        await call('transform.set',{ids:[cylinder.hash],channel:'position',axis,value,coordinates:'world'});
+      }
+      supports.push({hash:cylinder.hash,station,z});
+    }
+  }
   await call('diagnostics.frame',{frames:4});
-  const source=captureFlowSurfaces(device,ctx,box.hash),mesh=source.meshes[0];
-  if(source.meshes.length!==1||mesh.hash!==body.hash)throw Error('Expected one evaluated Ahmed surface in the CFD Box');
+  const source=captureFlowSurfaces(device,ctx,box.hash),mesh=source.meshes.find(m=>m.hash===body.hash);
+  if(!mesh||source.meshes.length!==1+supports.length)throw Error('Incomplete evaluated Ahmed tunnel assembly');
   const extent=mesh.bounds.max.map((x,k)=>x-mesh.bounds.min[k]);
   if(extent.some((v,k)=>Math.abs(v-[1.044,.288,.389][k])>.001))throw Error('Native Ahmed dimensions disagree with the reference: '+extent);
   const origin=[mesh.bounds.min[0],mesh.bounds.min[1]-.05,(mesh.bounds.min[2]+mesh.bounds.max[2])*.5];
   const capture=captureFlowSurfaces(device,ctx,box.hash,origin),U=capture.params.Speed;
+  const hull=capture.meshes.find(m=>m.hash===body.hash),supportBounds=supports.map(({hash,station,z})=>{
+    const cylinder=capture.meshes.find(m=>m.hash===hash);
+    if(!cylinder)throw Error('Missing evaluated wind-tunnel support');
+    const bounds=cylinder.bounds,lo=[station-15,0,z-15],hi=[station+15,50,z+15];
+    if(lo.some((x,k)=>Math.abs(bounds.min[k]-.001*x)>.0001||Math.abs(bounds.max[k]-.001*hi[k])>.0001)){
+      throw Error('Evaluated support does not meet the floor and the underside at its measured position');
+    }
+    return bounds;
+  });
+  return {capture,hull,extent,U,air,supportBounds,boxHash:box.hash};
+}
+
+export async function benchmarkNativeAhmed(device,tier,progress,selection){
+  const reference=selection.fixture??'ahmed';
+  const {capture,hull,extent,U,air,supportBounds}=await createNativeAhmedFixture(device,reference);
   const f={...flowFixture(reference,tier),...selection,U,maxSpeed:U,period:1.044/U,rho:air.rho,nu:air.nu,normalization:.5*air.rho*U**2*.389*.288,
-    geometry:'Evaluated native Ahmed polygon surface; fixed wind-tunnel floor, support tare omitted'};
+    geometry:supportBounds.length?'Mounted native Ahmed body and four cylinder supports on the fixed tunnel floor, combined loads':
+      'Evaluated native Ahmed polygon surface on a fixed floor, body-only load'};
   const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
-    await runCase(device,selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
-  return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
+    await runCase(device,selection.graded?gradedFixture(f,tier,hull.bounds):f,'cartesian-fvm',progress,capture);
+  return {...result,sourceExtentM:extent,supportBoundsM:supportBounds,sourceSignature:capture.signature};
 }
 
 // One-level qualification domain around the complete evaluated occurrences.

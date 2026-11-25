@@ -15,7 +15,7 @@ export const references = {
   propeller:{metric:'CT',value:0.1071,powerCoefficient:0.0529,source:'https://m-selig.ae.illinois.edu/props/volume-1/data/apce_10x7_static_pg0811.txt',geometrySource:'https://www.apcprop.com/propeller-technical-data-files/10x7E-PERF.PE0',measuredPlanform:'https://m-selig.ae.illinois.edu/props/volume-1/data/apce_10x7_geom.txt',
     condition:'APC Thin Electric 10x7, 5011 rpm, J = 0 (UIUC Volume 1)'}
 };
-export function flowFixture(name,tier){
+export function flowFixture(name,tier,measuredPlanform=false){
   const id=name;if(name==='ahmed-wake')name='ahmed';
   const rotor=name==='propeller',sphere=name==='sphere',h=(rotor?0.008:sphere?0.01:0.032)/tier;
   const dims=(rotor?[80,72,72]:sphere?[88,56,56]:[144,40,64]).map(v=>Math.round(v*tier));
@@ -26,15 +26,18 @@ export function flowFixture(name,tier){
     period:rotor?1/rps:(sphere?0.08:1.044)/U,
     normalization:rotor?rho*rps**2*diameter**4:0.5*rho*U**2*(sphere?Math.PI*0.04**2:0.389*0.288),
     powerNormalization:rotor?rho*rps**3*diameter**5:null,
-    geometry:rotor?'APC 10x7E design stations, leading-edge sweep and rake, thickness-scaled E63/APC12 sections, hub and shaft dimensions':
-      sphere?'Sphere of diameter 80 mm':'Full-scale rounded forebody, 222 mm slant, 50 mm clearance, fixed floor; support tare omitted'};
+    measuredPlanform:rotor&&measuredPlanform,
+    geometry:rotor?(measuredPlanform?'UIUC specimen chord and pitch with APC design sweep, rake, profiles and hub':
+      'APC 10x7E design stations, leading-edge sweep and rake, thickness-scaled E63/APC12 sections, hub and shaft dimensions'):
+      sphere?'Sphere of diameter 80 mm':id==='ahmed-wake'?'Full-scale Ahmed wake tunnel, fixed floor and four cylinder supports':
+        'Full-scale rounded forebody, 222 mm slant, 50 mm clearance, fixed floor, body-only load'};
 }
 
 export function gradedFixture(f,tier,bounds){
   if(!bounds){
     if(f.sphere)bounds={min:[-.04,-.04,-.04],max:[.04,.04,.04]};
     else if(f.rotor){
-      const {vertices}=rotorTriangles();bounds={min:[-.008382,-.01016,-.01016],max:[.001778,.01016,.01016]};
+      const {vertices}=rotorTriangles(f.measuredPlanform);bounds={min:[-.008382,-.01016,-.01016],max:[.001778,.01016,.01016]};
       for(let i=0;i<vertices.length;i++){const a=i%3;bounds.min[a]=Math.min(bounds.min[a],vertices[i]);bounds.max[a]=Math.max(bounds.max[a],vertices[i]);}
     }else bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
   }
@@ -49,7 +52,7 @@ export function gradedFixture(f,tier,bounds){
 
 export function surfaceBand(f){
   const h=Math.min(f.h/2,(f.graphTangentM??Infinity)/2);
-  const min=f.sphere?[-.04,-.04,-.04]:[0,.05,-.1945],max=f.sphere?[.04,.04,.04]:[1.044,.338,.1945];
+  const min=f.sphere?[-.04,-.04,-.04]:[0,f.id==='ahmed-wake'?0:.05,-.1945],max=f.sphere?[.04,.04,.04]:[1.044,.338,.1945];
   const lo=min.map((v,k)=>Math.max(0,Math.floor((v-f.origin[k])/h)-10));
   const hi=max.map((v,k)=>Math.min(Math.ceil(f.dims[k]*f.h/h),Math.ceil((v-f.origin[k])/h)+10));
   return {...f,h,origin:lo.map((v,k)=>f.origin[k]+v*h),dims:hi.map((v,k)=>v-lo[k]),surfaceBounds:{min,max},domain:{origin:f.origin,dims:f.dims,h:f.h}};
@@ -75,7 +78,7 @@ export function gridWGSL(f){
 }
 
 export async function geometryKernel(gpu,f,dt,withPressure=false){
-  const body=f.rotor?rotorDistanceWGSL:f.sphere?`fn distanceToBody(p:vec3f,phase:vec2f)->f32{return length(p)-0.04;}`:`
+  const body=f.rotor?rotorDistanceWGSL(f.measuredPlanform):f.sphere?`fn distanceToBody(p:vec3f,phase:vec2f)->f32{return length(p)-0.04;}`:`
     fn nose(x:f32,v:f32,span:f32)->f32{
       let q=vec2f(0.1-x,abs(v)-span+0.1);
       return length(max(q,vec2f(0)))+min(max(q.x,q.y),0.)-0.1;
@@ -83,7 +86,10 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
     fn distanceToBody(p:vec3f,phase:vec2f)->f32{
       let a=radians(25.);let roof=p.y-0.338;
       let slant=(p.x-(1.044-0.222*cos(a)))*sin(a)+roof*cos(a);
-      return max(max(nose(p.x,p.y-0.194,0.144),nose(p.x,p.z,0.1945)),max(p.x-1.044,slant));
+      let hull=max(max(nose(p.x,p.y-0.194,0.144),nose(p.x,p.z,0.1945)),max(p.x-1.044,slant));
+      ${f.id==='ahmed-wake'?`let x=min(abs(p.x-.202),abs(p.x-.672));let z=abs(abs(p.z)-.1635);
+      let q=vec2f(length(vec2f(x,z))-.015,abs(p.y-.025)-.025);
+      return min(hull,length(max(q,vec2f(0)))+min(max(q.x,q.y),0.));`:'return hull;'}
     }`;
   const code=gridWGSL(f)+metricWGSL(f)+body+immersedMobilityWGSL+`
     @group(0) @binding(0) var<uniform> phase:vec2f;
@@ -124,8 +130,8 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
   const rep=raw&&f.sheetLinks?gpu.buffer('CFD point in each connected fluid piece',wall.size):null;
   if(rep)entries.push([6,rep]);
   if(response)entries.push([2,raw??response]);
-  if(f.rotor)entries.push([3,gpu.buffer('CFD APC section coordinates',rotorTable())]);
-  const barriers=withPressure&&f.rotor?await pressureBarriers(gpu,f,rotorTriangles(),phase,rep):null;
+  if(f.rotor)entries.push([3,gpu.buffer('CFD APC section coordinates',rotorTable(f.measuredPlanform))]);
+  const barriers=withPressure&&f.rotor?await pressureBarriers(gpu,f,rotorTriangles(f.measuredPlanform),phase,rep):null;
   if(barriers&&!f.cutCells)entries.push([4,barriers.mask]);
   const seal=raw?await cutFaceSeal(gpu,f,gridWGSL(f),raw,response,barriers?.mask):null;
   if(f.axes)entries.push([12,metricBuffer(gpu,f)]);
