@@ -594,12 +594,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
   if(!Number.isFinite(reynolds)||maxSpeed/fluid.soundSpeedMps>.25)throw failure('FLOW_REGIME','This solve requires an incompressible flow with reference Mach at most 0.25.');
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
+  const stationaryWake=wallModeled&&!motion;
   const windowLimit=wallModeled?budget.windows:budget.laminarWindows??budget.windows;
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
   const settings={origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
     rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
+    wallSpacing:stationaryWake,mergeToFluid:stationaryWake,sstWall:stationaryWake,ddes:stationaryWake,wakeDistance:stationaryWake,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
     sweptDiameterM:diameter,groupTransport:!!motion,implicitRadiusM:motion?.625*diameter:0,
     subcellSurface:!!motion,apertureFlow:!!motion,surfacePressure:true,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined};
@@ -663,6 +665,10 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check,refinement?prior.grid:null);check();
     }
     const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,
+      turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':f.wallModeled?'SST':'laminar',
+      ...(groups?{cutMomentum:{cutCells:groups.stats.cutCells,mergedCells:groups.stats.mergedCells,remainingCutRoots:groups.stats.remainingCutRoots,
+        wallTreatment:f.sstWall?'Spalding shear and merged wall-adjacent SST':'Spalding shear'}}:{}),
+      ...(geom.stats.wallDistance?{wallDistance:geom.stats.wallDistance}:{}),
       sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null,
       ...(refinement?{refinement:{parentJob:prior.id,parentGridHash:prior.gridHash,...refinement.details}}:{})};
     function publishSample(value){
@@ -5116,12 +5122,14 @@ export async function nativeFlowRegime(device,f,dt,state,mobility,chunks,soundSp
     const bulk=await gpu.kernel('CFD absolute fluid speed in the translating inertial frame',`
       @group(0) @binding(0) var<storage,read> u:array<vec4f>;@group(0) @binding(1) var<storage,read> m:array<vec4f>;
       @group(0) @binding(2) var<storage,read_write> hist:array<atomic<u32>>;
-      var<workgroup> peaks:array<u32,128>;
+      var<workgroup> peaks:array<vec2u,128>;
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) k:u32){
-        var value=0.;if(g.x<arrayLength(&m)){if(m[g.x].w>0.){value=length(u[2u*g.x].xyz)*${speed};}}
-        peaks[k]=bitcast<u32>(value);
+        var value=vec2f(0);if(g.x<arrayLength(&m)){if(m[g.x].w>0.){
+          value=vec2f(length(u[2u*g.x].xyz)*${speed},u[2u*g.x+1u].y*${f.h**2/(dt*f.nu)});
+        }}
+        peaks[k]=bitcast<vec2u>(value);
         for(var stride=64u;stride>0u;stride/=2u){workgroupBarrier();if(k<stride){peaks[k]=max(peaks[k],peaks[k+stride]);}}
-        if(k==0u){atomicMax(&hist[${summary+4}],peaks[0]);}
+        if(k==0u){atomicMax(&hist[${summary+4}],peaks[0].x);atomicMax(&hist[${summary+7}],peaks[0].y);}
       }`);
     const cfg=gpu.buffer('CFD unit wall-area coverage',new Float32Array([1]));
     const surface=await gpu.kernel('CFD native wall-normal resolution and blade-relative Mach',gridWGSL(f)+metricWGSL(f)+wallResistanceWGSL+profileHistogram(3)+`
@@ -5158,15 +5166,15 @@ export async function nativeFlowRegime(device,f,dt,state,mobility,chunks,soundSp
     device.queue.submit([encoder.finish()]);const data=await gpu.read(hist,stage,words);check();
     const bits=new Uint32Array(data.buffer),mass=i=>data[2*i]+data[2*i+1],areas=Array.from({length:bins},(_,i)=>mass(i));
     const area=areas.reduce((s,v)=>s+v,0);
-    if(bits[summary+6]||![area,data[summary+4],data[summary+5]].every(Number.isFinite))
-      throw failure('NONFINITE_REGIME','The sampled terminal velocity or wall resolution is nonfinite.');
+    if(bits[summary+6]||data[summary+7]<0||![area,data[summary+4],data[summary+5],data[summary+7]].every(Number.isFinite))
+      throw failure('NONFINITE_REGIME','The sampled terminal velocity, eddy viscosity or wall resolution is invalid.');
     function quantile(q){
       if(!area)return null;let sum=0;
       for(let i=0;i<bins;i++){sum+=areas[i];if(sum>=q*area){
         if(i===0)return 0;if(i===1||i===bins-1)return null;return 2**((i-514+.5)/32);
       }}return null;
     }
-    return {...regimeNumbers(data[summary+4],area?data[summary+5]:null,f.maxSpeed,soundSpeed),
+    return {...regimeNumbers(data[summary+4],area?data[summary+5]:null,f.maxSpeed,soundSpeed),maxEddyViscosityRatio:data[summary+7],
       yPlusPercentiles:{p50:quantile(.5),p95:quantile(.95),sampledAreaM2:area,method:f.wallModeled?'Spalding smooth-wall shear':'two-point no-slip viscous shear',
         distance:'native first fully fluid probe',meanFirstDistanceM:area?mass(bins)/area:null,meanSecondDistanceM:area?mass(bins+1)/area:null,
         outsideHistogramAreaM2:areas[1]+areas.at(-1),log2BinWidth:1/32}};

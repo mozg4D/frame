@@ -14,6 +14,7 @@ export async function verifyFlowRegime(device){
     for(let i=0;i<n;i++){
       const x=i%16,y=cellCenter(f,1,Math.floor(i/16)%8),u=velocity(x,y);
       state[8*i]=u*dt/h;if(x===15){mu[4*i+3]=0;state[8*i]=20000;}else peak=Math.max(peak,u);
+      state[8*i+5]=(x===15?1e5:2*x)*nu*dt/h**2;
     }
     const sites=new Float32Array(3*3*16),packed=new Uint32Array(sites.buffer),areas=[.25,1,2],cover=new Float32Array(9).fill(1);
     for(let t=0;t<3;t++)for(let j=0;j<3;j++){
@@ -36,7 +37,7 @@ export async function verifyFlowRegime(device){
       const y=v.yPlusPercentiles,expected=rates.slice(1).map((G,i)=>modeled?spalding(velocity(5*i+6,y1),y1):y1*Math.sqrt(nu*G)/nu);
       const relative=Math.max(...[y.p50,y.p95].map((val,i)=>Math.abs(val/expected[i]-1)));
       const nearSpeed=velocity(11,y2),expectedMach=peak/sound;
-      const pass=relative<.012&&Math.abs(y.sampledAreaM2-1.75)<1e-6&&Math.abs(y.meanFirstDistanceM-y1)<1e-8&&
+      const pass=relative<.012&&Math.abs(v.maxEddyViscosityRatio-28)<1e-5&&Math.abs(y.sampledAreaM2-1.75)<1e-6&&Math.abs(y.meanFirstDistanceM-y1)<1e-8&&
         Math.abs(y.meanSecondDistanceM-y2)<1e-8&&Math.abs(v.maxFluidMach-expectedMach)<1e-8&&
         Math.abs(v.maxSampledWallRelativeMach-nearSpeed/sound)<1e-8&&Math.abs(v.compressibilityErrorEstimate-.5*expectedMach**2)<1e-9;
       results.push({modeled,expected,relativeError:relative,pass,regime:v});
@@ -58,7 +59,9 @@ export async function verifyModeledRegime(){
     await new Promise(resolve=>setTimeout(resolve,200));const s=await op('results');
     if(s.state==='ready'||s.state==='unconverged'){
       const r=s.result,v=r.validity,y=v.yPlusPercentiles;
-      return {pass:r.method==='SST wall-modeled'&&v.maxFluidMach>r.referenceMach&&y.p50>0&&y.p95>=y.p50&&
+      return {pass:r.method==='SST wall-modeled'&&v.turbulenceClosure==='SST delayed detached-eddy simulation'&&v.maxEddyViscosityRatio>0&&
+        v.wallDistance.propagationPasses>0&&v.cutMomentum.cutCells>0&&v.cutMomentum.mergedCells>0&&
+        v.maxFluidMach>r.referenceMach&&y.p50>0&&y.p95>=y.p50&&
         y.method==='Spalding smooth-wall shear'&&Math.abs(y.sampledAreaM2/r.pressureStats.sampledAreaM2-1)<1e-5&&
         v.maxDivergencePerS<1e-6,elapsedMs:performance.now()-start,state:s.state,steps:r.steps,Re:r.reynolds,
         pressureSampledAreaM2:r.pressureStats.sampledAreaM2,validity:v};
