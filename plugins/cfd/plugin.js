@@ -3059,6 +3059,26 @@ export async function cutGroups(gpu,f,mobility,wall){
   let slot=0;for(let i=1;i<n;i*=2){dispatch(jump,[parents[slot],parents[1-slot]]);slot=1-slot;}
   dispatch(setup,[parents[slot],links]);dispatch(append,[links]);
   const members='struct Members{root:u32,head:u32,next:u32};';
+  // A group is summed in member order on every momentum and SST step.
+  // Atomic discovery order can differ across equivalent evaluations. Sort
+  // each disjoint child list once, with bounded logarithmic merge passes.
+  const order=await gpu.kernel('CFD order cut-group members by Cartesian cell',head+members+
+    '@group(0) @binding(0) var<storage,read_write> link:array<Members>;'+main(`
+      if(link[i].root!=i){return;}let end=0xffffffffu;var first=link[i].head;
+      if(first==end||link[first].next==end){return;}
+      var width=1u;loop{
+        var left=first;var front=end;var last=end;var pairs=0u;
+        while(left!=end){pairs++;var right=left;var nl=0u;
+          while(nl<width&&right!=end){nl++;right=link[right].next;}var nr=width;
+          while(nl>0u||(nr>0u&&right!=end)){var id=end;
+            if(nl>0u&&(nr==0u||right==end||left<right)){id=left;left=link[left].next;nl--;}
+            else{id=right;right=link[right].next;nr--;}
+            if(last==end){front=id;}else{link[last].next=id;}last=id;
+          }left=right;
+        }
+        link[last].next=end;first=front;if(pairs<=1u){break;}width*=2u;
+      }link[i].head=first;`));
+  dispatch(order,[links]);
   const volumes=gpu.buffer('CFD agglomerated physical volumes',4*n);
   const stats=gpu.buffer('CFD cut-volume stability bounds',new Uint32Array([0,0,0x3f800000,0,0,0,0]));
   const size=await gpu.kernel('CFD effective cut volumes and explicit stability bound',head+metric+outerSpinWGSL(f)+members+material+`

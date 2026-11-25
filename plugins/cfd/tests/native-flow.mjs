@@ -4,6 +4,7 @@ import {dirname,resolve} from 'node:path';
 import {launch,ready} from '../../../tools/browser.mjs';
 
 const cases={
+  'cut-member-order':['cut-member-order-check','verifyCutMemberOrder'],
   'momentum-topology':['momentum-topology-check','verifyMomentumTopology'],
   'finite-pair':['finite-pair-check','verifyFinitePair'],
   'surface-extents':['surface-extents-check','verifySurfaceExtents'],
