@@ -12,7 +12,7 @@ import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
-import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse} from '../plugin.js';
+import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse,forceUncertainty} from '../plugin.js';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
@@ -203,6 +203,48 @@ test('a slowly drifting force or developing wake cannot stop a native flow study
   assert.equal(settledPeriods(trace),false);
   trace.forEach((w,i)=>{w.coefficient=1;w.wakeLengthM=.1+i*.01;});assert.equal(settledPeriods(trace,true),false);
   trace.forEach(w=>{w.wakeLengthM=.18;});assert.equal(settledPeriods(trace,true),true);
+});
+test('stationarity checks signed cancellation, transverse forces and all pivot moments',()=>{
+  const trace=Array.from({length:8},()=>({coefficient:1,force:[1,0,0],momentAboutPivot:[0,0,0]}));
+  assert.equal(settledPeriods(trace,false,.1),true);
+  for(let i=2;i<8;i++)trace[i].coefficient=[1,-2,1][(i-2)%3];
+  assert.equal(settledPeriods(trace),false);
+  for(let i=0;i<8;i++){trace[i].coefficient=1;trace[i].force[1]=i*.005;}
+  assert.equal(settledPeriods(trace,false,.1),false);
+  for(let i=0;i<8;i++){trace[i].force[1]=0;trace[i].momentAboutPivot[2]=i*.0005;}
+  assert.equal(settledPeriods(trace,false,.1),false);
+  for(const w of trace)w.momentAboutPivot[2]=0;
+  trace[2].force[1]=.3;trace[3].force[1]=-.3;
+  assert.equal(settledPeriods(trace,false,.1),false);
+});
+test('temporal uncertainty follows the reported two-window force and correlated samples',()=>{
+  const axes=[[0,1,0],[-1,0,0],[0,0,1]],direction=[0,-1,0];
+  const values=[-2,2,1,-1,1,-1,1,-1,1,-1],blocks=values.map((x,i)=>({steps:i===9?12:8,force:[4,2+x,0]}));
+  const measure=forceUncertainty(blocks,axes,direction,true),mean=-(8*3+12*1)/20;
+  assert.ok(Math.abs((measure.ci95Drag[0]+measure.ci95Drag[1])/2-mean)<1e-12);
+  assert.deepEqual([measure.averagedBlocks,measure.averagedSteps,measure.blocks],[2,20,8]);
+  assert.ok(Math.abs(measure.standardErrorForce[0]-Math.sqrt(8/7*(.4**2+.6**2)))<1e-12);
+  assert.deepEqual(measure.standardErrorForce.slice(1),[0,0]);
+  assert.equal(forceUncertainty(blocks,axes,direction,false).ci95Drag,null);
+  const constant=forceUncertainty(blocks.map(b=>({...b,force:[4,2,0]})),axes,direction,true);
+  assert.equal(constant.autocorrelationSteps,null);assert.deepEqual(constant.ci95Drag,[-2,-2]);
+  // Manufactured stationary AR(1) force, unit marginal variance. Every
+  // independent history has a known population mean and a fresh seed.
+  let seed=0x6eaf42c1;
+  const uniform=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return ((seed>>>0)+.5)/4294967296;};
+  const normal=()=>Math.sqrt(-2*Math.log(uniform()))*Math.cos(2*Math.PI*uniform());
+  for(const autocorrelation of [0,.45,.8]){
+    let covered=0;
+    for(let trial=0;trial<800;trial++){
+      let x=normal();const runs=Array.from({length:32},(_,i)=>{
+        x=autocorrelation*x+Math.sqrt(1-autocorrelation**2)*normal();
+        return {steps:i%2?17:16,force:[4,2+.0001*x,0]};
+      });
+      const interval=forceUncertainty(runs,axes,direction,true).ci95Drag;
+      if(interval[0]<=-2&&interval[1]>=-2)covered++;
+    }
+    assert.ok(covered/800>=.9,'Temporal interval coverage at correlation '+autocorrelation+': '+covered/800);
+  }
 });
 test('physical mesh lengths preserve owner shear, nonuniform scale and reflections in SI',()=>{
   const axes=[0,2,0,0, -3,.5,0,0, -1,0,-4,0, 100,-200,800,1];

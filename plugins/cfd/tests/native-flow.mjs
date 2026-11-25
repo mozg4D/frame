@@ -19,6 +19,7 @@ const cases={
   'cavity':['cavity-check','verifyCavity'],
   'flow-regime':['regime-check','verifyFlowRegime'],'modeled-regime':['regime-check','verifyModeledRegime'],
   'pressure-forest':['flux-equilibration-check','verifyPrefixForest'],
+  'temporal-interval':['time-statistics-check','verifyNativeTemporalInterval'],
   'backward-step':['backstep-check','verifyBackwardStep'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']

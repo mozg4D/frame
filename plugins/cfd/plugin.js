@@ -514,29 +514,35 @@ async function savePredictor(gpu,solver,count,check){
   try{gpu.run(kernel,[solver.predicted,buffer],[Math.ceil(count/128)]);return buffer;}catch(e){buffer.destroy();throw e;}
 }
 
-// Estimate uncertainty from complete time blocks after startup. Short or
-// constant histories have insufficient information to infer autocorrelation.
-function forceUncertainty(windows,axes,dragAxis=[1,0,0]){
-  const blocks=windows.slice(3),n=blocks.length;
-  if(n<6)return {blocks:n,standardErrorForce:null,ci95Drag:null,autocorrelationSteps:null};
-  const forces=blocks.map(w=>[0,1,2].map(k=>w.force.reduce((s,v,a)=>s+v*axes[a][k],0)));
+// The reported force is the step-weighted mean of the last two windows.
+// Estimate its sampling error from the post-startup autocovariance, keeping
+// the averaging weights distinct from the number of observed windows.
+export function forceUncertainty(windows,axes,dragAxis=[1,0,0],stationary=false){
+  const blocks=windows.slice(2),n=blocks.length,samples=windows.slice(-2);
+  const info={blocks:n,averagedBlocks:samples.length,averagedSteps:samples.reduce((s,w)=>s+w.steps,0),scope:'temporal sampling'};
+  if(!stationary||n<6)return {...info,standardErrorForce:null,ci95Drag:null,autocorrelationSteps:null};
+  const weights=samples.map(w=>w.steps/info.averagedSteps);
+  const forces=blocks.map(w=>vectorInWorld(w.force,axes));
   function estimate(values){
     const mean=values.reduce((s,x)=>s+x,0)/n,residual=values.map(x=>x-mean);
-    const total=residual.reduce((s,x)=>s+x*x,0);let correlation=1;
+    const total=residual.reduce((s,x)=>s+x*x,0);let correlation=1,lagOne=0;
     if(total>0){
       for(let lag=1;lag<=Math.floor(n/3);lag++){
         let covariance=0;for(let i=lag;i<n;i++)covariance+=residual[i]*residual[i-lag];
-        if(covariance<=0)break;correlation+=2*covariance/total;
+        if(covariance<=0)break;const rho=covariance/total;
+        if(lag===1)lagOne=rho;correlation+=2*rho;
       }
     }
-    return {mean,se:Math.sqrt(total/(n-1)*correlation/n),correlation};
+    const [a,b]=weights,center=a*values.at(-2)+b*values.at(-1);
+    const variance=total/(n-Math.min(n-1,correlation));
+    return {center,se:Math.sqrt(variance*(a*a+b*b+2*a*b*lagOne)),correlation,varying:total>0};
   }
   const drag=estimate(blocks.map(w=>dot(w.force,dragAxis))),effective=Math.max(1,Math.floor(n/drag.correlation)-1);
   const critical=[0,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228];
   const t=effective<critical.length?critical[effective]:effective<20?2.201:effective<30?2.086:2.042;
-  return {blocks:n,standardErrorForce:axes.map((_,k)=>estimate(forces.map(v=>v[k])).se),
-    ci95Drag:[drag.mean-t*drag.se,drag.mean+t*drag.se],
-    autocorrelationSteps:drag.correlation*blocks.reduce((s,w)=>s+w.steps,0)/n};
+  return {...info,standardErrorForce:axes.map((_,k)=>estimate(forces.map(v=>v[k])).se),
+    ci95Drag:[drag.center-t*drag.se,drag.center+t*drag.se],
+    autocorrelationSteps:drag.varying?drag.correlation*blocks.reduce((s,w)=>s+w.steps,0)/n:null};
 }
 
 // A window stores the mean reaction in the fixed CFD basis. Integrate each
@@ -577,7 +583,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       dragHotspots:[],separationZones:[],shapeSensitivitySummary:[],
       ...(history.paired?{paired:{baselineJob:history.prior.id,baselineGridHash:history.prior.gridHash,
         baselineWallTopologyHash:history.prior.wallTopologyHash,deltaDragN:-history.prior.drag}}:{}),
-      uncertainty:{blocks:0,standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
+      uncertainty:{blocks:0,averagedBlocks:0,averagedSteps:0,scope:'exact equilibrium',standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
       validity:{stationary:true,maxDivergencePerS:0,relativeDivergenceMax:0,temporalConvergence:'exact',
         ...regimeNumbers(U,null,U,fluid.soundSpeedMps),yPlusPercentiles:{p50:null,p95:null,sampledAreaM2:0,method:'no-wall-samples'}}});
     return true;
@@ -701,8 +707,11 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           moment:[loads[1],moments[2],moments[3]].map(v=>v*scale),coefficient:axial*scale,
           ...(motion?{powerCoefficient:-loads[1]*scale*omega}:{})};
         if([...value.force,...value.moment].some(v=>!Number.isFinite(v)))throw failure('NONFINITE_LOAD','The physical wall reaction is nonfinite.');
-        if(step===end)windows.push(value);
-        const stationary=step===end&&settledPeriods(windows);
+        if(step===end){
+          value.momentAboutPivot=ctx.math.cross(source.pivot,value.force).map((v,a)=>value.moment[a]-v);
+          windows.push(value);
+        }
+        const stationary=step===end&&settledPeriods(windows,false,domain.scale);
         const baseDefect=stationary&&geom.shape?await solver.steadyDefect():null;
         const physical=physicalLoads(ctx,source,fluid,diameter,step===end?windows:[value]);
         physical.profiles=await profiles.measure(step-first,step===end,f.rho*f.h**4/dt**2);
@@ -713,7 +722,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           solver:'cartesian-fvm',fidelity,occurrences:capture.meshes.length,medium:fluid,cells:count,dims:f.dims,minCellWidthM:f.minPitch,
           steps:step,dtS:dt,completeWindows:windows.length,reynolds,referenceMach:maxSpeed/fluid.soundSpeedMps,
           surfaceFields:display.description,
-          uncertainty:forceUncertainty(windows,source.axes,source.dragAxis),
+          uncertainty:forceUncertainty(windows,source.axes,source.dragAxis,stationary),
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
             ...(mass.flowReconstruction?{pressureFluxReconstruction:{method:mass.flowReconstruction.subtreeMethod,
               depthLevels:mass.flowReconstruction.levels,subtreeDispatches:mass.flowReconstruction.subtreeDispatches,
@@ -5471,16 +5480,26 @@ export function viewportBudget(device,lastFrame){
   return {perform,measure:()=>({slices,frameYields,maxSliceMs,computePasses,dispatches})};
 }
 
-export function settledPeriods(windows,requireWake=false){
+export function settledPeriods(windows,requireWake=false,referenceLengthM=0){
   if(windows.length<8)return false;
   const recent=windows.slice(-6);
-  function stationary(key){
-    const v=recent.map(w=>w[key]);if(!v.every(Number.isFinite))return false;
-    const a=(v[0]+v[1]+v[2])/3,b=(v[3]+v[4]+v[5])/3,scale=Math.max(Math.abs(a),Math.abs(b));
-    return scale===0||Math.abs(a-b)<.005*scale&&Math.max(...v.slice(3))-Math.min(...v.slice(3))<.02*scale;
+  function examine(values,reference=0){
+    const components=values[0]?.length;
+    if(!components||values.some(v=>v?.length!==components||!v.every(Number.isFinite)))return {ok:false,scale:0};
+    const mean=first=>values[first].map((_,a)=>(values[first][a]+values[first+1][a]+values[first+2][a])/3);
+    const a=mean(0),b=mean(3),scale=Math.max(reference,Math.hypot(...a),Math.hypot(...b));
+    const difference=(v,w)=>Math.hypot(...v.map((x,k)=>x-w[k]));
+    let spread=0;
+    for(let i=1;i<6;i++)for(let j=0;j<i;j++)spread=Math.max(spread,difference(values[i],values[j]));
+    return {ok:difference(a,b)<=.005*scale&&spread<=.02*scale,scale};
   }
-  return stationary('coefficient')&&(!requireWake||stationary('wakeLengthM'))&&
-    (recent.at(-1).powerCoefficient===undefined||stationary('powerCoefficient'));
+  const scalar=key=>examine(recent.map(w=>[w[key]])).ok,last=recent.at(-1);
+  if(!scalar('coefficient')||requireWake&&!scalar('wakeLengthM')||last.powerCoefficient!==undefined&&!scalar('powerCoefficient'))return false;
+  const forces=last.force?recent.map(w=>w.force):last.transverseForcesInBoxN?recent.map(w=>[w.forceN,...w.transverseForcesInBoxN]):null;
+  if(!forces)return true;
+  const force=examine(forces);
+  const moments=last.momentAboutPivot?recent.map(w=>w.momentAboutPivot):last.moment?recent.map(w=>w.moment):null;
+  return force.ok&&(!moments||examine(moments,force.scale*referenceLengthM).ok);
 }
 
 export async function sumForce(gpu,force,count,components=1,offset=0){
