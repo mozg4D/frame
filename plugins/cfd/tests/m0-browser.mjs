@@ -25,6 +25,9 @@ if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a s
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform'))};
 selection.trace=args.includes('--trace-steps');
+selection.interpolatedWall=args.includes('--interpolated-lattice-wall');
+if(selection.interpolatedWall&&!wallOnly&&!(selection.solver==='mr-lbm'&&selection.fixture==='ahmed'))
+  throw Error('Select the stationary Ahmed MR-LBM case or the manufactured wall check for interpolated links');
 if(selection.inertialRotor&&(nativeRotor||scenePath))throw Error('Captured shaft motion uses its verified rotating frame');
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
 selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
@@ -96,6 +99,8 @@ try{
     await window.cfdProgress('Frame piston: buffer mesh and paged instance passed pressure, force, visibility and source revision checks');
     const momentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded);
     if(!momentum.pass)throw Error('Fluid/body impulse mismatch: '+JSON.stringify(momentum));
+    const latticeWall=selection.interpolatedWall?await (await import('./plugins/cfd/tests/m0/lattice-wall-check.mjs')).verifyLatticeWall(device):null;
+    if(latticeWall&&!latticeWall.pass)throw Error('Interpolated lattice wall failed Couette velocity or shear: '+JSON.stringify(latticeWall));
     const exteriorMomentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true);
     if(!exteriorMomentum.pass)throw Error('Exterior traction or smooth-wall relation failed: '+JSON.stringify(exteriorMomentum));
     const cutMetric=selection.cutCells?await (await import('./plugins/cfd/tests/m0/cut-metric.mjs')).verifyCutMetric(device):null;
@@ -128,7 +133,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,spinningLoad,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,spinningLoad,latticeWall,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

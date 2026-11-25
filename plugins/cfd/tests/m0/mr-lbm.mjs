@@ -11,6 +11,9 @@ export function momentShell(){
 export async function momentSolver(gpu,f,dt,wall,force){
   const count=f.dims.reduce((a,b)=>a*b), groups=[Math.ceil(count/128)];
   const u0=f.U*dt/f.h, tau=0.5+3*f.nu*dt/f.h**2;
+  const links=!!f.interpolatedWall;
+  if(links&&(f.axes||f.rotor))throw Error('Interpolated lattice links require a stationary geometry on a uniform physical lattice');
+  const loads=links?gpu.buffer('CFD link momentum exchange',count*16):null;
   const directions=[];
   for(let z=-1;z<=1;z++)for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)
     if(x*x+y*y+z*z<=2)directions.push(`vec3i(${x},${y},${z})`);
@@ -26,6 +29,8 @@ export async function momentSolver(gpu,f,dt,wall,force){
     }`;
   const tiles=f.dims.map((n,k)=>Math.ceil(n/[8,4,4][k])),shell=momentShell();
   const addressing=`const SHELL=array<i32,128>(${shell.map.join(',')});
+    fn address(p:vec3i)->vec3i{return ${f.periodicTangents?'vec3i((p.x+DIMS.x)%DIMS.x,clamp(p.y,0,DIMS.y-1),(p.z+DIMS.z)%DIMS.z)':'clamp(p,vec3i(0),DIMS-1)'};}
+    fn available(p:vec3i)->bool{return ${f.periodicTangents?'p.y>=0&&p.y<DIMS.y':'inside(p)'};}
     fn brickId(b:vec3i)->u32{return u32(b.x+${tiles[0]}*(b.y+${tiles[1]}*b.z));}
     fn shellId(p:vec3i)->u32{let b=p/vec3i(8,4,4);let l=p%vec3i(8,4,4);
       return brickId(b)*${shell.size}u+u32(SHELL[u32(l.x+8*(l.y+4*l.z))]);}`;
@@ -44,19 +49,39 @@ export async function momentSolver(gpu,f,dt,wall,force){
     @group(0) @binding(1) var<storage,read> boundaries:array<Moments>;
     @group(0) @binding(2) var<storage,read> wall:array<vec4f>;
     @group(0) @binding(3) var<storage,read_write> force:array<f32>;
+    ${links?'@group(0) @binding(4) var<storage,read_write> load:array<vec4f>;':''}
     var<workgroup> tile:array<Moments,360>;
     fn localId(p:vec3i)->u32{return u32(p.x+10*(p.y+6*p.z));}
     @compute @workgroup_size(8,4,4) fn main(@builtin(workgroup_id) block:vec3u,@builtin(local_invocation_id) local:vec3u,@builtin(local_invocation_index) lane:u32){
       let origin=vec3i(block)*vec3i(8,4,4);
-      for(var k=lane;k<360u;k+=128u){let h=vec3i(vec3u(k%10u,(k/10u)%6u,k/60u));let q=clamp(origin+h-1,vec3i(0),DIMS-1);
+      for(var k=lane;k<360u;k+=128u){let h=vec3i(vec3u(k%10u,(k/10u)%6u,k/60u));let q=address(origin+h-1);
         if(all(q/vec3i(8,4,4)==vec3i(block))){tile[k]=state[index(q)];}else{tile[k]=boundaries[shellId(q)];}}
       workgroupBarrier();storageBarrier();let p=origin+vec3i(local);if(!inside(p)){return;}let i=index(p);let here=vec3i(local)+1;
+      ${links?`let cellWall=wall[i];if(cellWall.x<=0.){return;}
+      let localState=tile[localId(here)];var wallImpulse=vec3f(0);var axialMoment=0.;
+      let arm=vec3f(${f.origin.join(',')})+(vec3f(p)+.5)*${f.h};`:''}
       var drho=0.;var j=vec3f(0);var diag=vec3f(0);var shear=vec3f(0);var incomingH=0.;
       for(var q=0u;q<19u;q++){
         let d=E[q];let e=vec3f(d);let n=p-d;let d2=dot(e,e);
         let w=select(select(1./36.,1./18.,d2==1.),1./3.,d2==0.);
         var pop=0.;
-        if(inside(n)){pop=distribution(tile[localId(here-d)],e,w);}
+        if(available(n)){
+          ${links?`let other=wall[index(address(n))];
+          if(other.x<=0.&&d2>0.){
+            let fraction=clamp(cellWall.x/(cellWall.x-other.x),0.,1.);
+            let away=p+d;var t=fraction;
+            if(!available(away)||wall[index(address(away))].x<=0.){t=max(t,.5);}
+            let uw=vec3f(0.,mix(cellWall.yz,other.yz,fraction));
+            let outgoing=distribution(localState,-e,w);
+            let motion=3.*w*(1.+localState.rho)*dot(e,uw);
+            if(t<.5){pop=2.*t*outgoing+(1.-2.*t)*distribution(tile[localId(here+d)],-e,w)+2.*motion;}
+            else{let a=.5/t;pop=a*outgoing+(1.-a)*distribution(localState,e,w)+motion/t;}
+            // Gauge-subtracted momentum exchange. Opposing equilibrium weights
+            // cancel exactly on a closed lattice body. Use the wall rest frame.
+            let reaction=-(outgoing+pop)*e+(pop-outgoing)*uw;
+            wallImpulse+=reaction;axialMoment+=cross(arm-fraction*e*${f.h},reaction).x;
+          }else`:''}{pop=distribution(tile[localId(here-d)],e,w);}
+        }
         else if(${f.name==='ahmed'} && n.y<0){pop=distribution(tile[localId(here)],-e,w);}
         else if(${!f.rotor} && n.x>=DIMS.x){
           var exterior=tile[localId(here)];let density=1.+exterior.rho;exterior.rho=0.;
@@ -83,16 +108,18 @@ export async function momentSolver(gpu,f,dt,wall,force){
         }
         if(positive && entropy<=incomingH+4e-7){break;}relax*=0.5;
       }
-      let solid=wall[i];let damping=1.-exp(-${10*f.maxSpeed*dt/f.h}*solid.w);
+      ${links?`force[i]+=wallImpulse.x;load[i]+=vec4f(0.,axialMoment,wallImpulse.yz);`:`let solid=wall[i];let damping=1.-exp(-${10*f.maxSpeed*dt/f.h}*solid.w);
       let reaction=damping*(j-rho*vec3f(0.,solid.yz));
-      j-=reaction;force[i]+=reaction.x;
+      j-=reaction;force[i]+=reaction.x;`}
       // Reservoir relaxation occupies the downstream buffer beyond the test body.
       let layer=smoothstep(0.83,1.,(f32(p.x)+0.5)/f32(NX));
-      let sponge=select(1.,exp(-${2*f.maxSpeed*dt/f.h}*layer),${!f.rotor});
+      let sponge=select(1.,exp(-${2*f.maxSpeed*dt/f.h}*layer),${!f.rotor&&!f.periodicTangents});
       drho*=sponge;j=mix(vec3f(${u0},0.,0.),j,sponge);relax*=sponge;
       state[i]=Moments(drho,j.x,j.y,j.z,pack2x16float(relax*diag.xy),pack2x16float(relax*vec2f(diag.z,shear.x)),pack2x16float(relax*shear.yz));
     }`);
-  const saved=gpu.bind(snapshot,[a,halo]),binding=gpu.bind(pipe,[a,halo,wall,force]);
+  const saved=gpu.bind(snapshot,[a,halo]),binding=gpu.bind(pipe,[a,halo,wall,force,...loads?[loads]:[]]);
+  const encode=e=>{gpu.dispatch(e,snapshot,saved,tiles);gpu.dispatch(e,pipe,binding,tiles);};
   return {bytesPerStateNode:28,residentStateBytes:a.size,globalHaloBytes:halo.size,tileBytes:360*28,
-    step(){const e=gpu.device.createCommandEncoder();gpu.dispatch(e,snapshot,saved,tiles);gpu.dispatch(e,pipe,binding,tiles);gpu.device.queue.submit([e.finish()]);}};
+    moments:a,loads,hasPressureSplit:false,encode,
+    step(){const e=gpu.device.createCommandEncoder();encode(e);gpu.device.queue.submit([e.finish()]);}};
 }

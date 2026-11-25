@@ -211,12 +211,14 @@ export async function runCase(device,f,kind,progress,capture=null){
     const trace=f.trace&&solver.pressure?await stepMonitor(gpu,solver,count):null;
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
     const transverse=solver.transverseImpulse?await sumForce(gpu,solver.transverseImpulse,count,4):null;
-    const sectionLoads=solver.loads?await axialLoads(gpu,f,force,solver.loads):null;
+    const sectionLoads=solver.loads&&solver.hasPressureSplit!==false?await axialLoads(gpu,f,force,solver.loads):null;
     const measureWake=!!solver.plane&&(f.sphere||f.name==='ahmed'),requireWake=measureWake&&(f.sphere||f.id==='ahmed-wake');
     const planeStage=measureWake?gpu.staging('CFD complete wake window',solver.plane.size):null;
     await device.queue.onSubmittedWorkDone();
     const setupMs=performance.now()-start;
-    const scheduler=solver.advance?viewportBudget(device,stopMonitor.lastFrame):null;
+    const batchedLattice=!finiteVolume&&!f.rotor&&!!solver.encode;
+    const scheduler=solver.advance||batchedLattice?viewportBudget(device,stopMonitor.lastFrame):null;
+    const latticeTick=batchedLattice?{kind:'packed lattice step',encode:solver.encode}:null;
     let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
     for(let window=0;window<32;window++){
@@ -227,7 +229,8 @@ export async function runCase(device,f,kind,progress,capture=null){
       while(step<end){
         if(performance.now()-start>=budget){budgetExhausted=true;break;}
         geom.assertCurrent?.();const n=Math.min(batch,end-step),since=performance.now();
-        for(let j=0;j<n;j++,step++){
+        if(batchedLattice){await scheduler.perform(Array(n).fill(latticeTick),geom.assertCurrent);step+=n;}
+        else for(let j=0;j<n;j++,step++){
           if(f.rotor&&!f.rotatingFrame)geom.update(step);
           if(scheduler)await solver.advance(step,measureWake&&window>=3,scheduler,geom.assertCurrent);else solver.step(step,window>=3);
           if(trace&&(step<4||((step+1)&step)===0)){
@@ -237,7 +240,7 @@ export async function runCase(device,f,kind,progress,capture=null){
         }
         await device.queue.onSubmittedWorkDone();
         const ms=performance.now()-since;maxBatchMs=Math.max(maxBatchMs,ms);
-        batch=Math.max(1,Math.min(12,Math.round(0.5*batch+0.5*n*5/Math.max(ms,0.1))));
+        batch=batchedLattice?Math.min(48,2*batch):Math.max(1,Math.min(12,Math.round(0.5*batch+0.5*n*5/Math.max(ms,0.1))));
       }
       if(step===first)break;
       const complete=step===end;
@@ -257,7 +260,7 @@ export async function runCase(device,f,kind,progress,capture=null){
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
         ...measureWake?{wakeLengthM:isolatedWake}:{},
-        ...load?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0],torqueXNm:load[1],
+        ...load?{...solver.hasPressureSplit!==false?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0]}:{},torqueXNm:load[1],
           transverseForcesInSolverFrameN:lateral?lateral.slice(0,2):load.slice(2),transverseForcesInBoxN:lateral?lateral.slice(2):load.slice(2),
           ...f.rotor?{shaftPowerToFluidW:-load[1]*f.omega,powerCoefficient:-load[1]*f.omega/f.powerNormalization}:{}}:{}};
       if(!complete){
@@ -288,7 +291,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     const totalMs=performance.now()-start;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
-      wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':undefined,
+      wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':'Volume penalization',
       cutGeometry:groups?.stats,exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
@@ -320,7 +323,7 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   await frameAI.call('diagnostics.frame',{frames:8});
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
-    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,
+    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,interpolatedWall:selection.interpolatedWall,
       cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
