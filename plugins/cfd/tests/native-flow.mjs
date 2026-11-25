@@ -13,6 +13,7 @@ const cases={
   'saved-translation':['translation-check','verifySavedTranslation'],
   'oblique-shape':['steady-shape-check','verifyObliqueSteadyForce'],
   'paired':['paired-check','verifyPairedSolve'],
+  'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
 };

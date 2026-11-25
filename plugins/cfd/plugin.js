@@ -660,6 +660,11 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       publish({...value,validity:{...value.validity,...gridValidity},...(paired?{paired}:{}),
         initialization:restart?{kind:'projected-stationary-predictor',fromJob:prior.id,...restart}:{kind:'uniform-inflow'}});
     }
+    async function publishFinished(value){
+      const statistics=await nativeSurfaceStatistics(device,geom.skin.chunks,display.chunks,domain.region,source,check);
+      check();display.colorScale=statistics.surfaceColorScale;
+      publishSample({...value,...statistics});
+    }
     async function retain(drag){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
       const buffer=f.laminar&&16*count<=checkpointBytes?await savePredictor(gpu,solver,count,check):null;
@@ -704,35 +709,37 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
             ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
             ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'};
-        publishSample(result);
-        if(stationary){
-          if(!geom.shape){await retain(physical.forceLocal.drag);return true;}
-          if(baseDefect>.025){
-            if(window+1<budget.windows)continue;
-            publishSample({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
-          }
-          publishSample({...result,shape:{state:'solving',objective:'drag'}});
-          const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
-          await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
-          const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
-          const limit=Math.min(12000,Math.max(1200,4*step));let iterations=0,defects;
-          while(iterations<limit){
-            const block=Math.min(24,limit-iterations);
-            await scheduler.perform(Array(block).fill(phase),check);iterations+=block;
-            defects=[...await adj.defects()];check();if(defects.some(v=>!Number.isFinite(v))||Math.max(...defects)<4e-6)break;
-          }
-          await scheduler.perform([{kind:'restore primal pressure',encode:adj.restore}],check);
-          const resolved=defects.every(v=>Number.isFinite(v)&&v<4e-6);
-          const sensitivity={state:resolved?'ready':'iteration-limit',objective:'drag',method:'steady-discrete-laminar',
-            geometry:'native-fixed-topology',samples:geom.shape.samples,iterations,momentumDefect:defects[0],pressureDefect:defects[1],
-            stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
-          if(resolved){
-            await publishNativeShape(gpu,display,geom.shape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
-            await fields.publishAdjoint(adj.lambda);check();
-            display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
-          }
-          check();await retain(physical.forceLocal.drag);publishSample({...result,shape:sensitivity,surfaceFields:display.description});return true;
+        if(!stationary){
+          if(step===end&&window+1===budget.windows)await publishFinished(result);
+          else publishSample(result);
+          continue;
         }
+        if(!geom.shape){await retain(physical.forceLocal.drag);await publishFinished(result);return true;}
+        if(baseDefect>.025){
+          if(window+1<budget.windows){publishSample(result);continue;}
+          await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
+        }
+        publishSample({...result,shape:{state:'solving',objective:'drag'}});
+        const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
+        await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
+        const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
+        const limit=Math.min(12000,Math.max(1200,4*step));let iterations=0,defects;
+        while(iterations<limit){
+          const block=Math.min(24,limit-iterations);
+          await scheduler.perform(Array(block).fill(phase),check);iterations+=block;
+          defects=[...await adj.defects()];check();if(defects.some(v=>!Number.isFinite(v))||Math.max(...defects)<4e-6)break;
+        }
+        await scheduler.perform([{kind:'restore primal pressure',encode:adj.restore}],check);
+        const resolved=defects.every(v=>Number.isFinite(v)&&v<4e-6);
+        const sensitivity={state:resolved?'ready':'iteration-limit',objective:'drag',method:'steady-discrete-laminar',
+          geometry:'native-fixed-topology',samples:geom.shape.samples,iterations,momentumDefect:defects[0],pressureDefect:defects[1],
+          stationaryMomentumDefect:baseDefect,vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3'};
+        if(resolved){
+          await publishNativeShape(gpu,display,geom.shape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
+          await fields.publishAdjoint(adj.lambda);check();
+          display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
+        }
+        check();await retain(physical.forceLocal.drag);await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});return true;
       }
     }
     return false;
@@ -4483,6 +4490,134 @@ async function publishNativeShape(gpu,display,shape,chunks,gradient,referenceDen
   display.shapeVertices=parts;
 }
 
+// Recover just the winning triangle from its three quadrature sites. Its
+// displayed pressure is constant on the part observed inside the native box.
+function pressurePeakPoint(sites,inverse){
+  const sitesXYZ=[0,1,2].map(i=>Array.from(sites.subarray(16*i,16*i+3)));
+  const center=sitesXYZ[0].map((_,a)=>sitesXYZ.reduce((sum,p)=>sum+p[a],0)/3);
+  const vertices=sitesXYZ.map(p=>p.map((v,a)=>2*v-center[a]));
+  const uv=[[0,0],[1,0],[0,1]],bary=[1/3,1/3],sum=[0,0];let total=0;
+  const midpoint=(u,v)=>u.map((x,a)=>(x+v[a])/2);
+  const point=([u,v])=>vertices[0].map((x,a)=>x+u*(vertices[1][a]-x)+v*(vertices[2][a]-x));
+  for(let k=0;k<3;k++){
+    if(sites[16*k+7]<0||sites[16*k+3]<=0)continue;
+    let polygon=[uv[k],midpoint(uv[k],uv[(k+1)%3]),bary,midpoint(uv[k],uv[(k+2)%3])];
+    if(inverse)for(let a=0;a<3;a++)for(const side of [-1,1]){
+      const plane=side<0?LOCAL_BOX.min[a]:LOCAL_BOX.max[a];
+      const distance=v=>side*(plane-inverse[12+a]-point(v).reduce((s,x,j)=>s+inverse[4*j+a]*x,0));
+      const out=[];let u=polygon.at(-1),du=u?distance(u):0;
+      for(const v of polygon){
+        const dv=distance(v);
+        if(du*dv<0)out.push(u.map((x,j)=>x+(v[j]-x)*du/(du-dv)));
+        if(dv>=0)out.push(v);
+        u=v;du=dv;
+      }
+      polygon=out;
+    }
+    const o=polygon[0];
+    for(let j=2;j<polygon.length;j++){
+      const u=polygon[j-1],v=polygon[j],area=Math.abs((u[0]-o[0])*(v[1]-o[1])-(u[1]-o[1])*(v[0]-o[0]));
+      total+=area;for(let a=0;a<2;a++)sum[a]+=area*(o[a]+u[a]+v[a])/3;
+    }
+  }
+  return total>0?point(sum.map(v=>v/total)):null;
+}
+
+// Four most-significant-byte passes select exact displayed Float32 values
+// with physical area as the measure. Readback is independent of mesh size.
+export async function nativeSurfaceStatistics(device,chunks,shown,region,frame,check){
+  const scratch=gpuScope(device),ranks=[.05,.95,.975,.975,.975],rows=ranks.length;
+  const end=2*256*rows,words=end+12,base=end/2;
+  try{
+    const histogram=scratch.buffer('CFD area-weighted surface distribution',4*words);
+    const stage=scratch.staging('CFD bounded surface distribution readback',4*words);
+    const search=scratch.buffer('CFD surface quantile prefixes',32,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    const pipe=await scratch.kernel('CFD radix selection of area-weighted surface quantiles',profileHistogram(6)+`
+      struct Site{point:vec4f,normal:vec4f,near:vec4f,far:vec4f}
+      struct Search{prefix:vec4u,fifth:u32,shift:u32,mask:u32,maximum:u32}
+      @group(0) @binding(0) var<storage,read> sites:array<Site>;
+      @group(0) @binding(1) var<storage,read> field:array<vec4f>;
+      @group(0) @binding(2) var<storage,read> loss:array<vec4f>;
+      @group(0) @binding(3) var<storage,read> shape:array<vec4f>;
+      @group(0) @binding(4) var<uniform> search:Search;@group(0) @binding(5) var<uniform> offset:vec4u;
+      fn ordered(v:f32)->u32{
+        if(v==0.){return 0x80000000u;}let bits=bitcast<u32>(v);return select(bits^0x80000000u,~bits,v<0.);
+      }
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i>=arrayLength(&field)){return;}
+        let f=field[i];let l=loss[i];let s=shape[min(i,arrayLength(&shape)-1u)];
+        let area=3.*sites[3u*i].point.w;let pa=area*f.z;let p=ordered(f.x);
+        if((pa>0.&&bitcast<u32>(abs(f.x))>=0x7f800000u)||(l.z>0.&&bitcast<u32>(abs(l.x))>=0x7f800000u)||
+           (s.z>0.&&bitcast<u32>(abs(s.x))>=0x7f800000u)){atomicStore(&hist[${end+11}],1u);return;}
+        if(search.shift==24u){
+          if(pa>0.){atomicMax(&hist[${end+8}],~p);atomicMax(&hist[${end+9}],p);}
+          let sa=area*f.w;
+          addProfile(${base}u,sa);addProfile(${base+1}u,sa*f.y);
+          if(f.y>=.2){addProfile(${base+2}u,sa);}if(f.y>=.5){addProfile(${base+3}u,sa);}
+        }else if(search.shift==16u&&pa>0.&&p==search.maximum){atomicMax(&hist[${end+10}],~(offset.x+i));}
+        let values=array<f32,5>(f.x,f.x,abs(f.x),l.x,abs(s.x));
+        let weights=array<f32,5>(pa,pa,pa,l.z,s.z);
+        for(var j=0u;j<5u;j++){
+          if(weights[j]<=0.){continue;}let key=ordered(values[j]);let prefix=select(search.prefix[min(j,3u)],search.fifth,j==4u);
+          if((key&search.mask)==prefix){addProfile(256u*j+((key>>search.shift)&255u),weights[j]);}
+        }
+      }`);
+    let offset=0;
+    const parts=chunks.map((c,i)=>{
+      const first=offset;offset+=c.triangles;
+      const start=scratch.buffer('CFD surface triangle span',new Uint32Array([first,0,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+      const v=shown[i],group=scratch.bind(pipe,[c.site,v.visible,v.loss,v.shape,search,start,histogram]);
+      return {first,c,v,group};
+    });
+    const prefix=Array(rows).fill(0),remaining=Array(rows).fill(0),totals=Array(rows).fill(0);
+    let minKey=0,maxKey=0,winner=null,separation;
+    for(const shift of [24,16,8,0]){
+      check();const mask=shift===24?0:(0xffffffff<<(shift+8))>>>0;
+      device.queue.writeBuffer(search,0,new Uint32Array([...prefix,shift,mask,maxKey]));
+      const e=device.createCommandEncoder();e.clearBuffer(histogram);
+      for(const part of parts)scratch.dispatch(e,pipe,part.group,[Math.ceil(part.c.triangles/64)]);
+      device.queue.submit([e.finish()]);const data=await scratch.read(histogram,stage,words);check();
+      const bits=new Uint32Array(data.buffer),mass=i=>data[2*i]+data[2*i+1];
+      if(bits[end+11])throw failure('NONFINITE_SURFACE','A measured surface field is nonfinite.');
+      if(shift===24){
+        minKey=~bits[end+8]>>>0;maxKey=bits[end+9];const a=mass(base);
+        separation={sampledAreaM2:a,meanGammaRev:a>0?mass(base+1)/a:null,
+          above20PercentAreaM2:mass(base+2),above50PercentAreaM2:mass(base+3)};
+      }else if(shift===16&&totals[0]>0)winner=~bits[end+10]>>>0;
+      for(let j=0;j<rows;j++){
+        const bins=Array.from({length:256},(_,i)=>mass(256*j+i));
+        if(shift===24){totals[j]=bins.reduce((s,v)=>s+v,0);remaining[j]=ranks[j]*totals[j];}
+        if(totals[j]<=0)continue;
+        let below=0,start=0,last=-1;
+        for(let b=0;b<256;b++){
+          if(bins[b]<=0)continue;last=b;start=below;
+          if(remaining[j]<=below+bins[b])break;
+          below+=bins[b];
+        }
+        if(last<0)throw failure('SURFACE_REDUCTION','The measured area disappeared during surface quantile selection.');
+        remaining[j]=Math.min(bins[last],Math.max(0,remaining[j]-start));prefix[j]=(prefix[j]|(last<<shift))>>>0;
+      }
+    }
+    const word=new Uint32Array(1),real=new Float32Array(word.buffer);
+    function decode(key){word[0]=key&0x80000000?key^0x80000000:~key;return real[0];}
+    const values=prefix.map((v,i)=>totals[i]>0?decode(v):null);
+    const pressure={sampledAreaM2:totals[0],minPa:totals[0]?decode(minKey):null,maxPa:totals[0]?decode(maxKey):null,
+      p05Pa:values[0],p95Pa:values[1],maxCoord:null,maxSurface:null,coordinateFrame:'world',coordinateUnit:'m'};
+    if(winner!==null){
+      const part=parts.find(p=>winner>=p.first&&winner<p.first+p.c.triangles);
+      if(!part)throw failure('SURFACE_REDUCTION','The observed maximum has no native triangle.');
+      const triangle=winner-part.first;
+      const peak=scratch.staging('CFD three sites of the single maximum-pressure triangle',192);
+      const e=device.createCommandEncoder();e.copyBufferToBuffer(part.c.site,192*triangle,peak,0,192);device.queue.submit([e.finish()]);
+      await peak.mapAsync(GPUMapMode.READ);let p;
+      try{p=pressurePeakPoint(new Float32Array(peak.getMappedRange()),part.c.cover?region.inverse:null);}finally{peak.unmap();}
+      check();pressure.maxSurface={occurrence:part.v.occurrence,triangle:part.c.first+triangle};
+      if(p)pressure.maxCoord=vectorInWorld(p,frame.axes).map((x,a)=>x+frame.originWorldM[a]);
+    }
+    return {pressureStats:pressure,separationStats:separation,surfaceColorScale:{percentile:97.5,pressurePa:values[2],lossDensity:values[3],shapeNPerM3:values[4]}};
+  }finally{scratch.close();}
+}
+
 // Three equal-area quadrature sites belong to each original native triangle.
 // Pressure is extrapolated from two fluid-side stencils. Count shear reversals
 // before averaging, relative to the tangential exterior flow in the wall frame.
@@ -4607,13 +4742,14 @@ const fieldProjectionWGSL=`
   }
   fn fieldColor(mode:u32,value:f32)->vec3f{
     let neutral=vec3f(.78,.83,.85);
-    if(mode==0u){return mix(neutral,select(vec3f(.12,.37,.76),vec3f(.84,.20,.10),value>0.),clamp(abs(value),0.,1.));}
     if(mode==1u){let color=mix(neutral,vec3f(.93,.62,.10),smoothstep(0.,.5,value));
       return mix(color,vec3f(.74,.10,.12),smoothstep(.5,1.,value));}
-    if(mode==2u){let intensity=sqrt(max(0.,value));
+    let intensity=asinh(4.*min(1.,abs(value)))/asinh(4.);
+    if(mode==0u){return mix(neutral,select(vec3f(.12,.37,.76),vec3f(.84,.20,.10),value>0.),intensity);}
+    if(mode==2u){
       let color=mix(vec3f(.12,.30,.41),vec3f(.96,.72,.20),smoothstep(0.,.65,intensity));
-      return mix(color,vec3f(.78,.14,.08),smoothstep(.65,1.5,intensity));}
-    return mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),value>0.),sqrt(abs(value)/(1.+abs(value))));
+      return mix(color,vec3f(.78,.14,.08),smoothstep(.65,1.,intensity));}
+    return mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),value>0.),intensity);
   }`;
 async function streamlineOverlay(ctx,display,cache){
   const device=ctx.device,flow=display.flow,stage=GPUShaderStage;
@@ -4628,7 +4764,7 @@ async function streamlineOverlay(ctx,display,cache){
       @vertex fn vs(@builtin(instance_index) trace:u32,@builtin(vertex_index) i:u32)->Out{
         let n=lengths[trace];if(n<2u){return Out(vec4f(0.,0.,-1.,1.),vec3f(0.));}
         let v=paths[trace*${streamPoints}u+min(i,n-1u)];var value=0.;
-        switch mode.x{case 0u:{value=v.colors.x/region.scales.z;}case 1u:{value=v.colors.z;}
+        switch mode.x{case 0u:{let p=bitcast<f32>(mode.y);value=v.colors.x/select(region.scales.z,p,p>0.);}case 1u:{value=v.colors.z;}
           case 2u:{value=v.colors.y/region.scales.w;}default:{value=v.colors.w;}}
         return Out(clipField(region.inverse*v.point),fieldColor(mode.x,value));
       }
@@ -4641,11 +4777,15 @@ async function streamlineOverlay(ctx,display,cache){
   })().catch(e=>{cache.lines=null;throw e;});
   const {layout,pipes}=await cache.lines;
   const config=display.gpu.buffer('CFD active streamline color field',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  let group,previous;
+  let group,previous,previousPressure;
   return (pass,view,orthographic,mode)=>{
     if(!flow.density)return;
     group??=device.createBindGroup({layout,entries:[flow.vertices,flow.lengths,flow.regionBuffer,config].map((buffer,binding)=>({binding,resource:{buffer}}))});
-    if(mode!==previous){device.queue.writeBuffer(config,0,new Uint32Array([mode]));previous=mode;}
+    const pressure=display.colorScale?.pressurePa??0;
+    if(mode!==previous||previousPressure!==pressure){
+      const words=new Uint32Array(2);words[0]=mode;new Float32Array(words.buffer)[1]=pressure;
+      device.queue.writeBuffer(config,0,words);previous=mode;previousPressure=pressure;
+    }
     pass.setPipeline(pipes[Number(orthographic)]);pass.setBindGroup(0,group);pass.setBindGroup(1,view);pass.draw(streamPoints,2*flow.density);
   };
 }
@@ -4663,7 +4803,7 @@ async function nativeFieldOverlay(ctx,display){
       {binding:3,visibility:stage.VERTEX|stage.FRAGMENT,buffer:{type:'uniform'}},
       {binding:4,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}},{binding:5,visibility:stage.VERTEX,buffer:{type:'read-only-storage'}}]});
     const module=device.createShaderModule({label:'CFD native surface map',code:ctx.viewport.cameraWGSL+fieldProjectionWGSL+meshReader(storage)+`
-      struct Config{relative:mat4x4f,first:u32,mode:u32,dynamicPressure:f32}
+      struct Config{relative:mat4x4f,first:u32,mode:u32,dynamicPressure:f32,pad:f32,scale:vec4f}
       @group(0) @binding(2) var<storage,read> field:array<vec4f>;
       @group(0) @binding(3) var<uniform> cfg:Config;
       @group(0) @binding(4) var<storage,read> loss:array<vec4f>;
@@ -4671,14 +4811,15 @@ async function nativeFieldOverlay(ctx,display){
       struct Out{@builtin(position) clip:vec4f,@location(0) value:vec4f,@location(1) local:vec3f,@location(2) loss:vec2f}
       @vertex fn vs(@builtin(vertex_index) v:u32)->Out{
         let local=cfg.relative*vec4f(sourcePoint(3u*cfg.first+v),1.);
-        var out:Out;out.local=local.xyz;out.value=field[v/3u];out.loss=loss[v/3u].zw;
-        if(cfg.mode==3u){out.loss=shape[v/3u].zw;}
+        var out:Out;out.local=local.xyz;out.value=field[v/3u];let l=loss[v/3u];
+        out.loss=vec2f(l.z,select(l.w,l.x/max(cfg.scale.y,1e-30),cfg.scale.y>0.));
+        if(cfg.mode==3u){let s=shape[v/3u];out.loss=vec2f(s.z,select(s.w,s.x/max(cfg.scale.z,1e-30),cfg.scale.z>0.));}
         out.clip=clipField(local);return out;
       }
       @fragment fn fs(input:Out)->@location(0) vec4f{
         if(any(input.local<vec3f(-500.,0.,-500.))||any(input.local>vec3f(500.,1000.,500.))){discard;}
         var value=input.loss.y;
-        if(cfg.mode==0u){if(input.value.z<=0.){discard;}value=input.value.x/cfg.dynamicPressure;}
+        if(cfg.mode==0u){if(input.value.z<=0.){discard;}value=input.value.x/select(cfg.dynamicPressure,cfg.scale.x,cfg.scale.x>0.);}
         else if(cfg.mode==1u){if(input.value.w<=0.){discard;}value=input.value.y;}
         else if(input.loss.x<=0.){discard;}return vec4f(fieldColor(cfg.mode,value),1.);
       }`});
@@ -4693,7 +4834,7 @@ async function nativeFieldOverlay(ctx,display){
   for(const c of display.chunks){
     const storage=c.mesh.storage;
     if(!cache.types.has(storage))cache.types.set(storage,pipeline(storage).catch(e=>{cache.types.delete(storage);throw e;}));
-    const type=await cache.types.get(storage),data=new ArrayBuffer(80);
+    const type=await cache.types.get(storage),data=new ArrayBuffer(96);
     new Float32Array(data,0,16).set(c.mesh.ownerMatrix);new Uint32Array(data,64,1)[0]=c.first;
     new Float32Array(data,72,1)[0]=display.dynamicPressure;
     const config=display.gpu.buffer('CFD surface display transform',new Uint8Array(data),usage.UNIFORM|usage.COPY_DST);
@@ -4701,7 +4842,7 @@ async function nativeFieldOverlay(ctx,display){
     const group=device.createBindGroup({layout:type.layout,entries:resources.map((resource,binding)=>({binding,resource}))});
     records.push({config,group,type,vertices:3*c.triangles});
   }
-  const lines=await streamlineOverlay(ctx,display,cache);let previousMode=0;
+  const lines=await streamlineOverlay(ctx,display,cache);let previousMode=0,previousScale;
   return ({pass,camera,frame,orthographic})=>{
     let byFrame=cache.frames.get(camera);
     if(!byFrame){byFrame=new WeakMap();cache.frames.set(camera,byFrame);}
@@ -4709,11 +4850,14 @@ async function nativeFieldOverlay(ctx,display){
     const mode=display.mode==='Shape'?3:display.mode==='Drag'?2:Number(display.mode==='Separation'),view=byFrame.get(frame);let bound=null;
     for(const r of records){
       if(mode!==previousMode)device.queue.writeBuffer(r.config,68,new Uint32Array([mode]));
+      if(display.colorScale&&display.colorScale!==previousScale){
+        const s=display.colorScale;device.queue.writeBuffer(r.config,80,new Float32Array([s.pressurePa,s.lossDensity,s.shapeNPerM3,0]));
+      }
       const p=r.type.pipelines[Number(orthographic)];
       if(bound!==p){pass.setPipeline(p);pass.setBindGroup(1,view);bound=p;}
       pass.setBindGroup(0,r.group);pass.draw(r.vertices);
     }
-    previousMode=mode;
+    previousMode=mode;previousScale=display.colorScale;
     lines(pass,view,orthographic,mode);
   };
 }
