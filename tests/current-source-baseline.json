@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 25 nov 17:50",
+  "version": "2026 25 nov 18:25",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -572,11 +572,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "b6016cae99ac4c4c01616e3cca230801383d7db0ff194b636b98aaaa891970ad"
+      "sha256": "f64ca57eae05e4c5387dbc2eb2c26552be081a7e2a1dbe2b636cd46e56508f0f"
     },
     "index.html": {
       "bytes": 4328826,
-      "sha256": "010b2106d1b0d5a90e255472a1b86d71836d460a846fb293deafd48b122eed4e"
+      "sha256": "550d38d05a2bdc75a4d8b4eb453ec1b542f1b59210bc9ef460a670295054531c"
     },
     "plugins/index.json": {
       "bytes": 266,

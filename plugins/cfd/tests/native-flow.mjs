@@ -15,6 +15,7 @@ const cases={
   'paired':['paired-check','verifyPairedSolve'],
   'grid-shift':['shift-check','verifyGridShift'],'preview-grid-shift':['shift-check','verifyPreviewGridShift'],
   'car-first-field':['shift-check','verifyCarFirstField'],
+  'metric-cache':['metric-cache-check','verifyNativeMetricReuse'],
   'initial-discharge':['initial-flow-check','verifyInitialDischarge'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'surface-components':['surface-components-check','verifySurfaceComponents'],
@@ -23,6 +24,10 @@ const cases={
   'flow-regime':['regime-check','verifyFlowRegime'],'modeled-regime':['regime-check','verifyModeledRegime'],
   'pressure-forest':['flux-equilibration-check','verifyPrefixForest'],
   'temporal-interval':['time-statistics-check','verifyNativeTemporalInterval'],
+  'frozen-eddy-shape':['steady-shape-check','verifyFrozenEddyForce'],
+  'native-frozen-eddy-shape':['steady-shape-check','verifyNativeFrozenEddyForce'],
+  'sheet-force':['sheet-force-check','verifySheetForce'],
+  'temporal-coverage':['time-statistics-check','verifyNativeTemporalCoverage'],
   'backward-step':['backstep-check','verifyBackwardStep'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
@@ -31,9 +36,10 @@ const args=process.argv.slice(2),which=args.find(v=>v.startsWith('--case='))?.sl
 if(!Object.hasOwn(cases,which))throw Error('Choose --case='+Object.keys(cases).join(', '));
 const [moduleName,method]=cases[which],name='plugins/cfd/tests/m0/'+moduleName+'.mjs',output=resolve(args.find(v=>v.startsWith('--out='))?.slice(6)??'tests/results/cfd-live-'+which+'.json');
 const files=[...new Set(['index.html','plugins/cfd/plugin.js','plugins/cfd/plugin.json','plugins/cfd/tests/native-flow.mjs',
-  'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,...which==='surface-components'?['plugins/cfd/tests/m0/native-geometry.mjs']:[],
+  'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,
+  ...moduleName==='steady-shape-check'||which==='surface-components'?['plugins/cfd/tests/m0/native-geometry.mjs','plugins/cfd/tests/m0/pressure-barrier.mjs']:[],
   ...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[],
-  ...which==='car-first-field'?['plugins/cfd/tests/m0/ahmed.mjs']:[]])];
+  ...['car-first-field','metric-cache'].includes(which)?['plugins/cfd/tests/m0/ahmed.mjs']:[]])];
 if(files.some(f=>resolve(f)===output))throw Error('Use a separate path for the result.');
 const hashes=async()=>Object.fromEntries(await Promise.all(files.map(async f=>[f,createHash('sha256').update(await readFile(new URL('../../../'+f,import.meta.url))).digest('hex')])));
 const result={case:which,startedUtc:new Date().toISOString(),sources:await hashes(),pageErrors:[],pass:false};

@@ -663,7 +663,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   function tick(t){lastFrame=t;request=requestAnimationFrame(tick);}
   request=requestAnimationFrame(tick);
   try{
-    const guarded={...capture,assertCurrent:check},geom=await nativeFlowGeometry(gpu,f,guarded,dt);check();
+    const guarded={...capture,assertCurrent:check},geom=await nativeFlowGeometry(gpu,f,guarded,dt,history.metric);check();
     const hashes=await discretization(gpu,f,geom.response,source);check();
     const sameGrid=prior?.gridHash===hashes.gridHash,sameWalls=prior?.wallTopologyHash===hashes.wallTopologyHash;
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;check();
@@ -696,7 +696,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     if(f.laminar&&history.warmStart&&prior?.buffer&&(refinement||sameGrid&&prior.frameKey===source.frameKey&&(history.paired||prior.geometryKey===source.geometryKey))){
       restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check,refinement?prior.grid:null);check();
     }
-    const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,
+    const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,distanceField:geom.stats.distanceField,
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':f.wallModeled?'SST':'laminar',
       ...(groups?{cutMomentum:{cutCells:groups.stats.cutCells,mergedCells:groups.stats.mergedCells,remainingCutRoots:groups.stats.remainingCutRoots,
         wallTreatment:f.sstWall?'Spalding shear and merged wall-adjacent SST':'Spalding shear'}}:{}),
@@ -818,6 +818,7 @@ export async function activate(context){
   if(context.version!==1)throw failure('API_VERSION','Unsupported Frame plugin API.');
   const find=hash=>{const n=context.document.nodes.find(n=>n.nativeHash===hash&&n.type==='cfd');if(!n)throw failure('INVALID_OWNER','Select an existing CFD object.');return n;};
   const jobs=new Map(),archives=new Map(),sweeps=new Map(),lineDensities=new Map(),checkpoints=new Map();
+  const metrics=new Map();
   let sequence=0,queue=Promise.resolve(),sweepQueue=Promise.resolve(),activeSweep=null;
   const refresh=()=>{context.requestAttributes();context.requestDraw();};
   const closeDisplay=d=>{if(d)setTimeout(()=>d.gpu.close(),0);};
@@ -855,6 +856,31 @@ export async function activate(context){
   }
   function detach(hash){const job=jobs.get(hash);if(job){job.stopped=true;jobs.delete(hash);release(job);}}
   function dropCheckpoint(c){checkpoints.delete(c.id);c.buffer?.destroy();}
+  function dropMetric(owner){metrics.get(owner)?.buffer.destroy();metrics.delete(owner);}
+  // Ownership moves to the current solve on a hit, then back only after all
+  // geometry consumers finish and the native capture is still current.
+  function metricStorage(job,epoch){
+    const {owner,device,source}=job,bandKey=b=>JSON.stringify([b.origin,b.dims,b.h]);
+    return {
+      take(band){
+        const entry=metrics.get(owner);
+        if(!entry||entry.device!==device||entry.epoch!==epoch||entry.geometry!==source.geometryKey||
+          entry.frame!==source.frameKey||entry.band!==bandKey(band))return null;
+        metrics.delete(owner);return entry.buffer;
+      },
+      store(band,buffer){
+        const capacity=32*1024*1024;if(buffer.size>capacity)return false;
+        dropMetric(owner);let bytes=buffer.size;
+        for(const entry of metrics.values())bytes+=entry.buffer.size;
+        for(const [key,entry] of metrics){
+          if(bytes<=capacity&&metrics.size<4)break;
+          bytes-=entry.buffer.size;dropMetric(key);
+        }
+        metrics.set(owner,{epoch,device,geometry:source.geometryKey,frame:source.frameKey,band:bandKey(band),buffer});
+        return true;
+      }
+    };
+  }
   function retainCheckpoint(job,c){
     const epoch=context.fields.authoringStamp().epoch;
     checkpoints.set(job.id,{...c,id:job.id,owner:job.owner,device:job.device,epoch,frameKey:job.source.frameKey,
@@ -877,9 +903,9 @@ export async function activate(context){
     const limits=job.device.limits;
     const refinement=job.refineFromJob?refineAdjointGrid(prior.grid,prior.transportWeights,
       Math.min(flowBudgets[job.fidelity].cells,Math.floor(limits.maxStorageBufferBindingSize/48)),Math.floor(limits.maxUniformBufferBindingSize/16)):null;
-    return {prior,paired:!!job.pairedWithJob,refinement,warmStart:job.warmStart,save:c=>retainCheckpoint(job,c)};
+    return {prior,paired:!!job.pairedWithJob,refinement,warmStart:job.warmStart,metric:metricStorage(job,epoch),save:c=>retainCheckpoint(job,c)};
   }
-  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);detach(hash);
+  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);dropMetric(hash);detach(hash);
     for(const c of checkpoints.values())if(c.owner===hash)dropCheckpoint(c);}
   function newJob(hash,fidelity,pairedWithJob,refineFromJob,warmStart=true){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
@@ -1253,11 +1279,12 @@ export async function activate(context){
     if(changed)refresh();
   }
   function documentChanged(){
-    if(checkpoints.size){const stamp=sweepStamp();
-      for(const c of checkpoints.values())if(c.device!==context.device||stamp&&c.epoch!==stamp.epoch)dropCheckpoint(c);}
-    if(jobs.size||archives.size||sweeps.size){
+    if(checkpoints.size||metrics.size){const stamp=sweepStamp();
+      for(const c of checkpoints.values())if(c.device!==context.device||stamp&&c.epoch!==stamp.epoch)dropCheckpoint(c);
+      for(const [owner,m] of metrics)if(m.device!==context.device||stamp&&m.epoch!==stamp.epoch)dropMetric(owner);}
+    if(jobs.size||archives.size||sweeps.size||metrics.size){
       const live=new Set(context.document.nodes.filter(n=>n.type==='cfd').map(n=>n.nativeHash));
-      for(const hash of new Set([...jobs.keys(),...archives.keys(),...sweeps.keys()]))if(!live.has(hash))retire(hash);
+      for(const hash of new Set([...jobs.keys(),...archives.keys(),...sweeps.keys(),...metrics.keys()]))if(!live.has(hash))retire(hash);
     }
     sync();
   }
@@ -1340,6 +1367,9 @@ function inletRowsWGSL(f,dt){
 }
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null,skin=null,fields=null){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
+  const frozenEddy=f.frozenEddyViscosity;
+  if(frozenEddy&&(f.laminar||f.cutCells||f.wallModeled||f.rotor||frozenEddy.size!==4*count))
+    throw Error('The stationary immersed closure needs one frozen kinematic viscosity in m2/s per cell.');
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const coords=metricBuffer(gpu,f);
   const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
@@ -1359,13 +1389,15 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}let p=point(i);${body}}`;
   if(f.cutCells)groups??=await cutGroups(gpu,f,mobility,wall);
   const init=await gpu.kernel('CFD initial velocity and face flow',base+decl(0,'s','Cell',true)+decl(1,'flux','Flux',true)+
-    (f.cutCells?decl(2,'mu','vec4f')+decl(3,'wall','vec4f'):'')+main(f.cutCells?`
+    (f.cutCells?decl(2,'mu','vec4f')+decl(3,'wall','vec4f'):frozenEddy?decl(2,'eddy','f32'):'')+main(f.cutCells?`
     let initial=far(p);s[i]=initial;let area=faceAreas(cellWidths(p));let relative=initial.uk.xyz-vec3f(0.,wall[i].yz);
     var hi=vec3f(0);var lo=vec3f(0);for(var a=0u;a<3u;a++){var l=p;l[a]--;var r=p;r[a]++;
       hi[a]=relative[a]*area[a]*select(1.,mu[i][a],inside(r));
       lo[a]=relative[a]*area[a]*select(1.,mu[bounded(l)][a],inside(l));}
-    flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`:'let initial=far(p);s[i]=initial;let q=vec4f(initial.uk.x*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);'));
-  gpu.run(init,[s0,flux,...f.cutCells?[mobility,wall]:[]],grid,coords);
+    flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`:`var initial=far(p);
+    ${frozenEddy?'initial.wt.y=eddy[i]*'+(dt/f.h**2)+';':''}
+    s[i]=initial;let q=vec4f(initial.uk.x*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);`));
+  gpu.run(init,[s0,flux,...f.cutCells?[mobility,wall]:frozenEddy?[frozenEddy]:[]],grid,coords);
   const apertures=f.apertureFlow?await aperturePredictor(gpu,f,dt,s0,pred,mobility,centers,flux,fluxTail):null;
   if(apertures){const e=gpu.device.createCommandEncoder();apertures.initial(e);gpu.device.queue.submit([e.finish()]);}
   const wallBindings=f.wallModeled?[force,loads,mobility]:[];
@@ -1423,8 +1455,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         }
       }
       ${f.sstWall?`for(var a=0u;a<3u;a++){let d=max(gradientCoverage[a],1e-20);grad[a]/=d;gk[a]/=d;gw[a]/=d;}`:''}
-      var kn=share*K0;var wn=share*O0;var nut=0.;var strainLimit=0.;
-      if(${!f.laminar}){
+      var kn=share*K0;var wn=share*O0;var nut=${frozenEddy?'a.wt.y':'0.'};var strainLimit=0.;
+      if(${!f.laminar&&!frozenEddy}){
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
       var distance=solid.x;
       ${domainWalls(f).map((v,i)=>{if(!v)return '';const a=i>>1,center=`axisMetric(${a}u,p[${a}]).x`;
@@ -1797,7 +1829,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
 // Reverse the stationary laminar momentum predictor using the volume inner
 // product. An interior face sends one limited donor trace to both cells.
 // Keep the selected limiter branches fixed while differentiating that trace.
-export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
+export async function immersedMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
   const count=countOf(f.dims),grid=[Math.ceil(count/128)],coords=metricBuffer(gpu,f);
   const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
     struct Flux{hi:vec4f,lo:vec4f}
@@ -1837,7 +1869,8 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
         if(inside(j)){
           let id=index(j);let owner=select(id,i,s>0);
           flowAdj=sign*dot(lambda[id].xyz-l,faces[3u*owner+a].value);
-          adj+=NU*area[a]*spacingInv(a,p[a],s)*(lambda[id].xyz-l);
+          let diffusivity=NU${f.frozenEddyViscosity?'+.5*(state[2u*i+1u].y+state[2u*id+1u].y)':''};
+          adj+=diffusivity*area[a]*spacingInv(a,p[a],s)*(lambda[id].xyz-l);
         }else{
           var b=u;var db=1.;
           let faceWall=domainWall(a,s);
@@ -1845,7 +1878,8 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
           else if(!openFace(a,s)||sign*flow<0.){b=vec3f(${f.inletRows?'inletRow(p.y).x':'U'},0.,0.);db=0.;}
           let donor=select(b,u,sign*flow>=0.);let dd=select(db,1.,sign*flow>=0.);
           flowAdj=-sign*dot(l,donor);
-          adj+=l*(NU*area[a]/widths[a]*(db-1.)-sign*flow*dd);
+          let diffusivity=NU${f.frozenEddyViscosity?'+state[2u*i+1u].y*select(1.,.5,db==0.)':''};
+          adj+=l*(diffusivity*area[a]/widths[a]*(db-1.)-sign*flow*dd);
         }
         if(s>0){hi[a]=flowAdj;}else{lo[a]=flowAdj;}
       }
@@ -1874,13 +1908,14 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
 // fields. The cell wall impulse equals predicted minus projected momentum
 // minus the centred pressure gradient. Include all three terms in the seed.
 export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
-  if(!f.laminar||f.cutCells||f.rotor||f.faceHistory||f.tunnelSymmetry)
-    throw Error('This discrete force adjoint requires the stationary laminar momentum operator');
+  if((!f.laminar&&!f.frozenEddyViscosity)||f.wallModeled||f.cutCells||f.rotor||f.faceHistory||f.tunnelSymmetry||
+    f.faceReconstruction||f.implicitRadiusM||f.groupTransport||f.apertureFlow||f.rotatingFrame)
+    throw Error('This force adjoint requires stationary immersed momentum transport with fixed viscosity.');
   const n=countOf(f.dims),bytes=4*n,grid=[Math.ceil(n/128)],coords=metricBuffer(gpu,f),mg=solved.pressureHierarchy;
   const lambda=gpu.buffer('CFD stationary momentum adjoint',4*bytes),reverse=gpu.buffer('CFD reverse velocity and shared discharge',12*bytes);
   const p0=gpu.buffer('CFD saved primal pressure',bytes),gradient=gpu.buffer('CFD steady force derivative per immersed fraction',4*bytes);
   const peak=gpu.buffer('CFD momentum and pressure adjoint defects',8),stage=gpu.staging('CFD adjoint residual readback',8);
-  const momentum=await laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse);
+  const momentum=await immersedMomentumAdjoint(gpu,f,dt,solved,lambda,reverse);
   const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
     struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
     struct Face{rawAdj:f32,weight:f32,mu:f32,area:f32,invD:f32,share:f32,pressureAdj:f32}
@@ -3688,11 +3723,19 @@ export async function rasterize(gpu,band,capture){
   return packed;
 }
 
-export async function nativeFlowGeometry(gpu,f,capture,dt){
+export async function nativeFlowGeometry(gpu,f,capture,dt,storage=null){
   const scratch=gpuScope(gpu.device),start=performance.now(),limit=Math.min(8000000,Math.floor(gpu.device.limits.maxStorageBufferBindingSize/12));
   const band=distanceBand(f,capture.meshes,limit),n=countOf(f.dims);
   try{
-    const packed=await rasterize(scratch,band,capture),distance=await extendNativeMetric(scratch,band.dims,packed,12);
+    capture.assertCurrent();
+    const retained=storage?.take(band);
+    let distance;
+    if(retained)distance=scratch.adopt(retained);
+    else{
+      const packed=await rasterize(scratch,band,capture);
+      distance=await extendNativeMetric(scratch,band.dims,packed,12);
+    }
+    const distanceField={source:retained?'retained':'rebuilt',bytes:distance.size,dims:band.dims,preparationSubmitMs:performance.now()-start};
     const phase=scratch.buffer('CFD stationary surface frame',new Float32Array([1,0,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
     const rep=f.cutCells&&f.sheetLinks?scratch.buffer('CFD native fluid representatives',16*n):null;
     const crossed=await meshPressureBarriers(scratch,f,capture.meshes,phase,capture.assertCurrent,rep);
@@ -3742,19 +3785,20 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
     const wallDistance=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h):null;
     const skin=f.surfacePressure?await surfacePressure(gpu,f,capture,band,distance,response):null;
     capture.assertCurrent();
+    if(storage?.store(band,distance))scratch.detach(distance);
     return {wall,response,centers,skin,shape,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
-      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,subdivisionsPerAxis:f.subcellSurface?4:1,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
+      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,subdivisionsPerAxis:f.subcellSurface?4:1,wallDistance,distanceField,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }
 
 // Each calculation owns these allocations on the renderer's device.
 export function gpuScope(device) {
-  const owned = [];
+  const owned = new Set();
   let allocatedBytes=0;
   function buffer(label, dataOrBytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST) {
     const bytes = typeof dataOrBytes === 'number' ? dataOrBytes : dataOrBytes.byteLength;
     const b = device.createBuffer({label, size: bytes, usage});
-    owned.push(b);
+    owned.add(b);
     allocatedBytes+=b.size;
     if (typeof dataOrBytes !== 'number') device.queue.writeBuffer(b, 0, dataOrBytes);
     return b;
@@ -3794,8 +3838,10 @@ export function gpuScope(device) {
     finally { staging.unmap(); }
   }
   return {device, buffer, kernel, bind, dispatch, run, read,get allocatedBytes(){return allocatedBytes;},
+    adopt(buffer){owned.add(buffer);allocatedBytes+=buffer.size;return buffer;},
+    detach(buffer){owned.delete(buffer);},
     staging: (label, bytes) => buffer(label, bytes, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ),
-    close() { for (const b of owned.splice(0)) b.destroy(); }};
+    close() { for (const b of owned)b.destroy();owned.clear(); }};
 }
 
 // Matrices map source positions to metres in the physical solver frame. Native

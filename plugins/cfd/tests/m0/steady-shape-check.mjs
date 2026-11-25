@@ -1,10 +1,10 @@
-import {gpuScope,laminarMomentumAdjoint,steadyForceAdjoint,pressureMultigrid,cellWidth,cellCenter,nativeFlowGeometry} from '../../plugin.js';
+import {gpuScope,immersedMomentumAdjoint,steadyForceAdjoint,cartesianSolver,pressureMultigrid,cellWidth,cellCenter,nativeFlowGeometry} from '../../plugin.js';
 import {captureFlowSurfaces,researchSceneContext} from './native-geometry.mjs';
 
 // Differentiate an independent double-precision evaluation by perturbing
 // velocities and shared face flows separately. Mixed flow signs exercise
 // bounded inflow, outflow and the reflected moving-road ghost state.
-export async function verifyMomentumTranspose(device){
+export async function verifyMomentumTranspose(device,frozen=false){
   const gpu=gpuScope(device),dims=[8,8,8],h=.004,dt=.0002,n=512;
   const axes=dims.map((d,a)=>Float64Array.from({length:d+1},(_,i)=>h*i*(1+.025*(a+1)*i)));
   const f={dims,axes,origin:[0,0,0],h,nu:.00015,U:.8,movingRoad:true};
@@ -17,6 +17,11 @@ export async function verifyMomentumTranspose(device){
     flow[8*i+a]=.02*random();change[8*i+a]=random();
     const j=i-stride[a];flow[8*i+4+a]=point(i)[a]?flow[8*j+a]:.02*random();
     change[8*i+4+a]=point(i)[a]?change[8*j+a]:random();
+  }
+  if(frozen){
+    const eddy=Float32Array.from({length:n},(_,i)=>f.nu*(.2+3*Math.abs(random())));
+    for(let i=0;i<n;i++)state[8*i+5]=eddy[i]*dt/h**2;
+    f.frozenEddyViscosity=gpu.buffer('Fixed physical viscosity for the transpose identity',eddy);
   }
   const width=(a,p)=>cellWidth(f,a,p),gap=(a,p,q)=>Math.abs(cellCenter(f,a,p)-cellCenter(f,a,q))/h;
   function objective(du,dq){
@@ -38,7 +43,10 @@ export async function verifyMomentumTranspose(device){
             const front=((q>=0?other:u(i,k))-up)/distance;
             if(back*front>0)up+=.5*width(a,dp)*Math.sign(back)*Math.min(Math.abs(back),Math.abs(front));
           }
-          v-=q*up;v+=f.nu*dt/h**2*volume/w[a]/distance*(other-u(i,k));
+          let eddy=state[8*i+5];
+          if(inside)eddy=.5*(eddy+state[8*j+5]);
+          else if(!(a===1&&s<0)&&(a===0&&s<0||q<0))eddy*=.5;
+          v-=q*up;v+=(f.nu*dt/h**2+eddy)*volume/w[a]/distance*(other-u(i,k));
         }
         J+=v*lambda[4*i+k];
       }
@@ -49,7 +57,7 @@ export async function verifyMomentumTranspose(device){
     const solved={state:gpu.buffer('CFD test primal velocities',state),flux:gpu.buffer('CFD test face fluxes',flow),
       fluxTail:gpu.buffer('CFD test fine flux words',flow.byteLength)};
     const out=gpu.buffer('CFD momentum transpose result',48*n);
-    const op=await laminarMomentumAdjoint(gpu,f,dt,solved,gpu.buffer('CFD test adjoint seed',lambda),out);
+    const op=await immersedMomentumAdjoint(gpu,f,dt,solved,gpu.buffer('CFD test adjoint seed',lambda),out);
     const e=device.createCommandEncoder();op.freeze(e);op.encode(e);device.queue.submit([e.finish()]);
     const values=await gpu.read(out,gpu.staging('CFD dual identity samples',48*n),12*n);
     let du=0,dq=0;
@@ -69,7 +77,7 @@ export async function verifyMomentumTranspose(device){
 // Small independent Float64 primal. Factor the full pressure operator with
 // banded Cholesky and reconstruct the explicitly imposed wall impulse. Its
 // objective includes both limited advection and molecular diffusion.
-function referenceGrid(f,dt,mu,region,direction=[1,0,0]){
+function referenceGrid(f,dt,mu,region,direction=[1,0,0],eddy=null){
   const [nx,ny,nz]=f.dims,n=nx*ny*nz,stride=[1,nx,nx*ny],bw=stride[2],row=bw+1;
   const U=f.U*dt/f.h,nu=f.nu*dt/f.h**2,volume=new Float64Array(n),faces=[];
   const chol=new Float64Array(n*row),p=new Float64Array(n),u=new Float64Array(3*n),q=new Float64Array(8*n);
@@ -140,7 +148,13 @@ function referenceGrid(f,dt,mu,region,direction=[1,0,0]){
           const backward=(donor-u[3*back+k])/(left?e.dbL:e.dbR),front=((left?uR:uL)-donor)/dist;
           if(front*backward>0)trace+=.5*(left?e.hl:e.hr)*Math.sign(front)*Math.min(Math.abs(front),Math.abs(backward));
         }
-        const flux=discharge*trace-nu*area/dist*(uR-uL);
+        let viscosity=nu;
+        if(eddy){
+          const reflected=f.movingRoad&&a===1&&s<0;
+          const ghost=reflected||open&&s*discharge>=0?eddy[i]:0;
+          viscosity+=.5*((l>=0?eddy[l]:ghost)+(r>=0?eddy[r]:ghost))*dt/f.h**2;
+        }
+        const flux=discharge*trace-viscosity*area/dist*(uR-uL);
         if(l>=0)next[3*l+k]-=flux/volume[l];if(r>=0)next[3*r+k]+=flux/volume[r];
       }
     }
@@ -154,7 +168,7 @@ function referenceGrid(f,dt,mu,region,direction=[1,0,0]){
     if(error>2e-11)throw Error('Float64 steady primal failed to converge: '+error);
     return {objective:forward(v),steps};
   }
-  return {forward,settle,u,p,q,next,volume};
+  return {forward,settle,u,p,q,next,volume,eddy};
 }
 
 function perturbedSphere(f,patch=-1,delta=0){
@@ -181,7 +195,9 @@ async function reverseSteady(gpu,f,dt,mobility,primal,v,forceMask,direction){
   const device=gpu.device,n=v.length/3;
   const pack=(src,stride)=>Float32Array.from({length:n*stride},(_,j)=>j%stride<3?src[3*Math.floor(j/stride)+j%stride]:0);
   const mg=await pressureMultigrid(gpu,f,mobility);
-  const solved={mobility,forceMask,pressureHierarchy:mg,state:gpu.buffer('CFD steady primal velocity',pack(primal.u,8)),
+  const state=pack(primal.u,8);
+  if(primal.eddy)for(let i=0;i<n;i++)state[8*i+5]=primal.eddy[i]*dt/f.h**2;
+  const solved={mobility,forceMask,pressureHierarchy:mg,state:gpu.buffer('CFD steady primal velocity',state),
     predicted:gpu.buffer('CFD steady predicted momentum',pack(v,8)),flux:gpu.buffer('CFD steady face flow',Float32Array.from(primal.q)),
     fluxTail:gpu.buffer('CFD zero reference flow tail',32*n)};
   const adj=await steadyForceAdjoint(gpu,f,dt,solved,direction);
@@ -196,42 +212,111 @@ async function reverseSteady(gpu,f,dt,mobility,primal,v,forceMask,direction){
   return {adj,defects,iterations};
 }
 
-export async function verifySteadyForce(device,regional=false,direction=[1,0,0]){
+// Sample the SST transport kernel on the same immersed body. Then keep this
+// Eulerian field fixed in both perturbed geometries and in the transpose.
+async function sampleClosure(gpu,f,dt,mu){
+  const n=mu.length/4,wallValues=new Float32Array(4*n);
+  for(let i=0;i<n;i++){
+    const p=[i%8,(i>>3)%8,i>>6],center=[3.78,4.13,3.86];
+    wallValues[4*i]=Math.hypot(...p.map((v,a)=>cellCenter(f,a,v)/f.h-center[a]))-1.74;
+    wallValues[4*i+3]=1-mu[4*i+3];
+  }
+  const wall=gpu.buffer('Distance and immersed weight on the closure grid',wallValues);
+  const mobility=gpu.buffer('Shared closure-grid apertures',Float32Array.from(mu));
+  return sampleSstField(gpu,f,dt,wall,mobility);
+}
+
+async function sampleSstField(gpu,f,dt,wall,mobility){
+  const n=f.dims.reduce((a,b)=>a*b),device=gpu.device;
+  const schedule={async perform(phases){const e=device.createCommandEncoder();for(const p of phases)p.encode(e);device.queue.submit([e.finish()]);}};
+  const force=gpu.buffer('Closure-grid axial reaction',4*n),model=await cartesianSolver(gpu,f,dt,wall,force,mobility);
+  for(let step=0;step<32;step++)await model.advance(step,false,schedule,()=>{});
+  const stage=gpu.staging('Sampled SST kinematic viscosity',32*n),state=await gpu.read(model.state,stage,8*n);
+  const eddy=Float32Array.from({length:n},(_,i)=>state[8*i+5]*f.h**2/dt);
+  if(eddy.some(v=>!(v>=0&&Number.isFinite(v)))||model.fluxConvergence.missedSteps)
+    throw Error('Invalid SST field for frozen-closure test');
+  return {eddy,wall,mobility,schedule,sourceSteps:32,maximumRatio:Math.max(...eddy)/f.nu,minimumRatio:Math.min(...eddy)/f.nu};
+}
+
+// Replay one actual native momentum/pressure step from the independently
+// converged state. This checks force and the primal fixed point as well as
+// the units and persistence of the supplied viscosity.
+async function replayFrozen(gpu,f,dt,model,primal,objective){
+  const n=model.eddy.length,device=gpu.device,force=gpu.buffer('Frozen closure one-step reaction',4*n);
+  const solver=await cartesianSolver(gpu,f,dt,model.wall,force,model.mobility);
+  const stage=gpu.staging('Frozen state and velocity verification',32*n),state=await gpu.read(solver.state,stage,8*n);
+  const error=p=>Math.max(...model.eddy.map((v,i)=>Math.abs(p[8*i+5]*f.h**2/dt-v)))/Math.max(...model.eddy);
+  const initialEddyError=error(state);
+  for(let i=0;i<n;i++)for(let a=0;a<3;a++)state[8*i+a]=primal.u[3*i+a];
+  device.queue.writeBuffer(solver.state,0,state);device.queue.writeBuffer(solver.flux,0,Float32Array.from(primal.q));
+  await solver.advance(0,false,model.schedule,()=>{});
+  const after=await gpu.read(solver.state,stage,8*n),finalEddyError=error(after);
+  let diff2=0,u2=0;
+  for(let i=0;i<n;i++)for(let a=0;a<3;a++){diff2+=(after[8*i+a]-primal.u[3*i+a])**2;u2+=primal.u[3*i+a]**2;}
+  const reaction=await gpu.read(force,gpu.staging('Independent frozen axial reaction',4*n),n);
+  const relativeForceError=Math.abs(reaction.reduce((s,v)=>s+v,0)/objective-1);
+  return {initialEddyError,finalEddyError,velocityRelativeL2:Math.sqrt(diff2/u2),relativeForceError,
+    maximumDivergencePerS:solver.fluxConvergence.maxDivergencePerS};
+}
+
+export async function verifySteadyForce(device,regional=false,direction=[1,0,0],frozen=false){
   const gpu=gpuScope(device),n=512,h=.006,dt=.001,rho=1.2,U=.42;
   const axes=[0,1,2].map(a=>Float64Array.from({length:9},(_,i)=>h*i*(1+.006*(a+1)*i)));
-  const f={dims:[8,8,8],axes,h,dt,rho,nu:.06*h*h/dt,U,origin:[0,0,0],laminar:true};
+  const f={dims:[8,8,8],axes,h,dt,rho,nu:(frozen ? .017 : .06)*h*h/dt,U,origin:[0,0,0],
+    laminar:!frozen,rotor:false,omega:0,maxSpeed:U,period:8*h/U};
+  if(frozen){
+    const inletK=1.5*(.2*U)**2;
+    f.inletRows=Array.from({length:8},()=>[U,inletK,inletK/(3*f.nu)]);
+  }
   const region=regional?Float32Array.from({length:n},(_,i)=>Math.max(0,Math.min(1,4.73-(i>>6)))):null;
-  const scale=rho*h**4/dt**2,mu=perturbedSphere(f),primal=referenceGrid(f,dt,mu,region,direction);
-  const v=new Float64Array(3*n);for(let i=0;i<n;i++)v[3*i]=U*dt/h;
-  const converged=primal.settle(v);
+  const scale=rho*h**4/dt**2,mu=perturbedSphere(f);
   try{
+    const model=frozen?await sampleClosure(gpu,f,dt,mu):null;
+    if(model)f.frozenEddyViscosity=gpu.buffer('Stationary SST field in m2/s',model.eddy);
+    const reference=fractions=>referenceGrid(f,dt,fractions,region,direction,model?.eddy);
+    const primal=reference(mu),v=new Float64Array(3*n);for(let i=0;i<n;i++)v[3*i]=U*dt/h;
+    const converged=primal.settle(v);
+    const replay=model?await replayFrozen(gpu,f,dt,model,primal,converged.objective):null;
     const mobility=gpu.buffer('CFD manufactured immersed sphere',Float32Array.from(mu));
     const {adj,defects,iterations}=await reverseSteady(gpu,f,dt,mobility,primal,v,region?gpu.buffer('CFD partial objective',region):null,direction);
     const gradient=await gpu.read(adj.gradient,gpu.staging('CFD shape coefficients for paired solutions',16*n),4*n);
     const patches=[],epsilon=1e-4*h;
     for(let patch=0;patch<6;patch++){
       const upper=perturbedSphere(f,patch,epsilon),lower=perturbedSphere(f,patch,-epsilon);
-      const plus=referenceGrid(f,dt,upper,region,direction).settle(v.slice()),minus=referenceGrid(f,dt,lower,region,direction).settle(v.slice());
+      const plus=reference(upper).settle(v.slice()),minus=reference(lower).settle(v.slice());
       let derivative=0;for(let i=0;i<mu.length;i++)derivative+=gradient[i]*(upper[i]-lower[i])/(2*epsilon);
       const fd=(plus.objective-minus.objective)*scale/(2*epsilon);
       patches.push({patch,adjointNPerM:derivative,finiteDifferenceNPerM:fd,relativeError:Math.abs(derivative-fd)/Math.max(1e-15,Math.abs(fd))});
     }
     const err=Math.hypot(...patches.map(s=>s.adjointNPerM-s.finiteDifferenceNPerM))/Math.hypot(...patches.map(s=>s.finiteDifferenceNPerM));
-    return {converged,iterations,defects,objectiveDirection:direction,epsilonM:epsilon,patches,relativeL2:err,pass:Math.max(...defects)<4e-6&&err<.015&&patches.every(p=>p.relativeError<.04)};
+    const closure=model?{sourceSteps:model.sourceSteps,minimumRatio:model.minimumRatio,maximumRatio:model.maximumRatio,replay}:null;
+    const primalOk=!replay||model.maximumRatio>1&&model.minimumRatio<.1&&replay.initialEddyError<1e-6&&replay.finalEddyError<1e-6&&
+      replay.velocityRelativeL2<.001&&replay.relativeForceError<.005&&replay.maximumDivergencePerS<1e-6;
+    return {converged,iterations,defects,objectiveDirection:direction,epsilonM:epsilon,patches,relativeL2:err,closure,
+      pass:primalOk&&Math.max(...defects)<4e-6&&err<.015&&patches.every(p=>p.relativeError<.04)};
   }finally{gpu.close();}
 }
 
 export const verifyRegionalSteadyForce=device=>verifySteadyForce(device,true);
 export const verifyObliqueSteadyForce=device=>verifySteadyForce(device,true,[-.6,.48,.64]);
 
-export async function verifyNativeSteadyForce(device){
+export async function verifyFrozenEddyForce(device){
+  const transpose=await verifyMomentumTranspose(device,true),shape=await verifySteadyForce(device,false,[1,0,0],true);
+  return {pass:transpose.pass&&shape.pass,objective:'Stationary axial wall reaction at fixed Eulerian eddy viscosity',transpose,shape};
+}
+
+export async function verifyNativeSteadyForce(device,frozen=false){
   const h=.009,dt=.001,n=512,rho=1.21,U=.38,scale=rho*h**4/dt**2;
-  const f={dims:[8,8,8],origin:[-.03528,-.03447,-.03751],h,rho,U,nu:.07*h*h/dt,laminar:true,immersedShape:true,omega:0};
+  const f={dims:[8,8,8],origin:[-.03528,-.03447,-.03751],h,rho,U,nu:(frozen ? .017 : .07)*h*h/dt,
+    laminar:!frozen,immersedShape:true,rotor:false,omega:0,maxSpeed:U,period:8*h/U};
+  if(frozen){
+    const k=1.5*(.2*U)**2;f.inletRows=Array.from({length:8},()=>[U,k,k/(3*f.nu)]);
+  }
   const vertices=[[.0179,.0021,.0007],[-.0168,.0008,-.0028],[.0018,.0171,.0017],[-.0027,-.0163,.0031],
     [.0017,-.0014,.0179],[-.0013,.0034,-.0163]];
   const indices=[];for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)indices.push(x,...(y?[4+z,2+y]:[2+y,4+z]));
   const dirs=vertices.map(p=>p.map(x=>x/Math.hypot(...p))),call=(op,data={})=>frameAI.call(op,data);
-  const ctx=researchSceneContext(frameEngine);let older,warm;
+  const ctx=researchSceneContext(frameEngine);let older,warm,closure;
   async function solve(vertex,delta,storage,reverse){
     await call('scene.new');if(older){let stale=false;try{older.assertCurrent();}catch{stale=true;}if(!stale)throw Error('Paired geometry was reused');}
     const box=await call('scene.create',{type:'cfd'});
@@ -241,10 +326,15 @@ export async function verifyNativeSteadyForce(device){
     const capture=captureFlowSurfaces(device,ctx,box.hash,[0,.15,0]),gpu=gpuScope(device);older=capture;
     try{
       const native=await nativeFlowGeometry(gpu,f,capture,dt),mu=await gpu.read(native.response,gpu.staging('CFD independent physical apertures',16*n),4*n);
-      const primal=referenceGrid(f,dt,mu),v=warm?.slice()??Float64Array.from({length:3*n},(_,i)=>i%3?0:U*dt/h);
+      if(frozen&&!closure){
+        const {eddy,sourceSteps,maximumRatio,minimumRatio}=await sampleSstField(gpu,f,dt,native.wall,native.response);
+        closure={eddy,sourceSteps,maximumRatio,minimumRatio};
+      }
+      const primal=referenceGrid(f,dt,mu,null,[1,0,0],closure?.eddy),v=warm?.slice()??Float64Array.from({length:3*n},(_,i)=>i%3?0:U*dt/h);
       const settled=primal.settle(v);warm??=v.slice();
       if(!reverse)return {force:settled.objective*scale};
-      const {adj,defects,iterations}=await reverseSteady(gpu,f,dt,native.response,primal,v);
+      const operator=closure?{...f,frozenEddyViscosity:gpu.buffer('Frozen native SST viscosity in m2/s',closure.eddy)}:f;
+      const {adj,defects,iterations}=await reverseSteady(gpu,operator,dt,native.response,primal,v);
       const range=gpu.buffer('CFD logical vertex test range',new Uint32Array([0,vertices.length,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
       const out=gpu.buffer('CFD logical vertex derivatives',12*vertices.length),e=device.createCommandEncoder();
       native.shape.scatter(e,adj.gradient,out,range);device.queue.submit([e.finish()]);
@@ -267,5 +357,9 @@ export async function verifyNativeSteadyForce(device){
   const correlation=aa.reduce((sum,v,i)=>sum+v*bb[i],0)/(Math.hypot(...aa)*Math.hypot(...bb));
   const relativeL2=err(actual,measured),backendDifference=err(base.vectors,paged.vectors);
   return {forceN:base.force,patches,correlation,relativeL2,backendDifference,iterations:base.iterations,defects:base.defects,
-    pass:base.backend==='buffer'&&paged.backend==='texture'&&relativeL2<.04&&correlation>.98&&backendDifference<1e-5&&actual.every((v,i)=>v*measured[i]>0)};
+    frozenViscosity:closure?{sourceSteps:closure.sourceSteps,maximumRatio:closure.maximumRatio,minimumRatio:closure.minimumRatio}:null,
+    pass:(!closure||closure.maximumRatio>1)&&base.backend==='buffer'&&paged.backend==='texture'&&relativeL2<.04&&correlation>.98&&
+      backendDifference<1e-5&&actual.every((v,i)=>v*measured[i]>0)};
 }
+
+export const verifyNativeFrozenEddyForce=device=>verifyNativeSteadyForce(device,true);

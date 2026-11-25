@@ -38,3 +38,49 @@ export async function verifyNativeTemporalInterval(){
     windows:blocks.length,blocks,drag,uncertainty:u,independentStandardErrorForce:expected,relativeSeError,ciCenterError,
     maximumDivergencePerS:final.validity.maxDivergencePerS,shape:final.shape?.state};
 }
+
+// Twenty independently prepared flow histories reach the same held geometry,
+// operating point and physical grid. A separate cold trajectory continues
+// past its first stationary report to provide a fixed-discretization reference.
+export async function verifyNativeTemporalCoverage(){
+  const call=(name,args={})=>frameAI.call(name,args),target=.006,seed0=0x5011e23d;
+  let seed=seed0;
+  const random=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296;};
+  async function create(speed){
+    await call('scene.new');
+    const box=await call('scene.create',{type:'cfd',params:{Speed:speed}});
+    const body=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':10}});
+    await call('transform.apply',{ids:[body.hash],position:[0,500,0],coordinates:'world'});return box.hash;
+  }
+  async function solve(id,options){
+    const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+    const start=performance.now();await op('solve-frame',{fidelityBudget:'preview',...options});
+    for(;;){
+      await new Promise(ok=>setTimeout(ok,120));const status=await op('results'),r=status.result;
+      if(status.state==='ready'){
+        if(!r.validity.stationary||!r.uncertainty.ci95Drag||r.validity.maxDivergencePerS>=1e-6)throw Error('Uncertified stationary reference');
+        return {id:status.job.id,drag:r.forceLocal.drag,interval:r.uncertainty.ci95Drag,gridHash:r.validity.gridHash,wallTopologyHash:r.validity.wallTopologyHash,
+          steps:r.steps,windows:r.completeWindows,mass:r.validity.maxDivergencePerS,initialization:r.initialization.kind};
+      }
+      if(!['queued','solving'].includes(status.state)||performance.now()-start>15*60*1000)throw Error(JSON.stringify(status.job));
+    }
+  }
+  const refBox=await create(target),references=[await solve(refBox,{warmStart:false})];let stable=0;
+  while(references.length<9&&stable<2){
+    const prior=references.at(-1),next=await solve(refBox,{pairedWithJob:prior.id});
+    stable=Math.abs(next.drag/prior.drag-1)<1e-4?stable+1:0;references.push(next);
+  }
+  const ref=references.at(-1),runs=[];
+  for(let i=0;i<20;i++){
+    const prepSpeed=target*(.2+1.6*random()),id=await create(prepSpeed),preparation=await solve(id,{warmStart:false});
+    await call('scene.update',{id,params:{Speed:target}});
+    const sample=await solve(id,{pairedWithJob:preparation.id});
+    const covered=sample.interval[0]<=ref.drag&&ref.drag<=sample.interval[1];
+    console.log('CFD live temporal coverage '+(i+1)+'/20, drag '+sample.drag.toExponential(6)+', covered '+covered);
+    runs.push({prepSpeed,preparationDrag:preparation.drag,covered,...sample});
+  }
+  const covered=runs.filter(s=>s.covered).length;
+  return {pass:stable>=2&&covered>=18&&runs.every(s=>s.gridHash===ref.gridHash&&s.wallTopologyHash===ref.wallTopologyHash&&s.initialization==='projected-stationary-predictor'),
+    scope:'Temporal intervals on one fixed grid with independent inflow preparations',targetMPerS:target,randomSeed:seed0,covered,trials:runs.length,
+    coverage:covered/runs.length,references,runs};
+}

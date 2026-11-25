@@ -1,4 +1,4 @@
-import {adjointTransportWeights,gpuScope,laminarMomentumAdjoint,nestedParentCoordinates,refineAdjointGrid} from '../../plugin.js';
+import {adjointTransportWeights,gpuScope,immersedMomentumAdjoint,nestedParentCoordinates,refineAdjointGrid} from '../../plugin.js';
 
 // Cell averages of a polynomial have an exact face value and derivative.
 // A jump in the dual at a single interior face isolates that face's defect.
@@ -24,7 +24,7 @@ export async function verifyTransportWeights(device){
       const solved={state:gpu.buffer('Polynomial cell averages',state),flux:gpu.buffer('Uniform discharges',flux),
         fluxTail:gpu.buffer('Discharge rounding tails',32*n),mobility:gpu.buffer('Connected cells',mu)};
       const dual=gpu.buffer('Jump in force adjoint',lambda);
-      const frozen=await laminarMomentumAdjoint(gpu,f,dt,solved,dual,gpu.buffer('Transpose scratch',48*n));
+      const frozen=await immersedMomentumAdjoint(gpu,f,dt,solved,dual,gpu.buffer('Transpose scratch',48*n));
       const e=device.createCommandEncoder();frozen.freeze(e);device.queue.submit([e.finish()]);
       const weights=await adjointTransportWeights(gpu,f,dt,solved,{faces:frozen.faces,lambda:dual});
       const d=q>=0?cut:cut+1,other=q>=0?cut+1:cut,behind=2*d-other;

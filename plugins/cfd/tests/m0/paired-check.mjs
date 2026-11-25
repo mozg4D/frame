@@ -43,6 +43,8 @@ export async function verifyPairedSolve(){
   const cold=await solve(fresh,'independent speed reference');
   const difference=Math.abs(cold.force-b.force)/Math.abs(cold.force);
   return {pass:!!intervalMatches&&equilibrium.state==='ready'&&difference<.01&&a.initialization.kind==='uniform-inflow'&&cold.initialization.kind==='uniform-inflow'&&rejected&&
+    a.validity.distanceField.source==='rebuilt'&&b.validity.distanceField.source==='retained'&&
+    c.validity.distanceField.source==='rebuilt'&&cold.validity.distanceField.source==='rebuilt'&&
     b.initialization.fromJob===a.job&&b.validity.sameDiscretizationAsPrev&&b.validity.gridHash===cold.validity.gridHash&&
     c.initialization.fromJob===a.job&&c.paired?.baselineJob===a.job&&c.validity.gridHash===a.validity.gridHash&&c.force>b.force&&
     Math.abs(c.paired.deltaDragN-(c.force-a.force))<1e-18&&
