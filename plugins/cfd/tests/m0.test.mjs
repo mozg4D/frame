@@ -12,7 +12,7 @@ import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
-import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse,forceUncertainty} from '../plugin.js';
+import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,gradeCapturedDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse,forceUncertainty,pairedDrag} from '../plugin.js';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
@@ -96,6 +96,18 @@ test('cut-brick inverse resolves a weakly connected fluid region and preserves p
   for(let i=0;i<64;i++){
     const x=i%4,y=(i>>2)%4,z=i>>4;
     assert.ok(Math.abs(recovered[i]-(p[i]-(x>=2&&y>=2&&z>=2?p[42]:0)))<1e-5);
+  }
+});
+test('a laminar preview budgets each brick axis and bounds every neighbouring width ratio',()=>{
+  const bounds={min:[-.04,.06,-.04],max:[.04,.14,.04]},cap=32768;
+  for(const domainEnd of [[1.14,1.24,.74],[3.3,1.16,2.1],[.87,.54,.4]]){
+    const f={origin:[-.74,-.24,-.74],dims:[32,32,32],h:.045,domainEnd,laminar:true};
+    const grid=gradeCapturedDomain(f,bounds,.45,cap);assert.ok(grid.dims.reduce((p,n)=>p*n)<=cap);
+    for(const [a,row] of grid.axes.entries()){
+      assert.equal((row.length-1)%8,0);assert.equal(row[0],f.origin[a]);assert.equal(row.at(-1),domainEnd[a]);
+      const widths=row.subarray(1).map((x,i)=>x-row[i]);
+      assert.ok(Math.min(...widths)>0);for(let i=1;i<widths.length;i++)assert.ok(Math.max(widths[i]/widths[i-1],widths[i-1]/widths[i])<=2.000001);
+    }
   }
 });
 test('surface-focused axes preserve the box extent and refine both geometric extrema',()=>{
@@ -224,6 +236,8 @@ test('temporal uncertainty follows the reported two-window force and correlated 
   assert.ok(Math.abs((measure.ci95Drag[0]+measure.ci95Drag[1])/2-mean)<1e-12);
   assert.deepEqual([measure.averagedBlocks,measure.averagedSteps,measure.blocks],[2,20,8]);
   assert.ok(Math.abs(measure.standardErrorForce[0]-Math.sqrt(8/7*(.4**2+.6**2)))<1e-12);
+  const critical975=(measure.ci975Drag[1]-mean)/measure.standardErrorForce[0];
+  assert.ok(critical975>=2.84124&&critical975<2.843);
   assert.deepEqual(measure.standardErrorForce.slice(1),[0,0]);
   assert.equal(forceUncertainty(blocks,axes,direction,false).ci95Drag,null);
   const constant=forceUncertainty(blocks.map(b=>({...b,force:[4,2,0]})),axes,direction,true);
@@ -245,6 +259,15 @@ test('temporal uncertainty follows the reported two-window force and correlated 
     }
     assert.ok(covered/800>=.9,'Temporal interval coverage at correlation '+autocorrelation+': '+covered/800);
   }
+});
+test('paired drag propagates simultaneous marginal intervals through signed load differences',()=>{
+  const prior={id:7,drag:8,ci95Drag:[7.5,8.5],ci975Drag:[7.3,8.7]};
+  const current={scope:'temporal sampling',ci95Drag:[4.4,5.6],ci975Drag:[4.1,5.9]};
+  const pair=pairedDrag(prior,5,current);
+  assert.equal(pair.deltaDragN,-3);
+  assert.deepEqual(pair.ci95DeltaDragN,[4.1-8.7,5.9-7.3]);
+  assert.equal(pairedDrag(prior,5,{scope:'temporal sampling',ci975Drag:null}).ci95DeltaDragN,null);
+  assert.deepEqual(pairedDrag(prior,0,{scope:'exact equilibrium',ci95Drag:[0,0]}).ci95DeltaDragN,[-8.5,-7.5]);
 });
 test('physical mesh lengths preserve owner shear, nonuniform scale and reflections in SI',()=>{
   const axes=[0,2,0,0, -3,.5,0,0, -1,0,-4,0, 100,-200,800,1];

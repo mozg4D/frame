@@ -290,6 +290,25 @@ export function gradeCapturedDomain(f,bounds,tier,cap){
   if(!(size>0))return f;
   const spanPitch=Math.sqrt(size*Math.max(size/16,Math.min(...extent)))/22;
   const pitches=extent.map(d=>Math.max(size/128,Math.min(spanPitch,Math.max(d,size/16)/16))/tier);
+  if(tier<1&&f.laminar){
+    // Allocate whole pressure bricks independently on the three axes. The
+    // outermost neighbours can approach 2:1 while the near-body pitch is
+    // uniform. Increasing every pitch together can discard two useful
+    // transverse layers of bricks when only the long axis exceeds budget.
+    const end=f.domainEnd??f.origin.map((x,a)=>x+f.dims[a]*f.h);
+    const axis=(a,count)=>{
+      const h=pitches[a],pad=Math.max(2*h,.15*extent[a]),wake=a===0?Math.min(size,Math.max(4*h,extent[a])):pad;
+      return gradedAxis(f.origin[a],end[a],bounds.min[a]-pad,bounds.max[a]+wake,h,Math.log(2),count);
+    };
+    const desired=pitches.map((_,a)=>axis(a).length-1),dims=desired.slice();
+    while(countOf(dims)>cap){
+      let best=-1,retained=-1;
+      for(let a=0;a<3;a++)if(dims[a]>8&&(dims[a]-8)/desired[a]>retained){best=a;retained=(dims[a]-8)/desired[a];}
+      if(best<0)throw Error('The preview budget cannot contain one pressure brick');dims[best]-=8;
+    }
+    const axes=dims.map((n,a)=>axis(a,n)),minPitch=axes.map(row=>row.subarray(1).reduce((h,x,i)=>Math.min(h,x-row[i]),Infinity));
+    return {...f,axes,dims,h:Math.min(...minPitch),minPitch,domainEnd:end};
+  }
   return rectilinearDomain(f,bounds,pitches,cap);
 }
 
@@ -520,7 +539,7 @@ async function savePredictor(gpu,solver,count,check){
 export function forceUncertainty(windows,axes,dragAxis=[1,0,0],stationary=false){
   const blocks=windows.slice(2),n=blocks.length,samples=windows.slice(-2);
   const info={blocks:n,averagedBlocks:samples.length,averagedSteps:samples.reduce((s,w)=>s+w.steps,0),scope:'temporal sampling'};
-  if(!stationary||n<6)return {...info,standardErrorForce:null,ci95Drag:null,autocorrelationSteps:null};
+  if(!stationary||n<6)return {...info,standardErrorForce:null,ci95Drag:null,ci975Drag:null,autocorrelationSteps:null};
   const weights=samples.map(w=>w.steps/info.averagedSteps);
   const forces=blocks.map(w=>vectorInWorld(w.force,axes));
   function estimate(values){
@@ -538,11 +557,23 @@ export function forceUncertainty(windows,axes,dragAxis=[1,0,0],stationary=false)
     return {center,se:Math.sqrt(variance*(a*a+b*b+2*a*b*lagOne)),correlation,varying:total>0};
   }
   const drag=estimate(blocks.map(w=>dot(w.force,dragAxis))),effective=Math.max(1,Math.floor(n/drag.correlation)-1);
-  const critical=[0,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228];
-  const t=effective<critical.length?critical[effective]:effective<20?2.201:effective<30?2.086:2.042;
+  // Use the lower degree of freedom in each tail bucket. The 97.5% marginal
+  // supports a simultaneous comparison of two runs with unknown correlation.
+  const bucket=effective<=10?effective:effective<20?11:effective<30?12:13;
+  const t95=[0,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228,2.201,2.086,2.042][bucket];
+  const t975=[0,25.452,6.206,4.177,3.496,3.164,2.969,2.842,2.752,2.686,2.634,2.594,2.424,2.360][bucket];
+  const interval=t=>[drag.center-t*drag.se,drag.center+t*drag.se];
   return {...info,standardErrorForce:axes.map((_,k)=>estimate(forces.map(v=>v[k])).se),
-    ci95Drag:[drag.center-t*drag.se,drag.center+t*drag.se],
+    ci95Drag:interval(t95),ci975Drag:interval(t975),
     autocorrelationSteps:drag.varying?drag.correlation*blocks.reduce((s,w)=>s+w.steps,0)/n:null};
+}
+
+export function pairedDrag(prior,drag,uncertainty){
+  const exact=uncertainty.scope==='exact equilibrium',level=exact?'ci95Drag':'ci975Drag';
+  const current=uncertainty[level],baseline=prior[level];
+  return {baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,deltaDragN:drag-prior.drag,
+    ci95DeltaDragN:current&&baseline?[current[0]-baseline[1],current[1]-baseline[0]]:null,
+    intervalMethod:exact?'baseline temporal interval against exact equilibrium':'Bonferroni difference of two 97.5% marginal temporal intervals'};
 }
 
 // A window stores the mean reaction in the fixed CFD basis. Integrate each
@@ -578,12 +609,12 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   const simple=capture.meshes.length===0||(!motion&&U===0);
   if(simple){
     check();
+    const uncertainty={blocks:0,averagedBlocks:0,averagedSteps:0,scope:'exact equilibrium',
+      standardErrorForce:[0,0,0],ci95Drag:[0,0],ci975Drag:[0,0],autocorrelationSteps:null};
     publish({...physicalLoads(ctx,source,fluid,0,[{steps:1,time:0,force:[0,0,0],moment:[0,0,0]}]),
       solver:'uniform-equilibrium',fidelity,occurrences:capture.meshes.length,medium:fluid,steps:0,completeWindows:0,
       dragHotspots:[],separationZones:[],shapeSensitivitySummary:[],
-      ...(history.paired?{paired:{baselineJob:history.prior.id,baselineGridHash:history.prior.gridHash,
-        baselineWallTopologyHash:history.prior.wallTopologyHash,deltaDragN:-history.prior.drag}}:{}),
-      uncertainty:{blocks:0,averagedBlocks:0,averagedSteps:0,scope:'exact equilibrium',standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
+      ...(history.paired?{paired:pairedDrag(history.prior,0,uncertainty)}:{}),uncertainty,
       validity:{stationary:true,maxDivergencePerS:0,relativeDivergenceMax:0,temporalConvergence:'exact',
         ...regimeNumbers(U,null,U,fluid.soundSpeedMps),yPlusPercentiles:{p50:null,p95:null,sampledAreaM2:0,method:'no-wall-samples'}}});
     return true;
@@ -602,6 +633,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
     wallSpacing:stationaryWake,mergeToFluid:stationaryWake,sstWall:stationaryWake,ddes:stationaryWake,wakeDistance:stationaryWake,
+    projectInflow:stationaryWake,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
     sweptDiameterM:diameter,groupTransport:!!motion,implicitRadiusM:motion?.625*diameter:0,
     subcellSurface:!!motion,apertureFlow:!!motion,surfacePressure:true,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined};
@@ -672,11 +704,11 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null,
       ...(refinement?{refinement:{parentJob:prior.id,parentGridHash:prior.gridHash,...refinement.details}}:{})};
     function publishSample(value){
-      const paired=history.paired?{baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
-        deltaDragN:value.forceLocal.drag-prior.drag}:null;
+      const paired=history.paired?pairedDrag(prior,value.forceLocal.drag,value.uncertainty):null;
       publish({...value,validity:{...value.validity,...gridValidity,...(refinement?{spatialConvergence:'two-nested-grids',
         refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag}}:{})},...(paired?{paired}:{}),
-        initialization:restart?{kind:refinement?'projected-nested-predictor':'projected-stationary-predictor',fromJob:prior.id,...restart}:{kind:'uniform-inflow'}});
+        initialization:restart?{kind:refinement?'projected-nested-predictor':'projected-stationary-predictor',fromJob:prior.id,...restart}:
+          solver.fluxConvergence.initialization??{kind:'uniform-inflow'}});
     }
     let surfaceComponents=null;
     async function publishFinished(value){
@@ -687,10 +719,13 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       check();display.colorScale=statistics.surfaceColorScale;
       publishSample({...value,validity:{...value.validity,...regime},...statistics,...surfaceComponents});
     }
-    async function retain(drag,transportWeights=null){
+    async function retain(result,transportWeights=null){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
-      const buffer=f.laminar&&16*count<=checkpointBytes?await savePredictor(gpu,solver,count,check):null;
-      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag,transportWeights,surfaceComponents});}
+      const usable=f.laminar&&!(result.validity.stationaryMomentumDefect>.025)&&16*count<=checkpointBytes;
+      const buffer=usable?await savePredictor(gpu,solver,count,check):null;
+      const {ci95Drag,ci975Drag}=result.uncertainty;
+      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,
+        drag:result.forceLocal.drag,ci95Drag,ci975Drag,transportWeights,surfaceComponents});}
       catch(e){buffer?.destroy();throw e;}
     }
     let step=0;
@@ -742,10 +777,10 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           else publishSample(result);
           continue;
         }
-        if(!geom.shape){await publishFinished(result);await retain(physical.forceLocal.drag);return true;}
+        if(!geom.shape){await publishFinished(result);await retain(result);return true;}
         if(baseDefect>.025){
           if(window+1<windowLimit){publishSample(result);continue;}
-          await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
+          await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});await retain(result);return true;
         }
         publishSample({...result,shape:{state:'solving',objective:'drag'}});
         const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
@@ -772,7 +807,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           else transportWeights=null;
           display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
         }
-        check();await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});await retain(physical.forceLocal.drag,transportWeights);return true;
+        check();await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});await retain(result,transportWeights);return true;
       }
     }
     return false;
@@ -1632,8 +1667,48 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   stats.exactBoundaryBlocks=mg.cutBlocks;
   stats.colouredBoundaryRelaxation=!!mg.cutRelax;
   if(equilibrium)stats.flowReconstruction=equilibrium.stats;
+  // Impose impermeability on the initial free stream before starting the
+  // physical clock. Its velocity potential is an impulse potential. Never
+  // include it in pressure, forces, maps or the first physical window.
+  async function projectInflow(scheduler,current){
+    if(!groups||!prepareStored||f.rotor)throw Error('The inlet projection requires a stationary cut-volume face operator.');
+    await scheduler.perform([phase('initialize conservative inlet momentum',e=>{
+      e.copyBufferToBuffer(s0,0,pred,0,s0.size);mg.updateGeometry(e);prepareStored(e);
+      gpu.dispatch(e,imbalance,residualGroup,grid);
+    }),...projection(16),phase('impose initial wall impermeability',e=>gpu.dispatch(e,refineFlux,refineGroup,grid)),...first,check],current);
+    let maximum=await measure(),passes=1;
+    while(maximum>target&&passes<16){
+      if(equilibrium&&await equilibrium.correct(scheduler,current)){
+        await scheduler.perform([check],current);maximum=await measure();if(maximum<=target)break;
+      }
+      await scheduler.perform([...krylovRestarts[Math.min(passes-1,krylovRestarts.length-1)],check],current);
+      maximum=await measure();passes++;
+    }
+    if(!(maximum>=0&&maximum<=target))throw Error('The initial inlet projection missed its stored mass tolerance.');
+    // A blocked face carries no sample of fluid velocity. Reconstruct from
+    // the open area before volume-averaging the members of a momentum group.
+    const velocity=await gpu.kernel('CFD initialize cell velocity from compatible open-face flow',base+
+      decl(0,'q','Flux')+decl(1,'tail','Flux')+decl(2,'mu','vec4f')+decl(3,'wall','vec4f')+decl(4,'state','Cell',true)+main(`
+        let area=faceAreas(cellWidths(p));var v=vec3f(0);
+        for(var a=0u;a<3u;a++){
+          var l=p;l[a]--;var r=p;r[a]++;
+          let open=select(1.,mu[bounded(l)][a],inside(l))+select(1.,mu[i][a],inside(r));
+          if(open>0.){v[a]=((q[i].hi[a]+q[i].lo[a])+(tail[i].hi[a]+tail[i].lo[a]))/(area[a]*open);}
+        }
+        let share=mu[i].w/max(wall[i].w,1e-30);state[i].uk=vec4f(share*v,state[i].uk.w);`));
+    current();const sampled=gpu.bind(velocity,[flux,fluxTail,mobility,wall,s0],coords);
+    const combine=groups.merge(s0);
+    await scheduler.perform([phase('retain compatible inlet velocity',e=>{
+      gpu.dispatch(e,velocity,sampled,grid);combine(e);e.clearBuffer(force);e.clearBuffer(loads);e.clearBuffer(mg.p);
+    })],current);
+    stats.initialization={kind:'projected-uniform-inflow',projectionPasses:passes,relativeDivergenceMax:maximum,maxDivergencePerS:maximum/f.period};
+  }
+  async function initialize(scheduler,current){
+    if(f.projectInflow&&!stats.initialization)await projectInflow(scheduler,current);
+    return stats.initialization??null;
+  }
   return {state:s0,predicted:pred,pressure:mg.p,pressureHierarchy:mg,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,
-    groupTransport:grouped?.stats,mobility,fluxConvergence:stats,
+    groupTransport:grouped?.stats,mobility,fluxConvergence:stats,initialize,
     async restart(buffer,velocityRatio,scheduler,assertCurrent,parentGrid=null){
       if(!f.laminar||f.cutCells||f.rotor||buffer.size!==16*countOf(parentGrid?.dims??f.dims)||!(velocityRatio>0&&Number.isFinite(velocityRatio)))
         throw Error('Invalid steady momentum checkpoint');
@@ -1669,11 +1744,12 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       }finally{next.destroy();peak.destroy();read.destroy();}
     },
     async advance(i,sampling,scheduler,assertCurrent){
+      if(i===0&&f.projectInflow)await initialize(scheduler,assertCurrent);
       spin?.angle(f.omega*(i+.5)*dt);
       if(outer){await scheduler.perform([predictMomentum],assertCurrent);await outer.solve(scheduler,assertCurrent);}
       if(grouped){await scheduler.perform([predictMomentum,...mergePred],assertCurrent);await grouped.solve(scheduler,assertCurrent);}
       const checkPrimary=f.faceHistory&&i>=checkPrimaryAt;
-      await scheduler.perform([...forecast[Number(i===0)],...checkPrimary?[]:first,check],assertCurrent);
+      await scheduler.perform([...forecast[Number(i===0&&!stats.initialization)],...checkPrimary?[]:first,check],assertCurrent);
       let maximum=await measure(),passes=checkPrimary?0:1;
       if(checkPrimary){
         stats.primaryChecks++;
@@ -1981,13 +2057,19 @@ export function refineAdjointGrid(parent,weights,cap,maxAxisEntries=Infinity){
 
 // Equidistribute the integral of 1 / local pitch. Outside the dense interval
 // the pitch grows linearly with distance, giving gently graded physical cells.
-export function gradedAxis(start,end,denseStart,denseEnd,pitch,growth=.16){
+export function gradedAxis(start,end,denseStart,denseEnd,pitch,growth=.16,count){
   if(![start,end,denseStart,denseEnd,pitch,growth].every(Number.isFinite)||end<=start||pitch<=0||growth<=0||denseEnd<denseStart)
     throw Error('Invalid rectilinear CFD spacing');
   const lo=Math.max(start,Math.min(end,denseStart)),hi=Math.max(start,Math.min(end,denseEnd));
+  const intervals=h=>(Math.log1p(growth*(lo-start)/h)+Math.log1p(growth*(end-hi)/h))/growth+(hi-lo)/h;
+  if(count&&intervals(pitch)>count){
+    let small=pitch,large=end-start;
+    for(let i=0;i<40;i++){const mid=(small+large)/2;if(intervals(mid)>count)small=mid;else large=mid;}
+    pitch=large;
+  }
   const left=Math.log1p(growth*(lo-start)/pitch)/growth,core=(hi-lo)/pitch;
   const total=left+core+Math.log1p(growth*(end-hi)/pitch)/growth;
-  const n=8*Math.max(1,Math.ceil(total/8));
+  const n=count??8*Math.max(1,Math.ceil(total/8));
   return Float64Array.from({length:n+1},(_,i)=>{
     if(i===0)return start;if(i===n)return end;
     const t=i*total/n-left;

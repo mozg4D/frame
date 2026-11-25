@@ -64,7 +64,8 @@ export async function verifyModeledRegime(){
         v.maxFluidMach>r.referenceMach&&y.p50>0&&y.p95>=y.p50&&
         y.method==='Spalding smooth-wall shear'&&Math.abs(y.sampledAreaM2/r.pressureStats.sampledAreaM2-1)<1e-5&&
         v.maxDivergencePerS<1e-6,elapsedMs:performance.now()-start,state:s.state,steps:r.steps,Re:r.reynolds,
-        pressureSampledAreaM2:r.pressureStats.sampledAreaM2,validity:v};
+        pressureSampledAreaM2:r.pressureStats.sampledAreaM2,dragN:r.forceLocal.drag,forceWorld:r.forceWorld,torqueNm:r.torque,
+        ci95Drag:r.uncertainty.ci95Drag,windows:r.completeWindows,initialization:r.initialization,validity:v};
     }
     if(!['queued','solving'].includes(s.state)||performance.now()-start>15*60*1000)
       throw Error('Modeled flow regime '+JSON.stringify(s.job));

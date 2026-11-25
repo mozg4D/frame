@@ -13,6 +13,9 @@ const cases={
   'saved-translation':['translation-check','verifySavedTranslation'],
   'oblique-shape':['steady-shape-check','verifyObliqueSteadyForce'],
   'paired':['paired-check','verifyPairedSolve'],
+  'grid-shift':['shift-check','verifyGridShift'],'preview-grid-shift':['shift-check','verifyPreviewGridShift'],
+  'car-first-field':['shift-check','verifyCarFirstField'],
+  'initial-discharge':['initial-flow-check','verifyInitialDischarge'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'surface-components':['surface-components-check','verifySurfaceComponents'],
   'transport-weights':['adjoint-refinement-check','verifyTransportWeights'],'adjoint-refinement':['adjoint-refinement-check','verifyAdjointRefinement'],
@@ -29,7 +32,8 @@ if(!Object.hasOwn(cases,which))throw Error('Choose --case='+Object.keys(cases).j
 const [moduleName,method]=cases[which],name='plugins/cfd/tests/m0/'+moduleName+'.mjs',output=resolve(args.find(v=>v.startsWith('--out='))?.slice(6)??'tests/results/cfd-live-'+which+'.json');
 const files=[...new Set(['index.html','plugins/cfd/plugin.js','plugins/cfd/plugin.json','plugins/cfd/tests/native-flow.mjs',
   'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,...which==='surface-components'?['plugins/cfd/tests/m0/native-geometry.mjs']:[],
-  ...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[]])];
+  ...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[],
+  ...which==='car-first-field'?['plugins/cfd/tests/m0/ahmed.mjs']:[]])];
 if(files.some(f=>resolve(f)===output))throw Error('Use a separate path for the result.');
 const hashes=async()=>Object.fromEntries(await Promise.all(files.map(async f=>[f,createHash('sha256').update(await readFile(new URL('../../../'+f,import.meta.url))).digest('hex')])));
 const result={case:which,startedUtc:new Date().toISOString(),sources:await hashes(),pageErrors:[],pass:false};
