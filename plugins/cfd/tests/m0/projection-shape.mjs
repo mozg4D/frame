@@ -1,6 +1,5 @@
 import {gridWGSL} from './fixtures.mjs';
-import {metricBuffer,metricWGSL} from './rectilinear.mjs';
-import {pressureMultigrid} from './multigrid.mjs';
+import {metricBuffer,metricWGSL,pressureMultigrid} from '../../plugin.js';
 
 // Local derivative of the same two planar triangles used by cutMetric.
 // Inputs are signed distances in metres. A positive normal displacement of

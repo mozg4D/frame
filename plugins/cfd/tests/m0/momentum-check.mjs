@@ -1,9 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {cartesianSolver} from './fvm.mjs';
-import {cellCenter,cellWidth} from './rectilinear.mjs';
-import {sstWallWGSL} from './wall-law.mjs';
-import {linearCutPressure} from './cut-pressure.mjs';
-import {cutGroups} from './cut-groups.mjs';
+import {cartesianSolver,cellCenter,cellWidth,sstWallWGSL,linearCutPressure,cutGroups} from '../../plugin.js';
 
 const boxLo=[12.53,1.38,2.52],boxHi=[16.48,5.42,5.46];
 export function cutBox(p){
@@ -166,9 +162,9 @@ export async function verifyMomentum(device,graded=false,wallModeled=false,cutCe
 export async function verifyLinearWallPressure(device,graded){
   const gpu=gpuScope(device),dims=[32,8,8],n=2048,h=.004;
   const axes=graded?dims.map(d=>Float64Array.from({length:d+1},(_,i)=>h*i*(.7+.3*i/d))):undefined;
-  const f={name:'linear-cut',dims,axes,h,origin:[0,0,0],pressureOpen:Array(6).fill(false)};
+  const f={name:'linear-cut',dims,axes,h,origin:[0,0,0],pressureOpen:Array(6).fill(false),fullMoment:true};
   const material=new Float32Array(4*n),wall=new Float32Array(4*n),centers=new Float32Array(6*n),p=new Float32Array(n);
-  const axial=new Float32Array(n),loads=new Float32Array(4*n),gradient=[.23,-.39,.17],strides=[1,32,256];
+  const axial=new Float32Array(n),loads=new Float32Array(8*n),gradient=[.23,-.39,.17],strides=[1,32,256];
   function coords(i){return [i%32,(i>>5)%8,i>>8];}
   for(let i=0;i<n;i++){
     const xyz=coords(i),{theta,open,centers:offset}=cutBox(xyz);
@@ -183,20 +179,23 @@ export async function verifyLinearWallPressure(device,graded){
       return p[i]*(lo-hi)*width[(k+1)%3]*width[(k+2)%3];
     });
     axial[i]=force[0];loads.set([force[0],arm[1]*force[2]-arm[2]*force[1],force[1],force[2]],4*i);
+    loads.set([0,0,arm[2]*force[0]-arm[0]*force[2],arm[0]*force[1]-arm[1]*force[0]],4*(n+i));
   }
   const physical=(v,k)=>{const j=Math.floor(v+.5);return cellCenter(f,k,j)+(v-j)*h*cellWidth(f,k,j);};
   const lo=boxLo.map(physical),hi=boxHi.map(physical),volume=hi.reduce((s,v,k)=>s*(v-lo[k])/h,1);
   const target=gradient.map(v=>-v*volume),arm=lo.map((v,k)=>(v+hi[k])*.5);
-  const expectedTorque=arm[1]*target[2]-arm[2]*target[1];
+  const expectedMoment=arm.map((_,k)=>arm[(k+1)%3]*target[(k+2)%3]-arm[(k+2)%3]*target[(k+1)%3]);
   try{
     const fx=gpu.buffer('CFD base manufactured drag',axial),all=gpu.buffer('CFD base manufactured load',loads);
     const apply=await linearCutPressure(gpu,f,gpu.buffer('CFD box apertures',material),gpu.buffer('CFD box face moments',centers),
       gpu.buffer('CFD box wall volumes',wall),gpu.buffer('CFD affine pressure',p),gpu.buffer('CFD affine pressure impulses',n*32),fx,all);
     const e=device.createCommandEncoder();apply(e);device.queue.submit([e.finish()]);
-    const read=await gpu.read(all,gpu.staging('CFD manufactured surface load',all.size),4*n),sum=[0,0,0,0];
-    for(let i=0;i<read.length;i++)sum[i%4]+=read[i];
+    const read=await gpu.read(all,gpu.staging('CFD manufactured surface load',all.size),8*n),sum=Array(8).fill(0);
+    for(let i=0;i<read.length;i++)sum[(i<4*n?0:4)+i%4]+=read[i];
     const measured=[sum[0],sum[2],sum[3]],forceError=Math.max(...measured.map((x,k)=>Math.abs(x/target[k]-1)));
-    const torqueError=Math.abs(sum[1]/expectedTorque-1);
-    return {expectedForce:target,measuredForce:measured,forceError,expectedTorque,measuredTorque:sum[1],torqueError,pass:forceError<5e-6&&torqueError<.02};
+    const measuredMoment=[sum[1],sum[6],sum[7]];
+    const torqueError=Math.max(...measuredMoment.map((x,k)=>Math.abs(x/expectedMoment[k]-1)));
+    return {expectedForce:target,measuredForce:measured,forceError,expectedMoment,measuredMoment,
+      expectedTorque:expectedMoment[0],measuredTorque:sum[1],torqueError,pass:forceError<5e-6&&torqueError<.02};
   }finally{gpu.close();}
 }

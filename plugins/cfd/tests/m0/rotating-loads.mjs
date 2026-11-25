@@ -1,23 +1,7 @@
-import {gpuScope} from './gpu.mjs';
+import {rotatingLoads} from '../../plugin.js';
+export {rotatingLoads} from '../../plugin.js';
 
-// Integrate each physical step in both the rotating basis and the fixed box
-// axes. Rotating a mean transverse load after a revolution loses its phase.
-export async function rotatingLoads(gpu,loads){
-  const phase=gpu.buffer('CFD angle at the impulse midpoint',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  const sums=gpu.buffer('CFD rotating and fixed transverse impulses',loads.size);
-  const pipe=await gpu.kernel('CFD phase-resolved transverse reaction',`
-    @group(0) @binding(0) var<storage,read_write> load:array<vec4f>;
-    @group(0) @binding(1) var<storage,read_write> sum:array<vec4f>;
-    @group(0) @binding(2) var<uniform> phase:vec4f;
-    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-      let i=g.x;if(i>=arrayLength(&load)){return;}let q=load[i];let f=q.zw;
-      sum[i]+=vec4f(f,phase.x*f.x-phase.y*f.y,phase.y*f.x+phase.x*f.y);
-      load[i]=vec4f(q.xy,0.,0.);
-    }`);
-  const group=gpu.bind(pipe,[loads,sums,phase]),grid=[Math.ceil(loads.size/(16*128))];
-  return {sums,angle(value){gpu.device.queue.writeBuffer(phase,0,new Float32Array([Math.cos(value),Math.sin(value)]));},
-    encode:e=>gpu.dispatch(e,pipe,group,grid)};
-}
+import {gpuScope} from './gpu.mjs';
 
 export async function verifyRotatingLoads(device){
   const gpu=gpuScope(device);

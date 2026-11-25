@@ -1,7 +1,6 @@
 import {gpuScope} from './gpu.mjs';
 import {cutBox} from './momentum-check.mjs';
-import {cartesianSolver} from './fvm.mjs';
-import {cutGroups} from './cut-groups.mjs';
+import {cartesianSolver,cutGroups} from '../../plugin.js';
 
 // Start from the same non-solenoidal pulse beside a closed off-grid wall.
 // Compare complete time histories including the physical pressure and its

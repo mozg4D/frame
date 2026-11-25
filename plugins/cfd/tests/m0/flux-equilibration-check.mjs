@@ -1,6 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {cellWidth} from './rectilinear.mjs';
-import {fluxEquilibration} from './flux-equilibration.mjs';
+import {cellWidth,fluxEquilibration} from '../../plugin.js';
 
 export async function verifyFluxEquilibration(device){
   const gpu=gpuScope(device),dims=[12,7,5],n=dims.reduce((a,b)=>a*b),h=.003,dt=.0002;

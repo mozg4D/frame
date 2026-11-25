@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {cellCenter,cellWidth} from './rectilinear.mjs';
+import {cellCenter,cellWidth} from '../../plugin.js';
 import {pressureBarriers} from './pressure-barrier.mjs';
 
 // Compare displaced, non-axis-aligned pressure links against exact halfspace

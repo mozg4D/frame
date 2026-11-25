@@ -1,5 +1,5 @@
 import {gridWGSL} from './fixtures.mjs';
-import {wallResistanceWGSL} from './wall-law.mjs';
+import {wallResistanceWGSL} from '../../plugin.js';
 import {latticeMass} from './lattice-mass.mjs';
 
 // A single packed lattice plus a snapshot of shared brick boundaries. A

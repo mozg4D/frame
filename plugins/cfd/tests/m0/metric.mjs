@@ -1,23 +1,8 @@
+import {extendNativeMetric} from '../../plugin.js';
+export {extendNativeMetric} from '../../plugin.js';
+
 import {gpuScope} from './gpu.mjs';
 import {geometryKernel} from './fixtures.mjs';
-
-// Frame's directional solid field is positive inside. It seeds the native
-// distance extension in grid cells. Consumers choose their own sign and units.
-export async function extendNativeMetric(gpu,dims,packed,bandCells){
-  const n=dims.reduce((a,b)=>a*b),device=gpu.device;
-  const source=document.getElementById('frame-unite-filter').textContent;
-  const [seed,extend]=await Promise.all(['seed','extend'].map(entry=>gpu.kernel('CFD native Unite '+entry,source,entry)));
-  const settings=new ArrayBuffer(128);new Uint32Array(settings).set([...dims,n]);
-  new Float32Array(settings).set([0,bandCells,2,0],28);
-  const u=gpu.buffer('CFD native band configuration',new Uint8Array(settings),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  const a=gpu.buffer('CFD native distance A',n*4),b=gpu.buffer('CFD native distance B',n*4);
-  const bind=(pipe,entries)=>device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:entries.map(([binding,buffer])=>({binding,resource:{buffer}}))});
-  const groups=Math.ceil(n/64),grid=[Math.min(65535,groups),Math.ceil(groups/65535)];
-  const e=device.createCommandEncoder();gpu.dispatch(e,seed,bind(seed,[[0,packed],[1,a],[5,u]]),grid);
-  const ping=bind(extend,[[1,a],[2,b],[5,u]]),pong=bind(extend,[[1,b],[2,a],[5,u]]);
-  for(let i=0;i<bandCells;i++)gpu.dispatch(e,extend,i%2?pong:ping,grid);
-  device.queue.submit([e.finish()]);return bandCells%2?b:a;
-}
 
 // Exercise the actual Unite seed/extend WGSL. Its input is positive inside and
 // its metric is in cells. The graph uses metres and the opposite sign.

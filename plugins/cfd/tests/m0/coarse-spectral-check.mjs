@@ -1,5 +1,5 @@
 import {gpuScope,median} from './gpu.mjs';
-import {pressureMultigrid} from './multigrid.mjs';
+import {pressureMultigrid} from '../../plugin.js';
 
 // The two variants see the same independently assembled cut pressure row and
 // manufactured pressure. Include local blocks, true outer restarts and final

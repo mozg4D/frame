@@ -1,6 +1,6 @@
 import {meshReader,meshResources} from './pressure-barrier.mjs';
 import {gridWGSL} from './fixtures.mjs';
-import {metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {metricBuffer,metricWGSL} from '../../plugin.js';
 import {cutMetricWGSL} from './cut-metric.mjs';
 
 const storage=(i,id,t,w=false)=>`@group(0) @binding(${i}) var<storage,${w?'read_write':'read'}> ${id}:array<${t}>;`;

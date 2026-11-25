@@ -1,8 +1,7 @@
 import {gpuScope} from './gpu.mjs';
 import {gridWGSL} from './fixtures.mjs';
-import {metricWGSL} from './rectilinear.mjs';
+import {metricWGSL,subcellMetricWGSL} from '../../plugin.js';
 import {cutGridWGSL,cutMetricWGSL,halfspace,squareMoment} from './cut-metric.mjs';
-import {subcellMetricWGSL} from './subcell-metric.mjs';
 
 export async function verifySubcellSurface(device){
   const gpu=gpuScope(device),f={dims:[1,1,1],h:1};

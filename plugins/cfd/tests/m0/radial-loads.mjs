@@ -1,4 +1,4 @@
-import {cellCenter} from './rectilinear.mjs';
+import {cellCenter} from '../../plugin.js';
 
 // Sum forces along the shaft on the device. The remaining columns have a
 // single radius in the shaft-centred physical frame, also on a graded grid.

@@ -1,6 +1,8 @@
+import {gradeCapturedDomain,immersedMobilityWGSL,gridWGSL,metricWGSL,metricBuffer} from '../../plugin.js';
+export {immersedMobilityWGSL,gridWGSL} from '../../plugin.js';
+
 import {rotorDistanceWGSL,rotorTable,rotorTriangles} from './rotor.mjs';
 import {pressureBarriers} from './pressure-barrier.mjs';
-import {metricWGSL,metricBuffer,rectilinearDomain} from './rectilinear.mjs';
 import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 
 // Reference values are consulted by the scorer only. Both candidates sample
@@ -21,7 +23,7 @@ export function flowFixture(name,tier,measuredPlanform=false){
   const dims=(rotor?[80,72,72]:sphere?[88,56,56]:[144,40,64]).map(v=>Math.round(v*tier));
   const diameter=0.254, rps=5011/60, omega=rotor?2*Math.PI*rps:0;
   const rho=1.2,U=rotor?0:sphere?1:id==='ahmed-wake'?40:60,maxSpeed=rotor?omega*diameter/2:U;
-  return {id,name,h,dims,rotor,sphere,rho,U,maxSpeed,omega,nu:rotor?1.5e-5:sphere?U*0.08/100:id==='ahmed-wake'?U*.288/768000:U*1.044/4.29e6,
+  return {id,name,h,dims,rotor,sphere,laminar:sphere,fixedFloor:name==='ahmed',rho,U,maxSpeed,omega,nu:rotor?1.5e-5:sphere?U*0.08/100:id==='ahmed-wake'?U*.288/768000:U*1.044/4.29e6,
     origin:rotor?[-0.32,-0.288,-0.288]:sphere?[-0.32,-0.28,-0.28]:[-0.96,0,-1.024],
     period:rotor?1/rps:(sphere?0.08:1.044)/U,
     normalization:rotor?rho*rps**2*diameter**4:0.5*rho*U**2*(sphere?Math.PI*0.04**2:0.389*0.288),
@@ -41,13 +43,7 @@ export function gradedFixture(f,tier,bounds){
       for(let i=0;i<vertices.length;i++){const a=i%3;bounds.min[a]=Math.min(bounds.min[a],vertices[i]);bounds.max[a]=Math.max(bounds.max[a],vertices[i]);}
     }else bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
   }
-  const extent=bounds.max.map((v,i)=>v-bounds.min[i]),max=Math.max(...extent);
-  // Keep resolution across the short dimensions of a fixed thin body, while
-  // permitting a larger spanwise pitch. No measured force enters the mesh.
-  if(!(max>0))return f;
-  const spanPitch=Math.sqrt(max*Math.max(max/16,Math.min(...extent)))/22;
-  const pitch=extent.map(d=>Math.max(max/128,Math.min(spanPitch,Math.max(d,max/16)/16))/tier);
-  return rectilinearDomain(f,bounds,pitch,tier===1?750000:3000000);
+  return gradeCapturedDomain(f,bounds,tier,tier===1?750000:3000000);
 }
 
 export function surfaceBand(f){
@@ -59,23 +55,6 @@ export function surfaceBand(f){
 }
 
 const floats=a=>a.map(v=>Number(v).toFixed(8)).join(',');
-
-// The truncated sine integral has an exactly closed solid endpoint. Evaluating
-// sin(-pi) in FP32 there would leave a small positive permeability in a solid.
-export const immersedMobilityWGSL=`fn fluidMobility(d:f32)->f32{
-  if(d<=-.5){return 0.;}if(d>=.5){return 1.;}let x=2.*d;
-  let m=.5*(1.+x+sin(3.14159265*x)/3.14159265);
-  return select(0.,min(1.,m),m>=.00001);}`;
-
-export function gridWGSL(f){
-  const [x,y,z]=f.dims;
-  return `const NX=${x}u;const NY=${y}u;const NZ=${z}u;const CELLS=${x*y*z}u;
-    const DIMS=vec3i(${x},${y},${z});
-    fn point(i:u32)->vec3i{return vec3i(vec3u(i%NX,(i/NX)%NY,i/(NX*NY)));}
-    fn index(p:vec3i)->u32{return u32(p.x)+NX*(u32(p.y)+NY*u32(p.z));}
-    fn inside(p:vec3i)->bool{return all(p>=vec3i(0))&&all(p<DIMS);}
-    fn bounded(p:vec3i)->u32{return index(clamp(p,vec3i(0),DIMS-1));}`;
-}
 
 export async function geometryKernel(gpu,f,dt,withPressure=false){
   const body=f.rotor?rotorDistanceWGSL(f.measuredPlanform):f.sphere?`fn distanceToBody(p:vec3f,phase:vec2f)->f32{return length(p)-0.04;}`:`

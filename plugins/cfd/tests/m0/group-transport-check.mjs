@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {groupTransport} from './group-transport.mjs';
+import {groupTransport} from '../../plugin.js';
 import {verifyMomentum} from './momentum-check.mjs';
 
 // Independently eliminate the physical control-volume matrix in Float64.

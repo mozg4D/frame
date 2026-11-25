@@ -1,8 +1,7 @@
 import {flowFixture,gradedFixture} from './fixtures.mjs';
-import {boxAxes,boxMetric,captureFlowSurfaces,researchSceneContext} from './native-geometry.mjs';
+import {boxAxes,captureFlowSurfaces,researchSceneContext} from './native-geometry.mjs';
 import {runCase} from './flow.mjs';
-import {mediumProperties} from './fluid.mjs';
-import {LOCAL_BOX} from '../../plugin.js';
+import {mediumProperties,capturedDomain} from '../../plugin.js';
 import {ahmedMesh,wakeTunnel} from './ahmed.mjs';
 import {rotorParts} from './rotor.mjs';
 import {nativeAxialSpin} from './rigid-spin.mjs';
@@ -122,33 +121,13 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
   return {...result,sourceExtentM:extent,supportBoundsM:supportBounds,sourceSignature:capture.signature};
 }
 
-// One-level qualification domain around the complete evaluated occurrences.
-// Use the box axes and physical sizes, independently of camera or source names.
-function sceneDomain(ctx,hash,capture,tier,axisOrigin){
-  const metric=boxMetric(ctx.document.world(hash));
-  for(let a=0;a<3;a++)metric[12+a]=-axisOrigin[a];
-  const boxCorners=Array.from({length:8},(_,k)=>ctx.math.point(metric,LOCAL_BOX.min.map((v,a)=>k&(1<<a)?LOCAL_BOX.max[a]:v)));
-  const box=mergedBounds(boxCorners.map(p=>({min:p,max:p}))),bodies=capture.meshes.length?mergedBounds(capture.meshes.map(m=>m.bounds)):box;
-  const scale=Math.max(...bodies.max.map((v,k)=>v-bodies.min[k]))||Math.max(...box.max.map((v,k)=>v-box.min[k])),bounds=mergedBounds([box,bodies]);
-  const road=capture.params.Medium==='Air'&&capture.params.Ground==='Road';
-  const origin=bounds.min.map((v,k)=>k===1&&road?box.min[1]:v-3*scale);
-  const extent=bounds.max.map((v,k)=>v+(k===0?8:3)*scale-origin[k]);
-  // Cube-aligned bricks, bounded by both per-binding capacity and the
-  // one-level GPU study budget. Keep all physical lengths in metres.
-  const cap=Math.min(Math.floor(ctx.device.limits.maxStorageBufferBindingSize/32),tier===1?750000:3000000);
-  let h=scale/(tier*14),dims;
-  do{h=Math.max(h,Math.cbrt(extent.reduce((a,b)=>a*b)/cap));dims=extent.map(v=>Math.max(8,8*Math.ceil(v/(8*h))));
-    if(dims.reduce((a,b)=>a*b)<=cap)break;h*=1.025;}while(true);
-  return {origin,dims,h,scale,road,bodies};
-}
-
 export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=false,globalPressure=false,settings={}){
   const ctx=researchSceneContext(frameEngine),scene=await frameAI.call('scene.inspect');
   const boxes=scene.objects.filter(n=>n.type==='cfd');if(!boxes.length)throw Error('The saved Frame scene has no CFD Box');
   const cases=[];
   for(const box of boxes){
     const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash,{allowStationary:true});
-    const domain=sceneDomain(ctx,box.hash,capture,tier,motion?.axisOriginM??[0,0,0]);
+    const domain=capturedDomain(ctx,box.hash,capture,tier,motion?.axisOriginM);
     if(motion&&domain.road)throw Error('A road cannot share an axial rotating reference frame');
     const {Speed:U,Medium,Altitude}=capture.params,fluid=mediumProperties(Medium,Altitude),omega=motion?.omega??0;
     const diameter=motion?.diameterM??0,rps=Math.abs(omega)/(2*Math.PI),tip=.5*diameter*Math.abs(omega);

@@ -1,4 +1,4 @@
-import {devicePressureCG} from './pressure-cg.mjs';
+import {devicePressureCG} from '../../plugin.js';
 
 const decl=(i,name,type,write=false)=>`@group(0) @binding(${i}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
 // Factor the actual small Galerkin matrix in double precision once. Every

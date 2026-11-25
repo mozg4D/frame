@@ -1,6 +1,5 @@
 import {gridWGSL} from './fixtures.mjs';
-import {metricBuffer,metricWGSL} from './rectilinear.mjs';
-import {wallResistanceWGSL} from './wall-law.mjs';
+import {metricBuffer,metricWGSL,wallResistanceWGSL} from '../../plugin.js';
 
 // Read bounded slabs of numerical samples. Compare grid resolutions by
 // physical body-wall area at a given y+, independently of the number of cells.

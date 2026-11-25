@@ -1,8 +1,6 @@
 import {gpuScope} from './gpu.mjs';
-import {pressureMultigrid} from './multigrid.mjs';
-import {immersedFaceWGSL} from './fvm.mjs';
+import {pressureMultigrid,immersedFaceWGSL,cellCenter,cellWidth,metricBuffer,metricWGSL} from '../../plugin.js';
 import {capturedPressureBarriers,researchSceneContext} from './native-geometry.mjs';
-import {cellCenter,cellWidth,metricBuffer,metricWGSL} from './rectilinear.mjs';
 import {gridWGSL} from './fixtures.mjs';
 
 // A zero-thickness impermeable piston accelerates initially resting fluid

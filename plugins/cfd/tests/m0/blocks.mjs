@@ -1,55 +1,5 @@
-// Invert a separable Dirichlet block of the seven-point pressure operator.
-// The orthonormal sine transform is symmetric and is its own inverse.
-export function blockBasis(n) {
-  const q = new Float32Array(n*n), eigen = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const angle = Math.PI * (i+1) / (n+1);
-    eigen[i] = 4 * Math.sin(angle/2)**2;
-    for (let j = 0; j < n; j++) q[i*n+j] = Math.sqrt(2/(n+1)) * Math.sin((j+1)*angle);
-  }
-  return {q, eigen};
-}
-
-const storage = (binding, name, mode = 'read') =>
-  `@group(0) @binding(${binding}) var<storage,${mode}> ${name}:array<f32>;`;
-
-export async function gpuBlocks(gpu, n, dims, half) {
-  const {q,eigen} = blockBasis(n);
-  const table = gpu.buffer('CFD sine basis and eigenvalues', new Float32Array([...q,...eigen]));
-  const t = half ? 'f16' : 'f32', lanes = 128, localCount = n**3 / lanes;
-  const code = `${half ? 'enable f16;' : ''}
-    ${storage(0,'rhs')} ${storage(1,'out','read_write')} ${storage(2,'basis')}
-    const N=${n}u; const LANES=${lanes}u;
-    var<workgroup> tile:array<${t},${n**3}>;
-    fn xyz(i:u32)->vec3u {return vec3u(i%N,(i/N)%N,i/(N*N));}
-    fn address(p:vec3u)->u32 {return p.x+${dims[0]}u*(p.y+${dims[1]}u*p.z);}
-    @compute @workgroup_size(${lanes})
-    fn main(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) brick:vec3u) {
-      var values:array<${t},${localCount}>;
-      for(var k=0u;k<${localCount}u;k++){let i=k*LANES+lane;tile[i]=${t}(rhs[address(brick*N+xyz(i))]);}
-      workgroupBarrier();
-      for(var step=0u;step<6u;step++){
-        let axis=step%3u; var stride=1u;
-        if(axis==1u){stride=N;} if(axis==2u){stride=N*N;}
-        for(var k=0u;k<${localCount}u;k++){
-          let i=k*LANES+lane;let p=xyz(i);let c=p[axis];let base=i-c*stride;
-          var v=${t}(0);
-          for(var j=0u;j<N;j++){v+=${t}(basis[c*N+j])*tile[base+j*stride];}
-          if(step==2u){v=${t}(f32(v)/(basis[N*N+p.x]+basis[N*N+p.y]+basis[N*N+p.z]));}
-          values[k]=v;
-        }
-        workgroupBarrier();
-        for(var k=0u;k<${localCount}u;k++){tile[k*LANES+lane]=values[k];}
-        workgroupBarrier();
-      }
-      for(var k=0u;k<${localCount}u;k++){let i=k*LANES+lane;out[address(brick*N+xyz(i))]=f32(tile[i]);}
-    }`;
-  const pipeline = await gpu.kernel('CFD Fast Diagonalization '+t+' '+n, code);
-  return {kind:half?'webgpu-f16':'webgpu-fp32',
-    binding:(input,output)=>gpu.bind(pipeline,[input,output,table]),
-    encode:(encoder,binding)=>gpu.dispatch(encoder,pipeline,binding,dims.map(d=>d/n)),
-    apply(input, output) { gpu.run(pipeline,[input,output,table],dims.map(d=>d/n)); }};
-}
+import {blockBasis,storage} from '../../plugin.js';
+export {blockBasis,gpuBlocks} from '../../plugin.js';
 
 function halves(values) {
   // Constants use the same IEEE binary16 conversion as the interop buffers.

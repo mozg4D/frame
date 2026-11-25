@@ -1,6 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {cellCenter,cellWidth} from './rectilinear.mjs';
-import {cutFaceTransport} from './face-transport.mjs';
+import {cellCenter,cellWidth,cutFaceTransport} from '../../plugin.js';
 
 export async function verifyFaceTransport(device,graded){
   const gpu=gpuScope(device),dims=[8,8,8],n=512,h=.01,dt=.002,nu=.00013;

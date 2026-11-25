@@ -1,4 +1,4 @@
-import {cellCenter,cellWidth} from './rectilinear.mjs';
+import {cellCenter,cellWidth} from '../../plugin.js';
 
 // Sample at physical streamwise stations. Keep the actual vertical coordinates
 // so the tunnel boundary layer and wake can be compared with independent LDA.

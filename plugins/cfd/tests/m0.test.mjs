@@ -12,16 +12,12 @@ import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation,rotorParts,rotorTable} from './m0/rotor.mjs';
-import {axialTrackRate} from '../plugin.js';
+import {axialTrackRate,mediumProperties,gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth,pressureTransfers,cutBlockInverse} from '../plugin.js';
 import {boxMetric} from './m0/native-geometry.mjs';
-import {mediumProperties} from './m0/fluid.mjs';
-import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
-import {pressureTransfers} from './m0/coarse-spectral.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh,wakeTunnel} from './m0/ahmed.mjs';
 import {tunnelProfiles} from './m0/wake.mjs';
-import {cutBlockInverse} from './m0/cut-block-factor.mjs';
 test('wind tunnel retains physical bounds, a single pressure outlet and fixed LDA stations on graded axes',()=>{
   const box=wakeTunnel(flowFixture('ahmed-wake',1)),bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
   const grid=rectilinearDomain(box,bounds,[.04,.02,.03],750000);

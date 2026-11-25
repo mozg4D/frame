@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {outerTransport} from './outer-transport.mjs';
+import {outerTransport} from '../../plugin.js';
 
 // Solve independent forward/backward constant-throughput rows in Float64.
 // Compare all three momentum components, k, omega and the total budget.

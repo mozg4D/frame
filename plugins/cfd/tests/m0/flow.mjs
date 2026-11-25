@@ -1,11 +1,10 @@
+import {settledPeriods,sumForce,rotorTransportStep,cartesianSolver,faceBalanceWGSL,viewportBudget,cellCenter,cellWidth,metricWGSL,metricBuffer,cutGroups} from '../../plugin.js';
+export {settledPeriods,sumForce} from '../../plugin.js';
+
 import {gpuScope} from './gpu.mjs';
 import {flowFixture,geometryKernel,gradedFixture,gridWGSL,references} from './fixtures.mjs';
-import {cartesianSolver,faceBalanceWGSL} from './fvm.mjs';
 import {momentSolver} from './mr-lbm.mjs';
 import {wakeLength,tunnelProfiles} from './wake.mjs';
-import {viewportBudget} from './viewport-budget.mjs';
-import {cellCenter,cellWidth,metricWGSL,metricBuffer} from './rectilinear.mjs';
-import {cutGroups} from './cut-groups.mjs';
 import {cutWallResolution} from './wall-resolution.mjs';
 import {radialLoads} from './radial-loads.mjs';
 
@@ -32,35 +31,6 @@ export function viewportMonitor(){
       qualified:!drawError&&intervals.length>=15&&fps>=59.5&&p95(intervals)<=17.2};
   };
   return Object.assign(stop,{lastFrame:()=>rafTime});
-}
-
-export function settledPeriods(windows,requireWake=false){
-  if(windows.length<8)return false;
-  const recent=windows.slice(-6);
-  function stationary(key){
-    const v=recent.map(w=>w[key]);if(!v.every(Number.isFinite))return false;
-    const a=(v[0]+v[1]+v[2])/3,b=(v[3]+v[4]+v[5])/3,scale=Math.max(Math.abs(a),Math.abs(b));
-    return scale===0||Math.abs(a-b)<.005*scale&&Math.max(...v.slice(3))-Math.min(...v.slice(3))<.02*scale;
-  }
-  return stationary('coefficient')&&(!requireWake||stationary('wakeLengthM'))&&
-    (recent.at(-1).powerCoefficient===undefined||stationary('powerCoefficient'));
-}
-
-export async function sumForce(gpu,force,count,components=1){
-  const type=components===1?'f32':'vec4f';
-  const n=Math.ceil(count/128),partials=gpu.buffer('CFD window force sums',n*4*components),stage=gpu.staging('CFD window sums readback',n*4*components);
-  const pipeline=await gpu.kernel('CFD force reduction',`
-    @group(0) @binding(0) var<storage,read> f:array<${type}>; @group(0) @binding(1) var<storage,read_write> sums:array<${type}>;
-    var<workgroup> w:array<${type},128>;
-    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(workgroup_id) id:vec3u,@builtin(local_invocation_index) j:u32){
-      var x:${type};if(g.x<${count}u){x=f[g.x];}w[j]=x;
-      for(var k=64u;k>0u;k/=2u){workgroupBarrier();if(j<k){w[j]+=w[j+k];}}
-      if(j==0u){sums[id.x]=w[0];}}`);
-  return async()=>{
-    gpu.run(pipeline,[force,partials],[n]);const data=await gpu.read(partials,stage,n*components);
-    if(components===1)return data.reduce((a,b)=>a+b,0);
-    const total=Array(components).fill(0);for(let i=0;i<data.length;i++)total[i%components]+=data[i];return total;
-  };
 }
 
 // Reintegrate the actual accumulated wall loads by axial location. The
@@ -150,17 +120,6 @@ async function sampleFlow(gpu,f,solver,dt,wakeLengthM,wall,momentumGroups){
   return {...certified,gpuDivergencePerS:peak[0]/dt,maxCourant,maxExplicitCourant,bodyWallResolution,maxIndividualCellCourant:peak[1],maxFluidGaugePressureMagnitudePa:pressureScale*peak[2],
     maxSolidGaugePressureMagnitudePa:pressureScale*peak[3],relativeDivergenceMax:certified.maxDivergencePerS*f.period,
     wakeLengthM,wallYPlusViscousEstimateP50:half?2**((middle+.5-64)/8):null};
-}
-
-function rotorTransportStep(f){
-  const [dx]=f.minPitch,[,ys,zs]=f.axes;
-  let maxRate=0;
-  for(let j=0;j<ys.length-1;j++)for(let k=0;k<zs.length-1;k++){
-    const dy=ys[j+1]-ys[j],dz=zs[k+1]-zs[k];
-    const frameRate=.5*Math.abs(f.omega)*(Math.abs(zs[k]+zs[k+1])/dy+Math.abs(ys[j]+ys[j+1])/dz);
-    maxRate=Math.max(maxRate,frameRate+f.maxSpeed*Math.hypot(1/dx,1/dy,1/dz));
-  }
-  return .65/maxRate;
 }
 
 async function stepMonitor(gpu,solver,count){

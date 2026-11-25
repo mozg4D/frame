@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {surfacePressure} from './surface-pressure.mjs';
+import {surfacePressure} from '../../plugin.js';
 
 // The wrench of a linear pressure on a closed solid follows directly from
 // its physical volume and centroid. Alternate triangle winding and poison

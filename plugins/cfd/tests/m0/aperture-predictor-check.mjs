@@ -1,6 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {aperturePredictor} from './aperture-predictor.mjs';
-import {cellCenter,cellWidth} from './rectilinear.mjs';
+import {aperturePredictor,cellCenter,cellWidth} from '../../plugin.js';
 
 // Independently integrate sample affine velocity on offset rectangular
 // apertures by averaging four polygon corners. Use unequal physical widths.

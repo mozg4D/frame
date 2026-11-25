@@ -1,5 +1,5 @@
 import {gpuScope} from './gpu.mjs';
-import {cutPressureBlocks} from './cut-blocks.mjs';
+import {cutPressureBlocks} from '../../plugin.js';
 
 // Solve both neighbouring Dirichlet subdomains independently in FP64 with
 // ordinary Gaussian elimination. The second block has to see the first one.
