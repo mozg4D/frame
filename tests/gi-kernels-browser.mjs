@@ -59,11 +59,13 @@ export async function giKernelsBrowserChecks(page){
     assert.ok(pt.newCameraSamples>0);
 
     await call('scene.update',{id:(await call('scene.inspect')).objects.find(o=>o.type==='render').hash,params:{realtime:'on',samples:2}});
-    await page.waitForFunction(()=>frameEngine.renderState().gi?.cacheSlots>0,{timeout:30000});
+    await page.waitForFunction(()=>frameEngine.renderState().gi?.nodes>0,{timeout:30000});
     const st=await call('render.inspect');
-    assert.ok(st.gi.cacheSlots>=1024&&st.filmFaults===0,JSON.stringify(st.gi));
+    assert.ok(st.gi.nodes>=256&&st.filmFaults===0,JSON.stringify(st.gi));
+    assert.ok(['webnn','wgsl'].includes(st.gi.substrate),JSON.stringify(st.gi));
     assert.equal(typeof st.gi.webnn?.available,'boolean',JSON.stringify(st.gi));
     assert.equal(typeof st.gi.webnn?.active,'boolean',JSON.stringify(st.gi));
+    assert.equal(typeof st.gi.webnn?.zeroCopy,'boolean',JSON.stringify(st.gi));
     assert.equal(typeof st.gi.webnn?.backend,'string',JSON.stringify(st.gi));
     assert.equal(typeof st.gi.webnn?.reason,'string',JSON.stringify(st.gi));
     assert.deepEqual(errors,[]);

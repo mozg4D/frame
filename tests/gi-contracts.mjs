@@ -144,9 +144,10 @@ export async function giContractsChecks(){
   });
 
   const webnn=await c.probeWebNN(null);
-  check('probeWebNN returns bounded fallback telemetry without navigator.ml',()=>{
+  check('probeWebNN returns bounded zeroCopy/fallback telemetry without navigator.ml',()=>{
     assert.equal(typeof webnn.available,'boolean');
     assert.equal(webnn.active,false);
+    assert.equal(webnn.zeroCopy,false);
     assert.equal(typeof webnn.backend,'string');
     assert.equal(typeof webnn.reason,'string');
   });

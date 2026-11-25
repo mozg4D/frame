@@ -64,16 +64,14 @@ export async function giStage3CacheBrowserChecks(page){
       return {history,lin};
     });
 
-    assert.ok(staticRun.history.every(h=>h.cacheSlots>0&&h.faults===0));
-    assert.ok(staticRun.history.slice(1).some(h=>h.fbUsed>0),'SHaRC 50% ping-pong feedback queue must feed subsequent frames');
-    assert.equal(staticRun.history[5].fbStaleRejected,0,'Stationary sequence must have 0 stale feedback rejections');
+    assert.ok(staticRun.history.every(h=>h.nodes>0&&h.substrate==='wgsl'&&h.faults===0));
     for(const pt of staticRun.lin)assert.ok(pt.color.every(v=>Number.isFinite(v)&&v>=0));
     const maxBounce=Math.max(...staticRun.lin.map(p=>p.color[0]+p.color[1]+p.color[2]));
-    assert.ok(maxBounce>0.01,'SHaRC multi-bounce indirect lighting illuminates room walls: '+maxBounce);
-    checks.push({name:'SHaRC v3 converges across stationary Interactive GI frames with active feedback',pass:true});
+    assert.ok(maxBounce>0.01,'Radiosity + ReSTIR DI multi-bounce indirect lighting illuminates room walls: '+maxBounce);
+    checks.push({name:'Radiosity graph + ReSTIR DI converges across stationary Interactive GI frames',pass:true});
 
-    // Move blocker -> epoch increments without full table wipe
-    const slotsBefore=staticRun.history[5].cacheSlots;
+    // Move blocker -> epoch increments without full graph reallocation
+    const nodesBefore=staticRun.history[5].nodes;
     const epochBefore=staticRun.history[5].transportEpoch;
     await call('transform.set',{ids:[blocker.hash],channel:'position',axis:0,value:-30});
     const moveRun=await page.evaluate(async()=>{
@@ -88,11 +86,11 @@ export async function giStage3CacheBrowserChecks(page){
       return {h1,h2,lin};
     });
 
-    assert.equal(moveRun.h1.cacheSlots,slotsBefore);
-    assert.ok(moveRun.h1.transportEpoch>epochBefore,'Moving object increments transportEpoch for per-cell replacement');
+    assert.equal(moveRun.h1.nodes,nodesBefore);
+    assert.ok(moveRun.h1.transportEpoch>epochBefore,'Moving object increments transportEpoch');
     assert.equal(moveRun.h1.faults,0);assert.equal(moveRun.h2.faults,0);
     for(const pt of moveRun.lin)assert.ok(pt.color.every(v=>Number.isFinite(v)&&v>=0));
-    checks.push({name:'Per-cell transportEpoch replacement preserves cache slots and finite output',pass:true});
+    checks.push({name:'transportEpoch invalidation preserves radiosity nodes and finite output',pass:true});
 
     await call('render.stop');
     await call('material.assign',{id:emCard.hash,material:whiteMat.uid});
