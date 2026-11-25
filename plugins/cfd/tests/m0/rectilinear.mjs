@@ -16,6 +16,32 @@ export function gradedAxis(start,end,denseStart,denseEnd,pitch,growth=.16){
   });
 }
 
+// Integrate the smaller of the background pitch and the pitch growing away
+// from either geometric extremum. All three functions are piecewise linear.
+// Their intersections keep the integral and its inversion exact.
+export function surfaceGradedAxis(start,end,coreLo,coreHi,bodyLo,bodyHi,pitch,skin,growth=.16){
+  const background=x=>pitch+growth*Math.max(0,coreLo-x,x-coreHi);
+  const boundary=x=>skin+growth*Math.min(Math.abs(x-bodyLo),Math.abs(x-bodyHi));
+  const knots=[...new Set([start,end,...[coreLo,coreHi,bodyLo,bodyHi,(bodyLo+bodyHi)/2].filter(x=>x>start&&x<end)])].sort((a,b)=>a-b);
+  const corners=[start];
+  for(let i=1;i<knots.length;i++){
+    const l=knots[i-1],r=knots[i],a=background(l)-boundary(l),b=background(r)-boundary(r);
+    if(a*b<0)corners.push(l+(r-l)*a/(a-b));corners.push(r);
+  }
+  const segments=[];let count=0;
+  for(let i=1;i<corners.length;i++){
+    const x=corners[i-1],y=corners[i],h=Math.min(background(x),boundary(x)),last=Math.min(background(y),boundary(y));
+    const gradient=(last-h)/(y-x),span=Math.abs(last-h)<1e-12*h?(y-x)/h:Math.log1p((last-h)/h)/gradient;
+    segments.push({x,h,gradient,first:count});count+=span;
+  }
+  const n=Math.max(8,8*Math.ceil(count/8));let j=0;
+  return Float64Array.from({length:n+1},(_,i)=>{
+    if(i===0)return start;if(i===n)return end;const d=count*i/n;
+    while(j+1<segments.length&&segments[j+1].first<d)j++;
+    const {x,h,gradient,first}=segments[j],local=d-first;return x+h*(Math.abs(gradient)<1e-12?local:Math.expm1(gradient*local)/gradient);
+  });
+}
+
 export function rectilinearDomain(f,bounds,pitches,cap){
   const end=f.origin.map((x,k)=>x+f.dims[k]*f.h),length=bounds.max.map((v,k)=>v-bounds.min[k]);
   const scale=Math.max(...length);
@@ -24,7 +50,8 @@ export function rectilinearDomain(f,bounds,pitches,cap){
     const axes=f.origin.map((x,k)=>{
       const target=pitches[k]*factor,pad=Math.max(2*target,.15*length[k]);
       const downstream=k===0?Math.min(scale,Math.max(4*target,length[k])):pad;
-      return gradedAxis(x,end[k],bounds.min[k]-pad,bounds.max[k]+downstream,target);
+      return f.wallSpacing?surfaceGradedAxis(x,end[k],bounds.min[k]-pad,bounds.max[k]+downstream,
+        bounds.min[k],bounds.max[k],target,.25*target):gradedAxis(x,end[k],bounds.min[k]-pad,bounds.max[k]+downstream,target);
     });
     const dims=axes.map(a=>a.length-1),cells=dims.reduce((a,b)=>a*b);
     if(cells<=cap){

@@ -3,6 +3,7 @@ import {boxAxes,boxMetric,captureFlowSurfaces,researchSceneContext} from './nati
 import {runCase} from './flow.mjs';
 import {mediumProperties} from './fluid.mjs';
 import {LOCAL_BOX} from '../../plugin.js';
+import {ahmedMesh} from './ahmed.mjs';
 
 // A native primitive is evaluated and converted to its renderer-backed mesh
 // by Frame. Only the scoring stage knows the analytic sphere reference.
@@ -32,6 +33,25 @@ function mergedBounds(bounds){
   return {min,max};
 }
 
+export async function benchmarkNativeAhmed(device,tier,progress,selection){
+  const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
+  const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Ahmed control volume'});
+  await call('scene.update',{id:box.hash,params:{Speed:60}});
+  await call('transform.set',{ids:[box.hash],channel:'size',axis:0,value:1800,coordinates:'world'});
+  const body=await call('mesh.create',ahmedMesh());
+  await call('diagnostics.frame',{frames:4});
+  const source=captureFlowSurfaces(device,ctx,box.hash),mesh=source.meshes[0];
+  if(source.meshes.length!==1||mesh.hash!==body.hash)throw Error('Expected one evaluated Ahmed surface in the CFD Box');
+  const extent=mesh.bounds.max.map((x,k)=>x-mesh.bounds.min[k]);
+  if(extent.some((v,k)=>Math.abs(v-[1.044,.288,.389][k])>.001))throw Error('Native Ahmed dimensions disagree with the reference: '+extent);
+  const origin=[mesh.bounds.min[0],mesh.bounds.min[1]-.05,(mesh.bounds.min[2]+mesh.bounds.max[2])*.5];
+  const capture=captureFlowSurfaces(device,ctx,box.hash,origin),air=mediumProperties('Air',0);
+  const f={...flowFixture('ahmed',tier),...selection,rho:air.rho,nu:air.nu,normalization:.5*air.rho*60**2*.389*.288,
+    geometry:'Evaluated native Ahmed polygon surface; fixed wind-tunnel floor, support tare omitted'};
+  const result=await runCase(device,selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
+  return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
+}
+
 // One-level qualification domain around the complete evaluated occurrences.
 // Use the box axes and physical sizes, independently of camera or source names.
 function sceneDomain(ctx,hash,capture,tier){
@@ -51,7 +71,7 @@ function sceneDomain(ctx,hash,capture,tier){
   return {origin,dims,h,scale,road,bodies};
 }
 
-export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=false,globalPressure=false){
+export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=false,globalPressure=false,settings={}){
   const ctx=researchSceneContext(frameEngine),scene=await frameAI.call('scene.inspect');
   const boxes=scene.objects.filter(n=>n.type==='cfd');if(!boxes.length)throw Error('The saved Frame scene has no CFD Box');
   const cases=[];
@@ -60,7 +80,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
     const {Speed:U,Medium,Altitude}=capture.params,fluid=mediumProperties(Medium,Altitude),maxSpeed=Math.max(U,fluid.nu/domain.h);
     const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega:0,
       rotor:false,sphere:false,movingRoad:domain.road,laminar:U*domain.scale/fluid.nu<200,period:domain.scale/maxSpeed,
-      budgetMs,globalPressure,normalization:1,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
+      budgetMs,globalPressure,cutCells:settings.cutCells,sheetLinks:settings.sheetLinks,faceHistory:settings.faceHistory,linearWallPressure:settings.linearWallPressure,wallSpacing:settings.wallSpacing,
+      normalization:1,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);
     const windows=result.windows.slice(-2),axes=boxAxes(ctx.document.world(box.hash));

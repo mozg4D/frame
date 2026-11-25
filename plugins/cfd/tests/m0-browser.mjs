@@ -12,9 +12,11 @@ const reportPath=resolve(args.find(s=>s.startsWith('--out='))?.slice(6) ?? 'test
 const pressureOnly=args.includes('--pressure-only');
 const wallOnly=args.includes('--wall-only');
 const nativeSphere=args.includes('--native-sphere');
+const nativeAhmed=args.includes('--native-ahmed');
+if(nativeSphere&&nativeAhmed)throw Error('Choose a single native CFD reference');
 const scenePath=args.find(s=>s.startsWith('--scene='))?.slice(8),saveFixture=args.find(s=>s.startsWith('--save-fixture='))?.slice(15);
-if(saveFixture&&!nativeSphere)throw Error('Saving a reference scene requires --native-sphere');
-if(scenePath&&(nativeSphere||resolve(scenePath)===reportPath))throw Error('Use a separate report path for a saved scene');
+if(saveFixture&&!nativeSphere&&!nativeAhmed)throw Error('Saving requires a native reference scene');
+if(scenePath&&(nativeSphere||nativeAhmed||resolve(scenePath)===reportPath))throw Error('Use a separate report path for a saved scene');
 if(saveFixture&&resolve(saveFixture)===reportPath)throw Error('Use separate paths for the reference scene and its report');
 const sceneBytes=scenePath?await readFile(scenePath):null;
 const experimentalWebNN=args.includes('--experimental-webnn');
@@ -24,6 +26,15 @@ const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:
 selection.trace=args.includes('--trace-steps');
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
 selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
+selection.cutCells=args.includes('--cut-cells');
+selection.faceHistory=args.includes('--transport-faces');
+selection.linearWallPressure=args.includes('--linear-wall-pressure');
+selection.wallSpacing=args.includes('--wall-spacing');
+if(selection.wallSpacing&&!selection.graded)throw Error('Surface-focused axis spacing requires a graded Cartesian domain');
+selection.sheetLinks=args.includes('--sheet-links');
+if(selection.sheetLinks&&!selection.cutCells)throw Error('Fluid representative segments require cut-volume geometry');
+if(selection.linearWallPressure&&!selection.cutCells)throw Error('Linear wall pressure uses cut-cell face geometry');
+if(selection.cutCells&&selection.inertialRotor)throw Error('Cut-volume momentum groups require fixed geometry in the solver frame');
 if(selection.graded&&selection.inertialRotor)throw Error('Grading around fixed blades requires the rotating reference frame');
 const seconds=args.find(s=>s.startsWith('--budget-seconds='))?.slice(17);
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
@@ -65,7 +76,7 @@ try{
   page.on('pageerror',e=>errors.push(e.message));
   await page.exposeFunction('cfdProgress',line=>console.log(line));
   await page.goto(server.url+'/index.html');await ready(page);
-  const result=await page.evaluate(async({pressureOnly,wallOnly,nativeSphere,savedScene,saveFixture,graphOnly,tier,focused,selection})=>{
+  const result=await page.evaluate(async({pressureOnly,wallOnly,nativeSphere,nativeAhmed,savedScene,saveFixture,graphOnly,tier,focused,selection})=>{
     const device=frameEngine.renderer.device, info=device.adapterInfo;
     const hardware=Object.fromEntries(['vendor','architecture','device','description','isFallbackAdapter'].map(k=>[k,info?.[k]]));
     if(info?.isFallbackAdapter!==false || !(info.vendor||info.architecture||info.device||info.description) || /swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(hardware)))throw Error('A verified hardware WebGPU device is required');
@@ -81,28 +92,39 @@ try{
     if(!momentum.pass)throw Error('Fluid/body impulse mismatch: '+JSON.stringify(momentum));
     const exteriorMomentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true);
     if(!exteriorMomentum.pass)throw Error('Exterior traction or smooth-wall relation failed: '+JSON.stringify(exteriorMomentum));
+    const cutMetric=selection.cutCells?await (await import('./plugins/cfd/tests/m0/cut-metric.mjs')).verifyCutMetric(device):null;
+    if(cutMetric&&!cutMetric.pass)throw Error('Inclined-plane face or volume fraction failed: '+JSON.stringify(cutMetric));
+    const cutMomentum=selection.cutCells?await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true,true,selection.linearWallPressure):null;
+    if(cutMomentum&&!cutMomentum.pass)throw Error('Cut-volume fluid/body impulse mismatch: '+JSON.stringify(cutMomentum));
+    const affineWall=selection.linearWallPressure?await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyLinearWallPressure(device,selection.graded):null;
+    if(affineWall&&!affineWall.pass)throw Error('Manufactured cut-wall pressure load failed: '+JSON.stringify(affineWall));
+    const sheet=selection.sheetLinks?await (await import('./plugins/cfd/tests/m0/sheet-check.mjs')).verifySheetLinks(device,selection.graded):null;
+    if(sheet&&!sheet.pass)throw Error('A displaced pressure segment disagrees with an exact sheet crossing: '+JSON.stringify(sheet));
     await window.cfdProgress('Body impulse agrees with an independent fluid momentum balance on every axis');
     const {benchmarkPressure}=await import('./plugins/cfd/tests/m0/pressure.mjs');
-    const pressure=wallOnly||nativeSphere||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
+    const pressure=wallOnly||nativeSphere||nativeAhmed||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
     const progress=s=>window.cfdProgress(s);
     let flow=null;
     if(savedScene){await frameAI.call('scene.open',savedScene);await frameAI.call('diagnostics.frame',{frames:4});
-      const cases=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).solveCapturedBoxes(device,tier,selection.budgetMs,progress,selection.graded,selection.globalPressure);
+      const cases=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).solveCapturedBoxes(device,tier,selection.budgetMs,progress,selection.graded,selection.globalPressure,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases,contests:scoreContests(cases)};}
     else if(nativeSphere){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeSphere(device,tier,selection.budgetMs,progress,selection.graded,selection.trace,selection.globalPressure);
+      const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
+    else if(nativeAhmed){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeAhmed(device,tier,progress,selection);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
     else if(!wallOnly&&!pressureOnly)flow=await (await import('./plugins/cfd/tests/m0/flow.mjs')).benchmarkFlow(device,progress,graphOnly,tier,selection);
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,regularPressure,pressure,flow,errors,lost,fixture};
-  },{pressureOnly,wallOnly,nativeSphere,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,regularPressure,pressure,flow,errors,lost,fixture};
+  },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
   if(fp32Only && (result.webnn||result.features.includes('shader-f16')))throw Error('Optional backends were enabled in the fallback trial');
   if(saveFixture){await mkdir(dirname(resolve(saveFixture)),{recursive:true});await writeFile(resolve(saveFixture),Buffer.from(fixture.base64,'base64'),{flag:'wx'});}
   if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&c.field&&Number.isFinite(c.field.relativeDivergenceMax));
+    report.sceneStudyConverged=result.flow.cases.every(c=>c.stable&&c.massPassed);
     if(!report.sceneStudyCompleted)throw Error('Saved scene study did not produce finite completed windows and a flux certificate');}
   report.harnessCompleted=true;
   report.gatePassed=Boolean(result.pressure?.selected&&result.flow?.contests.qualified);

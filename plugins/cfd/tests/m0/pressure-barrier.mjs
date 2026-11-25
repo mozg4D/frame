@@ -5,9 +5,9 @@ import {metricWGSL,metricBuffer} from './rectilinear.mjs';
 // no effect. Boundary-face storage has one bit for each positive axis.
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 
-export function pressureBarriers(gpu,f,triangles,phase){
+export function pressureBarriers(gpu,f,triangles,phase,representatives=null){
   const positions=gpu.buffer('CFD fixture vertices',triangles.vertices),indices=gpu.buffer('CFD fixture indices',triangles.indices);
-  return meshPressureBarriers(gpu,f,[{storage:'buffer',positions,indices,matrix:identity,triangleCount:triangles.indices.length/3}],phase);
+  return meshPressureBarriers(gpu,f,[{storage:'buffer',positions,indices,matrix:identity,triangleCount:triangles.indices.length/3}],phase,undefined,representatives);
 }
 
 // Matrices map source positions to metres in the physical solver frame. Native
@@ -25,7 +25,7 @@ export function meshReader(storage){
     return access+`fn sourcePoint(i:u32)->vec3f{let k=3u*vertex(i);return vec3f(coord(k),coord(k+1u),coord(k+2u));}`;
 }
 export function meshResources(mesh){return mesh.storage==='texture'?[mesh.positions.view,mesh.indices.view]:[{buffer:mesh.positions},{buffer:mesh.indices}];}
-export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>{}){
+export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>{},representatives=null){
   const mask=gpu.buffer('CFD crossed Cartesian face bits',4*f.dims.reduce((a,b)=>a*b));
   const pipelines=new Map();
   for(const storage of new Set(meshes.map(m=>m.storage))){
@@ -34,6 +34,7 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
     @group(0) @binding(3) var<uniform> phase:vec2f;
     struct Occurrence {matrix:mat4x4f,count:u32};
     @group(0) @binding(4) var<uniform> mesh:Occurrence;
+    ${representatives?'@group(0) @binding(5) var<storage,read> rep:array<vec4f>;':''}
     const D=vec3i(${f.dims.join(',')});
     fn gridPoint(i:u32)->vec3f{
       let v=mesh.matrix*vec4f(sourcePoint(i),1.);
@@ -47,10 +48,41 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
       if(all(p>=vec3i(0))&&all(p<D)&&p[axis]+1<D[axis]){
         atomicOr(&mask[u32(p.x+D.x*(p.y+D.y*p.z))],1u<<axis);}
     }
+    ${representatives?`
+    fn address(p:vec3i)->u32{return u32(p.x+D.x*(p.y+D.y*p.z));}
+    fn intersect(l:vec3f,r:vec3f,a:vec3f,ab:vec3f,ac:vec3f)->bool{
+      let segment=r-l;let n=cross(ab,ac);let det=dot(n,segment);
+      if(abs(det)<=1e-8*length(n)*length(segment)){return false;}
+      let t=dot(n,a-l)/det;if(t<-.000002||t>1.000002){return false;}
+      let v=l+t*segment-a;let norm2=dot(n,n);
+      let s=dot(n,cross(v,ac))/norm2;let u=dot(n,cross(ab,v))/norm2;
+      return s>=-.000002&&u>=-.000002&&s+u<=1.000002;
+    }
+    fn sealRepresentativeLinks(a:vec3f,ab:vec3f,ac:vec3f){
+      let normal=cross(ab,ac);if(dot(normal,normal)<=1e-22){return;}
+      var ax=0u;if(abs(normal.y)>abs(normal[ax])){ax=1u;}if(abs(normal.z)>abs(normal[ax])){ax=2u;}
+      let u=(ax+1u)%3u;let v=(ax+2u)%3u;let b=a+ab;let c=a+ac;
+      let mn=min(a,min(b,c));let mx=max(a,max(b,c));
+      let lo=max(vec2i(0),vec2i(lower(u,mn[u]),lower(v,mn[v]))-2);
+      let hi=min(vec2i(D[u]-1,D[v]-1),vec2i(lower(u,mx[u]),lower(v,mx[v]))+1);
+      let slope=-vec2f(normal[u],normal[v])/normal[ax];
+      for(var y=lo.y;y<=hi.y;y++){for(var x=lo.x;x<=hi.x;x++){
+        let lm=axisMetric(u,x);let um=axisMetric(u,min(D[u]-1,x+1));
+        let bm=axisMetric(v,y);let tm=axisMetric(v,min(D[v]-1,y+1));
+        let start=vec2f(lm.x-.5*lm.y,bm.x-.5*bm.y);let end=vec2f(um.x+.5*um.y,tm.x+.5*tm.y);
+        let mid=a[ax]+dot(slope,.5*(start+end)-vec2f(a[u],a[v]));let halfSpan=.5*dot(abs(slope),end-start);
+        let first=max(0,lower(ax,mid-halfSpan)-2);let last=min(D[ax]-1,lower(ax,mid+halfSpan)+1);
+        for(var z=first;z<=last;z++){var p=vec3i(0);p[u]=x;p[v]=y;p[ax]=z;
+          let l=rep[address(p)];if(l.w==0.){continue;}
+          for(var k=0u;k<3u;k++){var q=p;q[k]++;if(q[k]>=D[k]){continue;}let r=rep[address(q)];
+            if(r.w>0.&&intersect(l.xyz,r.xyz,a,ab,ac)){mark(p,k);}}
+        }
+      }}
+    }`:''}
     @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(num_workgroups) groups:vec3u){
       let t=g.x+g.y*groups.x*64u;if(t>=mesh.count){return;}let i=3u*t;
       let a=gridPoint(i);let ab=gridPoint(i+1u)-a;let ac=gridPoint(i+2u)-a;
-      for(var ax=0u;ax<3u;ax++){
+      ${representatives?'sealRepresentativeLinks(a,ab,ac);':`for(var ax=0u;ax<3u;ax++){
         let u=(ax+1u)%3u;let v=(ax+2u)%3u;
         let e1=vec2f(ab[u],ab[v]);let e2=vec2f(ac[u],ac[v]);let det=cross2(e1,e2);
         if(abs(det)<1e-10){continue;}
@@ -64,7 +96,7 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
           let h=a[ax]+s*ab[ax]+t*ac[ax];var p=vec3i(0);p[u]=x;p[v]=y;p[ax]=lower(ax,h-.00001)-1;
           mark(p,ax);let right=lower(ax,h+.00001)-1;if(p[ax]!=right){p[ax]=right;mark(p,ax);}
         }}
-      }
+      }`}
     }`);
     pipelines.set(storage,pipe);
   }
@@ -76,6 +108,7 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
   const draws=meshes.map((mesh,i)=>{
     const pipe=pipelines.get(mesh.storage);
     const resources=[...meshResources(mesh),{buffer:mask},{buffer:phase},{buffer:settings,offset:i*stride,size:80}];
+    if(representatives)resources.push({buffer:representatives});
     const entries=resources.map((resource,binding)=>({binding,resource}));
     if(f.axes)entries.push({binding:12,resource:{buffer:metricBuffer(gpu,f)}});
     const group=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries});

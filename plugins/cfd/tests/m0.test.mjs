@@ -12,8 +12,55 @@ import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation} from './m0/rotor.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
-import {gradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
+import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
+import {ahmedMesh} from './m0/ahmed.mjs';
+import {cutBlockInverse} from './m0/cut-block-factor.mjs';
+test('cut-brick inverse resolves a weakly connected fluid region and preserves pressure differences in a sealed pocket',()=>{
+  const rows=new Float32Array(256),p=Float64Array.from({length:64},(_,i)=>Math.sin(i*.65)),rhs=new Float64Array(64),diag=new Float64Array(64);
+  for(let i=0;i<64;i++){
+    const x=i%4,y=(i>>2)%4,z=i>>4;const sealed=x>=2&&y>=2&&z>=2;
+    for(const [a,coord] of [x,y,z].entries()){
+      if(coord===3)continue;const next=[x,y,z];next[a]++;
+      if(next.every(v=>v>=2)!==sealed)continue;
+      rows[4*i+a]=a===1&&y===1?1e-3:1+.01*(i+a);
+    }
+    if(x===0)rows[4*i+3]=1;
+  }
+  for(let i=0;i<64;i++){
+    diag[i]+=rows[4*i+3];rhs[i]+=rows[4*i+3]*p[i];
+    for(const [a,step] of [1,4,16].entries()){
+      const c=rows[4*i+a];if(!c)continue;const j=i+step;diag[i]+=c;diag[j]+=c;
+      const q=c*(p[i]-p[j]);rhs[i]+=q;rhs[j]-=q;
+    }
+  }
+  const inv=cutBlockInverse(rows),s=diag.map(d=>Math.sqrt(6/d));
+  const recovered=p.map((_,i)=>s[i]*rhs.reduce((sum,r,j)=>sum+inv[64*i+j]*s[j]*r,0));
+  for(let i=0;i<64;i++){
+    const x=i%4,y=(i>>2)%4,z=i>>4;
+    assert.ok(Math.abs(recovered[i]-(p[i]-(x>=2&&y>=2&&z>=2?p[42]:0)))<1e-5);
+  }
+});
+test('surface-focused axes preserve the box extent and refine both geometric extrema',()=>{
+  const axis=surfaceGradedAxis(-2,4,-.2,2,0,1,.04,.01),widths=axis.slice(1).map((v,i)=>v-axis[i]);
+  const pitch=x=>widths[axis.findIndex((v,i)=>i>0&&v>=x)-1];
+  assert.equal(axis[0],-2);assert.equal(axis.at(-1),4);assert.equal(widths.length%8,0);
+  assert.ok(widths.every(v=>v>0));assert.ok(pitch(0)<.012&&pitch(1)<.012&&pitch(.5)>.035);
+  assert.ok(widths.every((v,i)=>!i||Math.max(v/widths[i-1],widths[i-1]/v)<1.2));
+});
+test('authored Ahmed polygons enclose the analytic nose, body and slant with outward winding',()=>{
+  const {vertices:v,indices:t}=ahmedMesh(),edges=new Map();let volume=0;
+  for(let k=0;k<t.length;k+=3){
+    const ids=t.slice(k,k+3),[a,b,c]=ids.map(i=>v.slice(3*i,3*i+3));
+    volume+=(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;
+    for(let j=0;j<3;j++){
+      const i=ids[j],h=ids[(j+1)%3],key=[Math.min(i,h),Math.max(i,h)].join('/');
+      edges.set(key,(edges.get(key)??0)+Math.sign(h-i));}
+  }
+  const radius=100,angle=25*Math.PI/180,nose=4*radius*(44*94.5+(44+94.5)*radius*Math.PI/4+2*radius**2/3);
+  const expected=nose+(1044-radius)*288*389-.5*389*222**2*Math.cos(angle)*Math.sin(angle);
+  assert.ok([...edges.values()].every(x=>x===0));assert.ok(Math.abs(volume/expected-1)<.0001);
+});
 test('whole-domain pressure modes satisfy the variable-width boundary stencil and mass normalization',()=>{
   const w=[.35,.5,.8,1,1.2,1.9,3,4];
   for(const [left,right] of [[true,false],[false,false],[true,true]]){

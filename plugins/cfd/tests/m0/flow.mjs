@@ -5,6 +5,7 @@ import {momentSolver} from './mr-lbm.mjs';
 import {wakeLength} from './wake.mjs';
 import {viewportBudget} from './viewport-budget.mjs';
 import {cellCenter,cellWidth,metricWGSL,metricBuffer} from './rectilinear.mjs';
+import {cutGroups} from './cut-groups.mjs';
 
 // A bounded trial reports time to target only after completing its physical windows.
 export const caseBudgetMs=120000;
@@ -78,18 +79,23 @@ async function axialLoads(gpu,f,force,loads){
 // Independent acceptance check in Float64. Copy bounded slabs of numerical
 // fluxes after timing the solve. Retain only a maximum and its location.
 async function certifyFlux(gpu,solver,f,count,dt){
-  const chunk=Math.min(count,32768),stage=gpu.staging('CFD independent flux certificate',64*chunk);
+  const chunk=Math.min(count,32768),stage=gpu.staging('CFD independent flux certificate',(f.cutCells?80:64)*chunk);
   const [nx,ny]=f.dims;
   let rawMax=0,max=0,worst=-1;
   for(let first=0;first<count;first+=chunk){
     const n=Math.min(chunk,count-first),bytes=32*n,e=gpu.device.createCommandEncoder();
     e.copyBufferToBuffer(solver.flux,32*first,stage,0,bytes);e.copyBufferToBuffer(solver.fluxTail,32*first,stage,bytes,bytes);
-    gpu.device.queue.submit([e.finish()]);await stage.mapAsync(GPUMapMode.READ,0,2*bytes);
-    try{const range=stage.getMappedRange(0,2*bytes),hi=new Float32Array(range,0,8*n),low=new Float32Array(range,bytes,8*n);
+    if(f.cutCells)e.copyBufferToBuffer(solver.mobility,16*first,stage,2*bytes,16*n);
+    const total=2*bytes+(f.cutCells?16*n:0);
+    gpu.device.queue.submit([e.finish()]);await stage.mapAsync(GPUMapMode.READ,0,total);
+    try{const range=stage.getMappedRange(0,total),hi=new Float32Array(range,0,8*n),low=new Float32Array(range,bytes,8*n);
+      const metric=f.cutCells?new Float32Array(range,2*bytes,4*n):null;
       for(let i=0;i<n;i++){
         const j=8*i;let raw=0,extra=0;for(let a=0;a<3;a++){raw+=hi[j+a]-hi[j+4+a];extra+=low[j+a]-low[j+4+a];}
         const cell=first+i;
-        const volume=f.axes?cellWidth(f,0,cell%nx)*cellWidth(f,1,Math.floor(cell/nx)%ny)*cellWidth(f,2,Math.floor(cell/(nx*ny))):1;
+        const theta=metric?metric[4*i+3]:1;
+        if(theta===0){if(raw+extra!==0)throw Error('Closed cut volume carries a mass defect');continue;}
+        const volume=theta*(f.axes?cellWidth(f,0,cell%nx)*cellWidth(f,1,Math.floor(cell/nx)%ny)*cellWidth(f,2,Math.floor(cell/(nx*ny))):1);
         rawMax=Math.max(rawMax,Math.abs(raw)/volume);const imbalance=Math.abs(raw+extra)/volume;
         if(!Number.isFinite(imbalance))throw Error('Nonfinite stored CFD face flow');if(imbalance>max){max=imbalance;worst=first+i;}
       }
@@ -103,7 +109,7 @@ function windowWake(f,dt,plane,steps,previous=null){
   return wakeLength(f,nx,ny,(i,j)=>f.sphere?.5*(value(i+nx*j)+value(i+nx*(j-1))):value(i+nx*j));
 }
 
-async function sampleFlow(gpu,f,solver,dt,wakeLengthM,wall){
+async function sampleFlow(gpu,f,solver,dt,wakeLengthM,wall,momentumGroups){
   const count=f.dims.reduce((a,b)=>a*b),groups=Math.ceil(count/128),[nx,ny]=f.dims;
   const result=gpu.buffer('CFD divergence, Courant and pressure maxima',groups*16),stage=gpu.staging('CFD diagnostic readback',Math.max(result.size,nx*ny*4,128*4));
   const histogram=gpu.buffer('CFD near-wall y+ histogram',128*4);
@@ -116,25 +122,28 @@ async function sampleFlow(gpu,f,solver,dt,wakeLengthM,wall){
     @group(0) @binding(4) var<storage,read_write> histogram:array<atomic<u32>>;
     @group(0) @binding(5) var<storage,read> tail:array<Flux>;
     @group(0) @binding(6) var<storage,read> pressure:array<f32>;
+    ${f.cutCells?'@group(0) @binding(7) var<storage,read> mobility:array<vec4f>;':''}
     var<workgroup> lanes:array<vec4f,128>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) j:u32,@builtin(workgroup_id) id:vec3u){
       var d=vec4f(0);if(g.x<CELLS){let q=flux[g.x];let dq=tail[g.x];let w=cellWidths(point(g.x));let vol=w.x*w.y*w.z;
-        d.x=abs(faceBalance(q.hi.xyz,q.lo.xyz)+faceBalance(dq.hi.xyz,dq.lo.xyz))/vol;let y=wall[g.x].x;
-        let moving=${f.rotatingFrame?'vec3f(0.,wall[g.x].yz)*faceAreas(w)':'vec3f(0)'};
-        let flows=abs(q.hi.xyz+dq.hi.xyz-moving)+abs(q.lo.xyz+dq.lo.xyz-moving);d.y=.5*(flows.x+flows.y+flows.z)/vol;
-        let pi=abs(pressure[g.x]);d.z=select(0.,pi,y>0.);d.w=select(pi,0.,y>0.);
+        let fluid=${f.cutCells?'mobility[g.x].w':'1.'};let y=wall[g.x].x;
+        d.x=abs(faceBalance(q.hi.xyz,q.lo.xyz)+faceBalance(dq.hi.xyz,dq.lo.xyz))/(vol*max(fluid,1e-30));
+        let moving=${f.rotatingFrame&&!f.cutCells?'vec3f(0.,wall[g.x].yz)*faceAreas(w)':'vec3f(0)'};
+        let flows=abs(q.hi.xyz+dq.hi.xyz-moving)+abs(q.lo.xyz+dq.lo.xyz-moving);d.y=.5*(flows.x+flows.y+flows.z)/(vol*max(fluid,1e-30));
+        let pi=abs(pressure[g.x]);let isFluid=${f.cutCells?'fluid>0.':'y>0.'};d.z=select(0.,pi,isFluid);d.w=select(pi,0.,isFluid);
         if(y>0.&&y<=1.){let vel=length(state[g.x*2u].xyz-vec3f(0.,wall[g.x].yz))*${f.h/dt};
           let yp=sqrt(vel*y*${f.h/f.nu});atomicAdd(&histogram[u32(clamp(floor(log2(max(yp,0.001))*8.+64.),0.,127.))],1u);}}
       lanes[j]=d;for(var k=64u;k>0u;k/=2u){workgroupBarrier();if(j<k){lanes[j]=max(lanes[j],lanes[j+k]);}}
       if(j==0u){result[id.x]=lanes[0];}}`;
-  gpu.run(await gpu.kernel('CFD divergence and wall resolution',code),[solver.state,solver.flux,result,wall,histogram,solver.fluxTail,solver.pressure],[groups],metricBuffer(gpu,f));
+  gpu.run(await gpu.kernel('CFD divergence and wall resolution',code),[solver.state,solver.flux,result,wall,histogram,solver.fluxTail,solver.pressure,...f.cutCells?[solver.mobility]:[]],[groups],metricBuffer(gpu,f));
   const maxima=await gpu.read(result,stage,4*groups),peak=[0,0,0,0];
   for(let i=0;i<maxima.length;i++)peak[i%4]=Math.max(peak[i%4],maxima[i]);
   const pressureScale=f.rho*(f.h/dt)**2;
   const certified=await certifyFlux(gpu,solver,f,count,dt);
   const hist=new Uint32Array((await gpu.read(histogram,stage,128)).buffer),half=hist.reduce((a,b)=>a+b)/2;
   let hits=0;const middle=hist.findIndex(v=>(hits+=v)>=half);
-  return {...certified,gpuDivergencePerS:peak[0]/dt,maxCourant:peak[1],maxFluidGaugePressureMagnitudePa:pressureScale*peak[2],
+  const maxCourant=momentumGroups?await momentumGroups.courant(solver.flux,solver.fluxTail):peak[1];
+  return {...certified,gpuDivergencePerS:peak[0]/dt,maxCourant,maxIndividualCellCourant:peak[1],maxFluidGaugePressureMagnitudePa:pressureScale*peak[2],
     maxSolidGaugePressureMagnitudePa:pressureScale*peak[3],relativeDivergenceMax:certified.maxDivergencePerS*f.period,
     wakeLengthM,wallYPlusViscousEstimateP50:half?2**((middle+.5-64)/8):null};
 }
@@ -165,12 +174,17 @@ async function stepMonitor(gpu,solver,count){
 
 export async function runCase(device,f,kind,progress,capture=null){
   f={...f,rotatingFrame:f.rotor&&kind==='cartesian-fvm'&&!f.inertialRotor,wallModeled:kind==='cartesian-fvm'&&!f.sphere&&!f.laminar&&!(f.rotor&&f.inertialRotor)};
+  f.cutCells=!!f.cutCells&&f.wallModeled;
+  f.faceHistory=!!f.faceHistory&&f.wallModeled;
+  f.linearWallPressure=!!f.linearWallPressure&&f.cutCells;
+  f.sheetLinks=!!f.sheetLinks&&f.cutCells&&!!(capture||f.rotor);
   const gpu=gpuScope(device),start=performance.now();
   const count=f.dims.reduce((a,b)=>a*b),cfl=kind==='cartesian-fvm'?(f.rotor?.12:.32):.065;
   const advectiveStep=f.rotatingFrame&&f.axes?rotorTransportStep(f):cfl*f.h/f.maxSpeed;
   const inverseWidth=(f.minPitch??[f.h,f.h,f.h]).map(w=>1/w),inverseNorm=Math.hypot(...inverseWidth);
   const combinedStep=.78/(f.maxSpeed*inverseNorm+2*f.nu*inverseNorm**2);
-  const dt=kind==='cartesian-fvm'?Math.min(advectiveStep,.145*f.h**2/f.nu,f.axes?combinedStep:Infinity):advectiveStep,periodSteps=Math.round(f.period/dt),windows=[];
+  let dt=kind==='cartesian-fvm'?Math.min(advectiveStep,.145*f.h**2/f.nu,f.axes?combinedStep:Infinity):advectiveStep;
+  const windows=[];
   const budget=f.budgetMs??caseBudgetMs;
   const force=gpu.buffer('CFD window body impulse',count*4);
   const clear=(loads,plane)=>{const e=device.createCommandEncoder();e.clearBuffer(force);if(loads)e.clearBuffer(loads);if(plane)e.clearBuffer(plane);device.queue.submit([e.finish()]);};
@@ -179,7 +193,19 @@ export async function runCase(device,f,kind,progress,capture=null){
     const finiteVolume=kind==='cartesian-fvm';
     const geom=capture?await (await import('./native-volume.mjs')).nativeFlowGeometry(gpu,f,capture):await geometryKernel(gpu,f,dt,finiteVolume);
     geom.update(0);
-    const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response):await momentSolver(gpu,f,dt,geom.wall,force);
+    const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;
+    if(groups&&dt>groups.stableStep){
+      if(f.rotatingFrame){
+        const rescale=await gpu.kernel('CFD wall speed at the cut-volume timestep',`
+          @group(0) @binding(0) var<storage,read_write> wall:array<vec4f>;
+          @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;
+            if(i<arrayLength(&wall)){let w=wall[i];wall[i]=vec4f(w.x,w.yz*${groups.stableStep/dt},w.w);}}`);
+        gpu.run(rescale,[geom.wall],[Math.ceil(count/128)]);
+      }
+      dt=groups.stableStep;
+    }
+    const periodSteps=Math.round(f.period/dt);
+    const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers):await momentSolver(gpu,f,dt,geom.wall,force);
     const trace=f.trace&&solver.pressure?await stepMonitor(gpu,solver,count):null;
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
     const sectionLoads=solver.loads?await axialLoads(gpu,f,force,solver.loads):null;
@@ -188,7 +214,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     await device.queue.onSubmittedWorkDone();
     const setupMs=performance.now()-start;
     const scheduler=solver.advance?viewportBudget(device,stopMonitor.lastFrame):null;
-    let step=0,batch=1,maxBatchMs=0,samplesTaken=0;
+    let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
     periods: for(let window=0;window<32;window++){
       clear(solver.loads,measureWake?solver.plane:null);
@@ -204,7 +230,6 @@ export async function runCase(device,f,kind,progress,capture=null){
             const peak=await trace();progress('step '+(step+1)+' max lattice |u|, |p|, k, omega '+peak.map(x=>x.toExponential(3)).join(' '));
             if(peak.slice(0,2).some(x=>x>1e20))throw Error('Nonfinite or unbounded CFD state at step '+(step+1));
           }
-          if(window>=3)samplesTaken++;
         }
         await device.queue.onSubmittedWorkDone();
         const ms=performance.now()-since;maxBatchMs=Math.max(maxBatchMs,ms);
@@ -232,7 +257,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     }
     const viewport=stopMonitor();stopMonitor=null;
     const certificationStart=performance.now();
-    const field=solver.flux&&samplesTaken?await sampleFlow(gpu,f,solver,dt,averagedWake,geom.wall):null, ref=references[f.id]??{};
+    const field=solver.flux&&step?await sampleFlow(gpu,f,solver,dt,averagedWake,geom.wall,groups):null, ref=references[f.id]??{};
     geom.assertCurrent?.();
     const certificationMs=performance.now()-certificationStart;
     const samples=windows.slice(-2).map(w=>w.coefficient), mean=samples.reduce((a,b)=>a+b,0)/samples.length;
@@ -241,14 +266,18 @@ export async function runCase(device,f,kind,progress,capture=null){
     const forcePassed=!!ref.value&&stable&&samples.every(v=>Math.abs(v/ref.value-1)<=.05);
     const powers=windows.slice(-2).map(w=>w.powerCoefficient);
     const powerRelativeError=ref.powerCoefficient&&powers.length===2&&powers.every(Number.isFinite)?Math.abs(.5*(powers[0]+powers[1])/ref.powerCoefficient-1):null;
+    const powerPassed=ref.powerCoefficient?stable&&powers.length===2&&powers.every(v=>Math.abs(v/ref.powerCoefficient-1)<=.05):null;
     const expectedWake=ref.wakeM??(ref.wakeDiameters??0)*.08;
     const wakePassed=expectedWake?Number.isFinite(field?.wakeLengthM)&&Math.abs(field.wakeLengthM/expectedWake-1)<=.05:null;
-    const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&wakePassed!==false&&viewport.qualified&&
-      (!solver.flux||(field&&field.relativeDivergenceMax<1e-6&&solver.fluxConvergence.maxRelativeDivergence<1e-6));
+    const massPassed=solver.flux?!!field&&field.relativeDivergenceMax<1e-6&&field.maxDivergencePerS<1e-6&&
+      solver.fluxConvergence.maxRelativeDivergence<1e-6&&solver.fluxConvergence.maxDivergencePerS<1e-6:null;
+    const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&powerPassed!==false&&wakePassed!==false&&viewport.qualified&&massPassed!==false;
     const totalMs=performance.now()-start;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
-      wallTreatment:f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':undefined,dtS:dt,periodSteps,wakePassed,
+      wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':undefined,
+      cutGeometry:groups?.stats,exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
+      faceMomentum:f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
       setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
@@ -276,7 +305,8 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   await frameAI.call('diagnostics.frame',{frames:8});
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
-    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure};
+    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,
+      cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
       device.pushErrorScope('validation');

@@ -3,6 +3,7 @@ import {gpuBlocks} from './blocks.mjs';
 import {devicePressureCG} from './pressure-cg.mjs';
 import {cellWidth,metricBuffer,metricWGSL} from './rectilinear.mjs';
 import {separablePressure} from './separable-pressure.mjs';
+import {cutPressureBlocks} from './cut-blocks.mjs';
 
 function pressureBoundarySides(f){
   return f.pressureOpen??[!!f.rotor,true,!(f.name==='ahmed'||f.movingRoad),true,true,true];
@@ -101,6 +102,22 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     }
   }
   const fine=levels[0],block=await gpuBlocks(gpu,8,f.dims,false);
+  // One colour reads only itself and neighbours of the other colour.
+  // Separate dispatches provide the global ordering between both half-sweeps.
+  const colours=[];
+  for(let colour=0;colour<2;colour++){
+    const code=gridWGSL(f)+openBoundaries(f)+ro(0,'b')+rw(1,'pressure')+
+      '@group(0) @binding(2) var<storage,read> mobility:array<vec4f>;'+row+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i>=CELLS){return;}let p=point(i);if(((p.x+p.y+p.z)&1)!=${colour}){return;}
+        let row=pressureRow(i);if(row.x>0.){pressure[i]+=(b[i]-row.y)/row.x;}
+      }`;
+    const op=await gpu.kernel('CFD local pressure defect relaxation',code);
+    colours.push([op,gpu.bind(op,[fine.rhs,fine.p,fine.weight])]);
+  }
+  function polish(e){
+    for(let pair=0;pair<3;pair++)for(const [op,bindings] of colours)gpu.dispatch(e,op,bindings,fine.group);
+  }
   let schwarz;
   if(!f.axes){
     const correction=gpu.buffer('CFD Schwarz correction',fine.p.size),bb=block.binding(fine.scratch,correction);
@@ -148,8 +165,17 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     return Object.assign(e=>{for(const op of stages)op.encode(e);},{stages});
   }
   const pre=f.globalPressure?globalCorrection:f.axes&&levels.length>1?coarseCorrection:null;
-  const refine=await devicePressureCG(gpu,fine,block,gridWGSL(f)+openBoundaries(f)+row,pre);
-  return {p:fine.p,rhs:fine.rhs,refine,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
+  let cut=null;
+  if(f.cutCells&&updateFine){
+    const e=gpu.device.createCommandEncoder();updateFine(e);gpu.device.queue.submit([e.finish()]);
+    cut=await cutPressureBlocks(gpu,f,faceMobility,fine.weight);
+  }
+  const local=cut?{
+    binding(r,z){return {regular:block.binding(r,z),cut:cut.binding(r,z)};},
+    encode(e,b){block.encode(e,b.regular);b.cut(e);}
+  }:block;
+  const refine=await devicePressureCG(gpu,fine,local,gridWGSL(f)+openBoundaries(f)+row,pre);
+  return {p:fine.p,rhs:fine.rhs,refine,polish,cutBlocks:cut?.count??0,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
     schwarz?.(e);cycle(e,0);
   }};
 }

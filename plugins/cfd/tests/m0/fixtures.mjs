@@ -1,6 +1,7 @@
 import {rotorDistanceWGSL,rotorTable,rotorTriangles} from './rotor.mjs';
 import {pressureBarriers} from './pressure-barrier.mjs';
 import {metricWGSL,metricBuffer,rectilinearDomain} from './rectilinear.mjs';
+import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 
 // Reference values are consulted by the scorer only. Both candidates sample
 // the same moving surface in metres and use the same fluid and physical time.
@@ -90,13 +91,18 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
       fn mobility(p:vec3f)->f32{
         return fluidMobility(distanceToBody(p,phase)/${f.h});
       }`:''}
-    ${withPressure&&f.rotor?'@group(0) @binding(4) var<storage,read> cuts:array<u32>;':''}
+    ${withPressure&&f.rotor&&!f.cutCells?'@group(0) @binding(4) var<storage,read> cuts:array<u32>;':''}
+    ${withPressure&&f.cutCells?cutMetricWGSL+`@group(0) @binding(5) var<storage,read_write> faceCenters:array<FaceCenters>;
+      ${f.sheetLinks?'@group(0) @binding(6) var<storage,read_write> rep:array<vec4f>;':''}
+      fn surfaceDistance(v:vec3f)->f32{
+      return distanceToBody(vec3f(${floats(f.origin)})+v*${f.h},phase);}`+cutGridWGSL:''}
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=CELLS){return;}
       let p=vec3f(${floats(f.origin)})+cellCenters(point(i))*${f.h};
       let sdf=distanceToBody(p,phase);let w=1.-smoothstep(-0.7*${f.h},0.7*${f.h},sdf);
       wall[i]=vec4f(sdf/${f.h},-p.z*${f.omega*dt/f.h},p.y*${f.omega*dt/f.h},w);
-      ${withPressure?`let cell=point(i);let halfWidth=cellWidths(cell)*${f.h/2};var faces=vec3f(0);
+      ${withPressure&&f.cutCells?`let q=cellSamples(point(i));let m=cutMetric(q);response[i]=m;faceCenters[i]=cutFaceCenters(q,m);
+        ${f.sheetLinks?'rep[i]=fluidRepresentative(point(i),q,m.w);':''}`:withPressure?`let cell=point(i);let halfWidth=cellWidths(cell)*${f.h/2};var faces=vec3f(0);
         if(sdf>0.){for(var a=0u;a<3u;a++){
           var next=cell;next[a]=min(cell[a]+1,DIMS[a]-1);
           let nextPoint=vec3f(${floats(f.origin)})+cellCenters(next)*${f.h};var face=p;face[a]+=halfWidth[a];
@@ -111,15 +117,22 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
   const groups=[Math.ceil(f.dims.reduce((a,b)=>a*b)/128)];
   const response=withPressure?gpu.buffer('CFD immersed face and cell pressure mobility',wall.size):null;
   const entries=[[0,phase],[1,wall]];
-  if(response)entries.push([2,response]);
+  const raw=withPressure&&f.cutCells?gpu.buffer('CFD sampled cut volume and apertures',wall.size):null;
+  const centers=raw?gpu.buffer('CFD tangential cut face centres',24*f.dims.reduce((a,b)=>a*b)):null;
+  if(centers)entries.push([5,centers]);
+  const rep=raw&&f.sheetLinks?gpu.buffer('CFD point in each connected fluid piece',wall.size):null;
+  if(rep)entries.push([6,rep]);
+  if(response)entries.push([2,raw??response]);
   if(f.rotor)entries.push([3,gpu.buffer('CFD APC section coordinates',rotorTable())]);
-  const barriers=withPressure&&f.rotor?await pressureBarriers(gpu,f,rotorTriangles(),phase):null;
-  if(barriers)entries.push([4,barriers.mask]);
+  const barriers=withPressure&&f.rotor?await pressureBarriers(gpu,f,rotorTriangles(),phase,rep):null;
+  if(barriers&&!f.cutCells)entries.push([4,barriers.mask]);
+  const seal=raw?await cutFaceSeal(gpu,f,gridWGSL(f),raw,response,barriers?.mask):null;
   if(f.axes)entries.push([12,metricBuffer(gpu,f)]);
   const binding=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:entries.map(([binding,buffer])=>({binding,resource:{buffer}}))});
-  return {wall,response,update(step){
+  return {wall,response,centers,update(step){
     const a=f.rotatingFrame?0:f.omega*dt*(step+0.5);
     gpu.device.queue.writeBuffer(phase,0,new Float32Array([Math.cos(a),Math.sin(a)]));
-    const e=gpu.device.createCommandEncoder();barriers?.encode(e);gpu.dispatch(e,pipe,binding,groups);gpu.device.queue.submit([e.finish()]);
+    const e=gpu.device.createCommandEncoder();if(!rep)barriers?.encode(e);gpu.dispatch(e,pipe,binding,groups);if(rep)barriers?.encode(e);
+    seal?.(e);gpu.device.queue.submit([e.finish()]);
   }};
 }

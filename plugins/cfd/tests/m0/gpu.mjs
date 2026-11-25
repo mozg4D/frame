@@ -24,6 +24,7 @@ export function gpuScope(device) {
       entries});
   }
   function dispatch(encoder, pipeline, group, grid) {
+    if(encoder.compute){encoder.compute(pipeline,group,grid);return;}
     const pass = encoder.beginComputePass();
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, group);

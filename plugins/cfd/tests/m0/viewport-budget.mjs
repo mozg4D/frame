@@ -2,7 +2,22 @@
 // Numerical passes stay ordered. No GPU work is outstanding when a slice ends.
 export function viewportBudget(device,lastFrame){
   const costs=new Map(),frameMs=1000/60,drawReserve=4;
-  let slices=0,maxSliceMs=0,frameYields=0;
+  let slices=0,maxSliceMs=0,frameYields=0,computePasses=0,dispatches=0;
+  // Dispatches have independent WebGPU usage scopes inside a compute pass.
+  // Buffer copies and clears end the current pass and stay in command order.
+  function sliceEncoder(){
+    const encoder=device.createCommandEncoder();let pass=null;
+    function end(){if(pass){pass.end();pass=null;}}
+    return {
+      compute(pipeline,group,grid){
+        if(!pass){pass=encoder.beginComputePass();computePasses++;}
+        pass.setPipeline(pipeline);pass.setBindGroup(0,group);pass.dispatchWorkgroups(...grid);dispatches++;
+      },
+      copyBufferToBuffer(...args){end();encoder.copyBufferToBuffer(...args);},
+      clearBuffer(...args){end();encoder.clearBuffer(...args);},
+      finish(){end();return encoder.finish();}
+    };
+  }
   async function perform(phases,assertCurrent){
     for(let i=0;i<phases.length;){
       const cost=costs.get(phases[i].kind)??1;
@@ -15,7 +30,7 @@ export function viewportBudget(device,lastFrame){
         if(i>first&&(next===undefined||estimate+next>budget))break;
         estimate+=next??1;i++;if(next===undefined)break;
       }while(i<phases.length);
-      assertCurrent?.();const start=performance.now(),e=device.createCommandEncoder();
+      assertCurrent?.();const start=performance.now(),e=sliceEncoder();
       for(let j=first;j<i;j++)phases[j].encode(e);
       device.queue.submit([e.finish()]);await device.queue.onSubmittedWorkDone();
       const ms=performance.now()-start;maxSliceMs=Math.max(maxSliceMs,ms);slices++;
@@ -26,5 +41,5 @@ export function viewportBudget(device,lastFrame){
       }
     }
   }
-  return {perform,measure:()=>({slices,frameYields,maxSliceMs})};
+  return {perform,measure:()=>({slices,frameYields,maxSliceMs,computePasses,dispatches})};
 }

@@ -3,6 +3,7 @@ import {meshReader,meshResources,meshPressureBarriers} from './pressure-barrier.
 import {extendNativeMetric} from './metric.mjs';
 import {gridWGSL,immersedMobilityWGSL} from './fixtures.mjs';
 import {metricWGSL,metricBuffer} from './rectilinear.mjs';
+import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
@@ -96,8 +97,11 @@ export async function nativeFlowGeometry(gpu,f,capture){
   try{
     const packed=await rasterize(scratch,band,capture),distance=await extendNativeMetric(scratch,band.dims,packed,12);
     const phase=scratch.buffer('CFD stationary surface frame',new Float32Array([1,0,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-    const crossed=await meshPressureBarriers(scratch,f,capture.meshes,phase,capture.assertCurrent);
+    const rep=f.cutCells&&f.sheetLinks?scratch.buffer('CFD native fluid representatives',16*n):null;
+    const crossed=await meshPressureBarriers(scratch,f,capture.meshes,phase,capture.assertCurrent,rep);
     const wall=gpu.buffer('CFD evaluated wall distance and motion',16*n),response=gpu.buffer('CFD evaluated pressure mobility',16*n);
+    const raw=f.cutCells?scratch.buffer('CFD native cut-cell metrics',16*n):null;
+    const centers=raw?gpu.buffer('CFD native open face centroids',24*n):null;
     const pipe=await scratch.kernel('CFD native distance and sealed face response',gridWGSL(f)+metricWGSL(f)+immersedMobilityWGSL+`
       @group(0) @binding(0) var<storage,read> metric:array<f32>;@group(0) @binding(1) var<storage,read> crossed:array<u32>;
       @group(0) @binding(2) var<storage,read_write> wall:array<vec4f>;@group(0) @binding(3) var<storage,read_write> response:array<vec4f>;
@@ -107,19 +111,31 @@ export async function nativeFlowGeometry(gpu,f,capture){
         for(var i=0;i<8;i++){let off=vec3i(i&1,(i>>1)&1,i>>2);let b=min(BAND-1,q+off);let w=select(1.-t,t,off==vec3i(1));
           d+=w.x*w.y*w.z*metric[u32(b.x+BAND.x*(b.y+BAND.y*b.z))];}return -${band.h/f.h}*d;}
       fn samplePoint(p:vec3i)->vec3f{return cellCenters(p)*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')});}
+      ${f.cutCells?cutMetricWGSL+`@group(0) @binding(4) var<storage,read_write> faceCenters:array<FaceCenters>;
+        ${rep?'@group(0) @binding(5) var<storage,read_write> rep:array<vec4f>;':''}
+        fn surfaceDistance(v:vec3f)->f32{return sample(v*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')}));}`+cutGridWGSL:''}
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i>=CELLS){return;}
         let cell=point(i);let p=samplePoint(cell);let d=sample(p);
-        let w=cellWidths(cell)*${.5*f.h/band.h};var m=vec3f(0);
+        wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));
+        ${f.cutCells?`let q=cellSamples(cell);let m=cutMetric(q);response[i]=m;faceCenters[i]=cutFaceCenters(q,m);
+          ${rep?'rep[i]=fluidRepresentative(cell,q,m.w);':''}`:`let w=cellWidths(cell)*${.5*f.h/band.h};var m=vec3f(0);
         if(d>0.){for(var a=0u;a<3u;a++){
           var next=cell;next[a]=min(cell[a]+1,DIMS[a]-1);var face=p;face[a]+=w[a];
           if(sample(samplePoint(next))>0.){m[a]=${f.wallModeled?'1.':'fluidMobility(sample(face))'};}
         }}
-        wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));let mask=vec3u(crossed[i])&vec3u(1u,2u,4u);
-        response[i]=vec4f(select(m,vec3f(0),mask!=vec3u(0)),select(0.,${f.wallModeled?'1.':'fluidMobility(d)'},d>0.));}`);
-    const e=gpu.device.createCommandEncoder();crossed.encode(e);
-    scratch.dispatch(e,pipe,scratch.bind(pipe,[distance,crossed.mask,wall,response],metricBuffer(scratch,f)),[Math.ceil(n/128)]);
+        let mask=vec3u(crossed[i])&vec3u(1u,2u,4u);
+        response[i]=vec4f(select(m,vec3f(0),mask!=vec3u(0)),select(0.,${f.wallModeled?'1.':'fluidMobility(d)'},d>0.));`}}`);
+    const seal=raw?await cutFaceSeal(scratch,f,gridWGSL(f),raw,response,crossed.mask):null;
+    const e=gpu.device.createCommandEncoder();if(!rep)crossed.encode(e);
+    const entries=[{binding:0,resource:{buffer:distance}},{binding:2,resource:{buffer:wall}},{binding:3,resource:{buffer:raw??response}}];
+    if(!raw)entries.push({binding:1,resource:{buffer:crossed.mask}});
+    if(centers)entries.push({binding:4,resource:{buffer:centers}});
+    if(rep)entries.push({binding:5,resource:{buffer:rep}});
+    const axes=metricBuffer(scratch,f);if(axes)entries.push({binding:12,resource:{buffer:axes}});
+    scratch.dispatch(e,pipe,gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries}),[Math.ceil(n/128)]);
+    if(rep)crossed.encode(e);seal?.(e);
     gpu.device.queue.submit([e.finish()]);await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();
-    return {wall,response,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
+    return {wall,response,centers,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
       occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }
