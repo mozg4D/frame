@@ -72,6 +72,14 @@ test('unwrapped axial rates distinguish multiple full turns between native frame
   assert.equal(axialTrackRate({keys:keys.map(([t,k])=>[t,{...k,axes:[0]}])},60).omega,axialTrackRate({keys},60).omega);
   assert.equal(axialTrackRate({keys:[keys[0],[6,{...keys[1][1],interp:'soft'}]]},60),null);
   assert.equal(axialTrackRate({keys:[keys[0],keys[1],[12,{v:[3100,0,0]}]]},60),null);
+  for(let a=0;a<3;a++){
+    const tape=keys.map(([t,k])=>[t,{...k,v:[17,-23,41].map((v,i)=>i===a?v-k.v[0]:v),axes:[a]}]);
+    assert.ok(Math.abs(axialTrackRate({keys:tape},60).omega*60/(2*Math.PI)+5011)<1e-8);
+  }
+  const tilt=keys.map(([t,k])=>[t,{...k,v:k.v.map((v,i)=>i===1?t:v)}]);
+  assert.equal(axialTrackRate({keys:tilt},60),null);
+  const bent=keys.map(([t,k])=>[t,{...k,modes:['hard','soft','hard'],hout:[0,2,0]}]);
+  assert.equal(axialTrackRate({keys:bent},60),null);
 });
 test('cut-brick inverse resolves a weakly connected fluid region and preserves pressure differences in a sealed pocket',()=>{
   const rows=new Float32Array(256),p=Float64Array.from({length:64},(_,i)=>Math.sin(i*.65)),rhs=new Float64Array(64),diag=new Float64Array(64);

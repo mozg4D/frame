@@ -4,6 +4,7 @@ import {dirname,resolve} from 'node:path';
 import {launch,ready} from '../../../tools/browser.mjs';
 
 const cases={
+  'shaft-channels':['shaft-channels-check','verifyShaftChannels'],
   'sphere':['live-solve-check','verifyLiveSphere'],'rotor':['live-solve-check','verifyLiveRotating'],
   'regions':['live-solve-check','verifyLiveRegions'],'curves':['live-solve-check','verifyFrameHistory'],
   'animation':['live-solve-check','verifyAnimationSolve'],'offline':['live-solve-check','verifyOfflineRender'],

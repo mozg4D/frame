@@ -133,18 +133,29 @@ function commonTranslation(ctx,owner,ids,doc,channels,animation,speed){
 // At 5011 rpm a 60 Hz pose stream has less than one sample per revolution.
 export function axialTrackRate(track,fps){
   const keys=track?.keys;if(!Number.isFinite(fps)||fps<=0||!Array.isArray(keys)||keys.length<2)return null;
-  let rate=null;
-  for(let i=0;i<keys.length;i++){
-    const [t,k]=keys[i];if(!Number.isFinite(t)||!Array.isArray(k.v)||k.v.length!==3||!k.v.every(Number.isFinite)||
-      Math.abs(k.v[1])+Math.abs(k.v[2])>1e-8||(k.modes?.[0]??k.interp)!=='hard'||
-      k.axes&&!k.axes.includes(0))return null;
-    if(i){
-      const span=t-keys[i-1][0];if(span<=0)return null;
-      const w=(k.v[0]-keys[i-1][1].v[0])*Math.PI/180*fps/span;
-      if(rate!==null&&Math.abs(w-rate)>1e-8*Math.max(1,Math.abs(rate)))return null;rate=w;
+  if(keys.some(([t,k],i)=>!Number.isFinite(t)||i&&t<=keys[i-1][0]||!Array.isArray(k.v)||k.v.length!==3||!k.v.every(Number.isFinite)))return null;
+  let motion=null;
+  for(let axis=0;axis<3;axis++){
+    const active=keys.filter(([,k])=>!k.axes||k.axes.includes(axis));
+    if(active.length<2)continue;
+    if(active.every(([,k])=>k.v[axis]===active[0][1].v[axis])){
+      if(active.some(([,k],i)=>(k.modes?.[axis]??k.interp)==='soft'&&!k.auto?.[axis]&&
+        (i>0&&k.hin?.[axis]||i+1<active.length&&k.hout?.[axis])))return null;
+      continue;
     }
+    if(active.some(([,k])=>(k.modes?.[axis]??k.interp)!=='hard'))return null;
+    const [first,k0]=active[0],[last,k1]=active.at(-1);
+    const rate=(k1.v[axis]-k0.v[axis])/(last-first);
+    for(let i=1;i<active.length;i++){
+      const [t,k]=active[i],[previous,start]=active[i-1];
+      if(Math.abs((k.v[axis]-start.v[axis])/(t-previous)-rate)>1e-8*Math.max(1,Math.abs(rate)))return null;
+    }
+    if(rate===0)return null;
+    if(motion)return null;
+    const omega=rate*fps*Math.PI/180;if(!Number.isFinite(omega))return null;
+    motion={omega,first,last};
   }
-  return rate&&Number.isFinite(rate)?{omega:rate,first:keys[0][0],last:keys.at(-1)[0]}:null;
+  return motion;
 }
 
 export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
@@ -182,8 +193,9 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
     }
     if(channels.some(c=>c.path==='position'))throw failure('UNSUPPORTED_MOTION','The participating surfaces must share one constant linear velocity over the held native key interval.');
   }
-  if(!ids.length||ids.length!==initial.meshes.length||ids.some(id=>doc.get(id)?.type!=='mesh'))
-    throw Error('Rigid rotation requires directly evaluated polygon components');
+  const rigidSources=new Set(['mesh','cube','sphere','cylinder']);
+  if(!ids.length||ids.length!==initial.meshes.length||ids.some(id=>!rigidSources.has(doc.get(id)?.type)||doc.get(id).sources?.some(s=>s!==id)))
+    throw Error('Rigid rotation requires directly evaluated rigid surfaces');
   const spinOwners=new Set();
   const motions=ids.map(id=>{
     const owners=new Set();for(let p=id;doc.has(p)&&!owners.has(p);p=doc.get(p)?.parent)owners.add(p);
@@ -193,7 +205,10 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
   });
   if(channels.some(c=>!spinOwners.has(c.id)||c.path!=='rotation')||animation.objects.some(o=>physical.has(o.id)&&o.target)||motions.some(m=>!m))
     throw Error('Expected one unconstrained constant native rotation per component or rigid parent');
-  const omega=motions[0].omega;if(motions.some(m=>Math.abs(m.omega-omega)>1e-8*Math.abs(omega)))throw Error('Independent angular speeds in one rotating frame');
+  // Opposite local axes may describe the same physical shaft. The two
+  // sampled world poses below establish the common signed orientation.
+  const omega=motions[0].omega;
+  if(motions.some(m=>Math.abs(Math.abs(m.omega)-Math.abs(omega))>1e-8*Math.abs(omega)))throw Error('Independent angular speeds in one rotating frame');
   const first=Math.max(...motions.map(m=>m.first)),last=Math.min(...motions.map(m=>m.last)),held=animation.frame;
   if(held<first||held>last||last<=first)throw Error('The current frame must be inside a shared constant-speed interval');
   const {mul,inv}=ctx.math,base=new Map(initial.meshes.map(m=>[m.hash,m.matrix]));
