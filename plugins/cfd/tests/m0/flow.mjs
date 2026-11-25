@@ -6,6 +6,8 @@ import {wakeLength} from './wake.mjs';
 import {viewportBudget} from './viewport-budget.mjs';
 import {cellCenter,cellWidth,metricWGSL,metricBuffer} from './rectilinear.mjs';
 import {cutGroups} from './cut-groups.mjs';
+import {cutWallResolution} from './wall-resolution.mjs';
+import {radialLoads} from './radial-loads.mjs';
 
 // A bounded trial reports time to target only after completing its physical windows.
 export const caseBudgetMs=120000;
@@ -143,7 +145,9 @@ async function sampleFlow(gpu,f,solver,dt,wakeLengthM,wall,momentumGroups){
   const hist=new Uint32Array((await gpu.read(histogram,stage,128)).buffer),half=hist.reduce((a,b)=>a+b)/2;
   let hits=0;const middle=hist.findIndex(v=>(hits+=v)>=half);
   const maxCourant=momentumGroups?await momentumGroups.courant(solver.flux,solver.fluxTail):peak[1];
-  return {...certified,gpuDivergencePerS:peak[0]/dt,maxCourant,maxIndividualCellCourant:peak[1],maxFluidGaugePressureMagnitudePa:pressureScale*peak[2],
+  const maxExplicitCourant=f.implicitRadiusM?await momentumGroups.courant(solver.flux,solver.fluxTail,true):undefined;
+  const bodyWallResolution=f.cutCells?await cutWallResolution(gpu,f,dt,solver.state,wall,solver.mobility):undefined;
+  return {...certified,gpuDivergencePerS:peak[0]/dt,maxCourant,maxExplicitCourant,bodyWallResolution,maxIndividualCellCourant:peak[1],maxFluidGaugePressureMagnitudePa:pressureScale*peak[2],
     maxSolidGaugePressureMagnitudePa:pressureScale*peak[3],relativeDivergenceMax:certified.maxDivergencePerS*f.period,
     wakeLengthM,wallYPlusViscousEstimateP50:half?2**((middle+.5-64)/8):null};
 }
@@ -180,9 +184,13 @@ export async function runCase(device,f,kind,progress,capture=null){
   f.sstWall=!!f.sstWall&&f.cutCells;
   f.faceReconstruction=!!f.faceReconstruction&&f.cutCells&&48*f.dims.reduce((a,b)=>a*b)<=device.limits.maxStorageBufferBindingSize;
   f.sheetLinks=!!f.sheetLinks&&f.cutCells&&!!(capture||f.rotor);
+  if(f.implicitOuterSpin){
+    if(!f.rotatingFrame||!f.axes||!f.cutCells||!(f.sweptDiameterM>0))throw Error('The implicit exterior needs a measured swept cylinder, graded grid and stabilized cut volumes');
+    f.implicitRadiusM=.625*f.sweptDiameterM;
+  }
   const gpu=gpuScope(device),start=performance.now();
   const count=f.dims.reduce((a,b)=>a*b),cfl=kind==='cartesian-fvm'?(f.rotor?.12:.32):.065;
-  const advectiveStep=f.rotatingFrame&&f.axes?rotorTransportStep(f):cfl*f.h/f.maxSpeed;
+  const advectiveStep=f.implicitRadiusM?Infinity:f.rotatingFrame&&f.axes?rotorTransportStep(f):cfl*f.h/f.maxSpeed;
   const inverseWidth=(f.minPitch??[f.h,f.h,f.h]).map(w=>1/w),inverseNorm=Math.hypot(...inverseWidth);
   const combinedStep=.78/(f.maxSpeed*inverseNorm+2*f.nu*inverseNorm**2);
   let dt=kind==='cartesian-fvm'?Math.min(advectiveStep,.145*f.h**2/f.nu,f.axes?combinedStep:Infinity):advectiveStep;
@@ -212,6 +220,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
     const transverse=solver.transverseImpulse?await sumForce(gpu,solver.transverseImpulse,count,4):null;
     const sectionLoads=solver.loads&&solver.hasPressureSplit!==false?await axialLoads(gpu,f,force,solver.loads):null;
+    const annular=solver.loads&&f.rotatingFrame&&f.sweptDiameterM>0?await radialLoads(gpu,f,force,solver.loads):null;
     const measureWake=!!solver.plane&&(f.sphere||f.name==='ahmed'),requireWake=measureWake&&(f.sphere||f.id==='ahmed-wake');
     const planeStage=measureWake?gpu.staging('CFD complete wake window',solver.plane.size):null;
     await device.queue.onSubmittedWorkDone();
@@ -259,6 +268,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       if(complete&&measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
+        ...annular&&complete?{radialProfile:await annular(scale,forceN,load[1])}:{},
         ...measureWake?{wakeLengthM:isolatedWake}:{},
         ...load?{...solver.hasPressureSplit!==false?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0]}:{},torqueXNm:load[1],
           transverseForcesInSolverFrameN:lateral?lateral.slice(0,2):load.slice(2),transverseForcesInBoxN:lateral?lateral.slice(2):load.slice(2),
@@ -292,7 +302,8 @@ export async function runCase(device,f,kind,progress,capture=null){
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
       wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':'Volume penalization',
-      cutGeometry:groups?.stats,exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
+      cutGeometry:groups?.stats,implicitExterior:solver.outerTransport?{innerRadiusM:f.implicitRadiusM,...solver.outerTransport}:undefined,
+      exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,

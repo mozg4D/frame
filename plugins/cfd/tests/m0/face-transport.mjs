@@ -1,5 +1,6 @@
 import {gridWGSL} from './fixtures.mjs';
 import {metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {outerSpinWGSL} from './outer-transport.mjs';
 
 // Transport the reconstructed upwind velocity at the actual aperture centroid.
 // Store each interior correction once, together with the transpose-gradient
@@ -7,7 +8,7 @@ import {metricBuffer,metricWGSL} from './rectilinear.mjs';
 export async function cutFaceTransport(gpu,f,dt,old,predictor,mu,centers,wall,flux,tail){
   const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
   const gradient=gpu.buffer('CFD open-fluid velocity reconstruction',48*n),faces=gpu.buffer('CFD shared face momentum correction',48*n);
-  const common=gridWGSL(f)+metricWGSL(f)+`
+  const common=gridWGSL(f)+metricWGSL(f)+outerSpinWGSL(f)+`
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Centers{t:array<vec2f,3>}
     struct Gradient{v:array<vec4f,3>} struct Flux{hi:vec4f,lo:vec4f}
     fn offset(a:u32,side:i32,w:vec3f,t:vec2f)->vec3f{
@@ -51,7 +52,7 @@ export async function cutFaceTransport(gpu,f,dt,old,predictor,mu,centers,wall,fl
         let g=(1.-t)*l+t*r;
         var transposeFlux=vec3f(g[0][a],g[1][a],g[2][a]);transposeFlux[a]-=(2./3.)*(g[0].x+g[1].y+g[2].z);
         let viscosity=${f.nu*dt/f.h**2}+.5*(s[i].wt.y+s[j].wt.y);
-        impulse=mu[i][a]*area[a]*viscosity*transposeFlux-value*delta;
+        impulse=mu[i][a]*area[a]*viscosity*transposeFlux-select(value,0.,outerFace(p,q))*delta;
       }face[i].v[a]=vec4f(impulse,0);
     }`));
   const faceGroup=gpu.bind(shared,[old,mu,centers,gradient,flux,tail,faces],axes);

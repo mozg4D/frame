@@ -53,7 +53,7 @@ export async function benchmarkNativeRotor(device,tier,progress,selection){
   const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash),fluid=mediumProperties('Air',0),diameter=.254;
   if(Math.abs(motion.diameterM/diameter-1)>.005)throw Error('Evaluated APC swept diameter disagrees with its nominal size');
   const rps=Math.abs(motion.omega)/(2*Math.PI);
-  const f={...flowFixture('propeller',tier),...selection,omega:motion.omega,period:1/rps,nu:fluid.nu,rho:fluid.rho,
+  const f={...flowFixture('propeller',tier),...selection,sweptDiameterM:motion.diameterM,omega:motion.omega,period:1/rps,nu:fluid.nu,rho:fluid.rho,
     maxSpeed:.5*motion.diameterM*Math.abs(motion.omega),normalization:fluid.rho*rps**2*diameter**4,
     powerNormalization:fluid.rho*rps**3*diameter**5,checkKinematics:assertCurrent,geometry:'Evaluated keyed Frame polygon blades and shaft hub'};
   const grid=selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f;
@@ -113,8 +113,9 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
     const maxSpeed=Math.max(U+tip,fluid.nu/domain.h);
     const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega,
       rotor:!!motion,sphere:false,movingRoad:domain.road,laminar:!motion&&U*domain.scale/fluid.nu<200,period:motion?1/rps:domain.scale/maxSpeed,
-      checkKinematics:assertCurrent,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
-      budgetMs,globalPressure,cutCells:settings.cutCells,sheetLinks:settings.sheetLinks,faceHistory:settings.faceHistory,linearWallPressure:settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
+      checkKinematics:assertCurrent,sweptDiameterM:diameter,implicitOuterSpin:!!motion&&graded&&(settings.implicitOuterSpin||settings.autoOuterSpin),pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
+      budgetMs,globalPressure,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
+      faceHistory:!!motion||settings.faceHistory,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
       faceReconstruction:settings.faceReconstruction,normalization:motion?fluid.rho*rps**2*diameter**4:1,
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;

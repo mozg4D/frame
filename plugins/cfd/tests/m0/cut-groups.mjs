@@ -1,5 +1,6 @@
 import {gridWGSL} from './fixtures.mjs';
 import {metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {outerSpinWGSL} from './outer-transport.mjs';
 
 // Every small fluid volume joins a more open neighbour through a nonzero
 // aperture. Strict growth makes the parent forest acyclic. Momentum is
@@ -40,7 +41,7 @@ export async function cutGroups(gpu,f,mobility,wall){
   const members='struct Members{root:u32,head:u32,next:u32};';
   const volumes=gpu.buffer('CFD agglomerated physical volumes',4*n);
   const stats=gpu.buffer('CFD cut-volume stability bounds',new Uint32Array([0,0,0x3f800000,0,0,0]));
-  const size=await gpu.kernel('CFD effective cut volumes and explicit stability bound',head+metric+members+material+`
+  const size=await gpu.kernel('CFD effective cut volumes and explicit stability bound',head+metric+outerSpinWGSL(f)+members+material+`
     @group(0) @binding(1) var<storage,read> links:array<Members>;
     @group(0) @binding(2) var<storage,read_write> volume:array<f32>;
     @group(0) @binding(3) var<storage,read_write> stats:array<atomic<u32>>;
@@ -59,7 +60,8 @@ export async function cutGroups(gpu,f,mobility,wall){
           let other=index(q);if(links[other].root==i){continue;}
           aperture=mu[select(other,j,side>0)][a];invD=spacingInv(a,p[a],side);
         }
-        let open=aperture*area[a];surfaces[a]+=.5*open;rotation+=.5*open*frame[a];diffusion+=open*invD;
+        let open=aperture*area[a];let explicitArea=select(open,0.,outerFace(p,q));
+        surfaces[a]+=.5*explicitArea;rotation+=.5*explicitArea*frame[a];diffusion+=open*invD;
       }}
       j=select(links[j].next,links[i].head,j==i);if(j==0xffffffffu){break;}
     }
@@ -88,9 +90,9 @@ export async function cutGroups(gpu,f,mobility,wall){
   const scatter=await gpu.kernel('CFD scatter stabilized cell state',stateDecl+main('let k=link[i].root;if(i!=k){state[i]=state[k];}'));
   return {links,stats:{cutCells:u[0],mergedCells:u[1],minFluidFraction:buffer[2],smallRoots:u[4],groupsWithChildren:u[5],maxTransportRatePerS:maximumRate},
     stableStep:maximumRate>0?.65/maximumRate:Infinity,
-    async courant(flux,tail){
+    async courant(flux,tail,explicitOnly=false){
       const peak=gpu.buffer('CFD maximum momentum-group Courant number',4);
-      const op=await gpu.kernel('CFD transport through outer group faces',head+members+`
+      const op=await gpu.kernel('CFD transport through outer group faces',head+(explicitOnly?metric+outerSpinWGSL(f):'')+members+`
         struct Flux{hi:vec4f,lo:vec4f}
         @group(0) @binding(0) var<storage,read> links:array<Members>;
         @group(0) @binding(1) var<storage,read> volume:array<f32>;
@@ -100,11 +102,12 @@ export async function cutGroups(gpu,f,mobility,wall){
         if(links[i].root!=i||volume[i]<=0.){return;}var j=i;var total=0.;
         loop{let p=point(j);for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
           var q=p;q[a]+=side;if(inside(q)&&links[index(q)].root==i){continue;}
+          ${explicitOnly?'if(outerFace(p,q)){continue;}':''}
           let f=select(flux[j].lo[a],flux[j].hi[a],side>0);
           let t=select(tail[j].lo[a],tail[j].hi[a],side>0);total+=abs(f+t);
         }}j=select(links[j].next,links[i].head,j==i);if(j==0xffffffffu){break;}}
         atomicMax(&peak,bitcast<u32>(.5*total/volume[i]));`));
-      gpu.run(op,[links,volumes,flux,tail,peak],grid);
+      gpu.run(op,[links,volumes,flux,tail,peak],grid,explicitOnly?coords:null);
       return (await gpu.read(peak,gpu.staging('CFD measured momentum-group Courant number',4),1))[0];
     },
     merge(state){

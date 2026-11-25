@@ -7,6 +7,7 @@ import {linearCutPressure} from './cut-pressure.mjs';
 import {mergedSstWall} from './sst-wall.mjs';
 import {cutFaceTransport} from './face-transport.mjs';
 import {rotatingLoads} from './rotating-loads.mjs';
+import {outerSpinWGSL,outerTransport} from './outer-transport.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -37,7 +38,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const coords=metricBuffer(gpu,f);
-  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+`
+  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+`
     const NU=${nu};const U=${inlet.toFixed(10)};const K0=${1.5*(.005*cref)**2};
     const O0=${1.5*(.005*cref)**2/(5*nu)};
     struct Cell {uk:vec4f,wt:vec2f,padding:vec2f}
@@ -96,7 +97,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
             let back=(up-s[index(behind)].uk)*backInv;let forward=(select(a.uk,b.uk,q>=0.)-up)*invD;
             up+=.5*axisMetric(axis,upIndex).y*select(vec4f(0),sign(back)*min(abs(back),abs(forward)),back*forward>vec4f(0));}
           ${f.faceReconstruction?'if(inside(j)){up=vec4f(select(b.uk.xyz,a.uk.xyz,q>=0.),up.w);}':''}
-          adv+=q*up;advW+=q*select(b.wt.x,omega,q>=0.);
+          let explicitRate=${f.implicitRadiusM?'select(q,0.,outerFace(p,j))':'q'};
+          adv+=explicitRate*up;advW+=explicitRate*select(b.wt.x,omega,q>=0.);
           let change=b.uk-a.uk;let nut=0.5*(a.wt.y+b.wt.y);
           var lap=invD/(widths[axis]*groupRatio);var gradWeight=.5*dir*invD;${f.sstWall?'var coverage=.5;':''}
           ${f.wallModeled?`if(inside(j)){let k=index(j);let open=permeability[select(k,i,side>0)][axis];
@@ -264,6 +266,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   }
   const spin=f.rotatingFrame?await rotatingLoads(gpu,loads):null;
   if(spin)mergeState.push(phase('integrate fixed-frame transverse reaction',spin.encode));
+  const outer=f.implicitRadiusM?await outerTransport(gpu,f,dt,pred,flux,fluxTail):null;
+  const predictMomentum=phase('momentum',e=>gpu.dispatch(e,momentum,m,grid));
   let predictStored,prepareStored;
   if(f.faceHistory){
     // Interpolate momentum increments onto the previous corrected face. The
@@ -307,7 +311,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   }
   const forecast=[false,true].map(cold=>[
     ...(cold||(f.rotor&&!f.rotatingFrame)?[phase('geometry coarsening',mg.updateGeometry)]:[]),
-    phase('momentum',e=>gpu.dispatch(e,momentum,m,grid)),...mergePred,
+    ...outer?[]:[predictMomentum],...mergePred,
     phase('flux imbalance',!cold&&predictStored?predictStored:e=>gpu.dispatch(e,rhs,r,grid)),
     ...projection(f.globalPressure?(cold?16:f.rotor?5:3):(cold?24:f.rotor?10:6)),
     phase('pressure reaction',!cold&&prepareStored?e=>{prepareStored(e);gpu.dispatch(e,refineFlux,refineGroup,grid);}:
@@ -332,9 +336,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     try{return new Float32Array(stage.getMappedRange())[0]*f.period/dt;}finally{stage.unmap();}
   }
   stats.exactBoundaryBlocks=mg.cutBlocks;
-  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,mobility,fluxConvergence:stats,
+  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,mobility,fluxConvergence:stats,
     async advance(i,sampling,scheduler,assertCurrent){
       spin?.angle(f.omega*(i+.5)*dt);
+      if(outer){await scheduler.perform([predictMomentum],assertCurrent);await outer.solve(scheduler,assertCurrent);}
       const checkPrimary=f.faceHistory&&i>=checkPrimaryAt;
       await scheduler.perform([...forecast[Number(i===0)],...checkPrimary?[]:first,check],assertCurrent);
       let maximum=await measure(),passes=checkPrimary?0:1;
@@ -367,6 +372,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(mergeState.length||sampling)await scheduler.perform([...mergeState,...sampling?[samplePlane]:[]],assertCurrent);
     },
     step(i,sampling){
+      if(outer)throw Error('Implicit outer transport requires the residual-controlled advance');
       spin?.angle(f.omega*(i+.5)*dt);
       const e=gpu.device.createCommandEncoder();for(const op of forecast[Number(i===0)])op.encode(e);
       for(let k=0;k<(f.axes?2:1);k++)for(const op of fixed)op.encode(e);

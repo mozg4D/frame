@@ -32,6 +32,11 @@ if(selection.inertialRotor&&(nativeRotor||scenePath))throw Error('Captured shaft
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
 selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
 selection.cutCells=args.includes('--cut-cells');
+selection.implicitOuterSpin=args.includes('--implicit-outer-spin');
+if(selection.implicitOuterSpin&&args.includes('--explicit-outer-spin'))throw Error('Choose a single exterior transport scheme');
+selection.autoOuterSpin=Boolean(scenePath&&selection.graded&&!args.includes('--explicit-outer-spin'));
+if(selection.implicitOuterSpin&&!wallOnly&&(!(nativeRotor||scenePath)||!selection.graded||(!scenePath&&!selection.cutCells)))
+  throw Error('Implicit far-field rotation requires a captured rotor and a graded cut-volume domain');
 selection.faceHistory=args.includes('--transport-faces');
 selection.linearWallPressure=args.includes('--linear-wall-pressure');
 selection.wallSpacing=args.includes('--wall-spacing');
@@ -109,6 +114,8 @@ try{
     if(cutMomentum&&!cutMomentum.pass)throw Error('Cut-volume fluid/body impulse mismatch: '+JSON.stringify(cutMomentum));
     const affineWall=selection.linearWallPressure?await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyLinearWallPressure(device,selection.graded):null;
     if(affineWall&&!affineWall.pass)throw Error('Manufactured cut-wall pressure load failed: '+JSON.stringify(affineWall));
+    const outerTransport=selection.implicitOuterSpin?await (await import('./plugins/cfd/tests/m0/outer-transport-check.mjs')).verifyOuterTransport(device):null;
+    if(outerTransport&&!outerTransport.pass)throw Error('Implicit momentum transport disagrees with the independent solution: '+JSON.stringify(outerTransport));
     const spinningLoad=nativeRotor||savedScene||wallOnly?await (await import('./plugins/cfd/tests/m0/rotating-loads.mjs')).verifyRotatingLoads(device):null;
     if(spinningLoad&&!spinningLoad.pass)throw Error('Phase-resolved force failed: '+JSON.stringify(spinningLoad));
     const sheet=selection.sheetLinks?await (await import('./plugins/cfd/tests/m0/sheet-check.mjs')).verifySheetLinks(device,selection.graded):null;
@@ -133,7 +140,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,spinningLoad,latticeWall,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,affineWall,sheet,faceTransport,spinningLoad,outerTransport,latticeWall,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
