@@ -12,6 +12,8 @@ const cases={
   'translation':['translation-check','verifyTranslation'],'observer':['translation-check','verifyAnimatedObserver'],
   'saved-translation':['translation-check','verifySavedTranslation'],
   'oblique-shape':['steady-shape-check','verifyObliqueSteadyForce'],
+  'paired':['paired-check','verifyPairedSolve'],
+  'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
 };
 const args=process.argv.slice(2),which=args.find(v=>v.startsWith('--case='))?.slice(7);

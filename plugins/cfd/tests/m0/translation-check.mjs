@@ -86,3 +86,25 @@ export async function verifyAnimatedObserver(){
   return {pass:motion.kind==='stationary'&&Math.hypot(...motion.velocityWorldMPerS[0])===0&&cosine>.99&&r.forceLocal.drag>0&&r.validity.maxDivergencePerS<1e-6,
     frame:r.frame,cosine,axis,forceWorldN:r.forceWorld,wall:motion,divergence:r.validity.maxDivergencePerS};
 }
+
+export async function verifyTowingSimilarity(){
+  const {mediumProperties}=await import('../../plugin.js'),call=(op,args={})=>frameAI.call(op,args),cases=[];
+  for(const medium of ['Air','Water']){
+    const material=mediumProperties(medium,0),D=.08,U=60*material.nu/D;
+    await call('scene.new');const {hash:id}=await call('scene.create',{type:'cfd',params:{Medium:medium,Speed:0}});
+    const body=await call('scene.create',{type:'sphere',params:{diameter:1000*D,'angle approximation':10}});
+    for(const frame of [0,60])await call('animation.key',{id:body.hash,path:'position',frame,value:[0,500,1000*U*(frame-30)/60],interpolation:'hard'});
+    await call('animation.seek',{frame:30});const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+    await op('solve-frame',{fidelityBudget:'preview'});let result;const end=performance.now()+180000;
+    for(;;){await new Promise(r=>setTimeout(r,120));const s=await op('results');
+      if(['ready','unconverged'].includes(s.state)){result=s.result;break;}
+      if(!['queued','solving'].includes(s.state)||performance.now()>end)throw Error('Towing similarity '+JSON.stringify(s.job));}
+    const force=result.forceWorld,area=Math.PI*D*D/4,coefficient=-force[2]/(.5*material.rho*U*U*area);
+    cases.push({medium,speedMPerS:U,densityKgM3:material.rho,viscosityM2PerS:material.nu,forceWorldN:force,coefficient,
+      requestedRe:60,measuredRe:result.reynolds,physicalTimeS:result.physicalTimeS,steps:result.steps,windows:result.completeWindows,
+      gridHash:result.validity.gridHash,maxDivergencePerS:result.validity.maxDivergencePerS,temporal:result.validity.temporalConvergence});
+  }
+  const [air,water]=cases,difference=Math.abs(air.coefficient/water.coefficient-1);
+  return {pass:air.steps===water.steps&&air.gridHash===water.gridHash&&difference<.001&&
+    cases.every(c=>c.coefficient>0&&Math.abs(c.measuredRe-60)<.2&&c.maxDivergencePerS<1e-6),coefficientDifference:difference,cases};
+}

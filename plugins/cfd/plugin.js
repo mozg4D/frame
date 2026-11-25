@@ -479,6 +479,41 @@ const flowBudgets={
   fine:{tier:2,cells:3000000,windows:48}
 };
 
+const checkpointBytes=64*1024*1024;
+async function fingerprint(data){
+  const digest=await crypto.subtle.digest('SHA-256',data);
+  return Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function discretization(gpu,f,mobility,source){
+  const n=countOf(f.dims),words=Math.ceil(n/8),bytes=4*words;
+  const packed=gpu.buffer('CFD four connectivity bits per cell',bytes),stage=gpu.staging('CFD connectivity fingerprint',bytes);
+  try{
+    const kernel=await gpu.kernel('CFD fingerprint of shared fluid faces and active cells',`
+      @group(0) @binding(0) var<storage,read> mu:array<vec4f>;@group(0) @binding(1) var<storage,read_write> packed:array<u32>;
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i>=arrayLength(&packed)){return;}var word=0u;
+        for(var j=0u;j<8u;j++){let k=8u*i+j;if(k<arrayLength(&mu)){let v=vec4u(mu[k]>vec4f(0));
+          word|=dot(v,vec4u(1,2,4,8))<<(4u*j);}}packed[i]=word;
+      }`);
+    const e=gpu.device.createCommandEncoder();gpu.dispatch(e,kernel,gpu.bind(kernel,[mobility,packed]),[Math.ceil(words/64)]);
+    e.copyBufferToBuffer(packed,0,stage,0,bytes);gpu.device.queue.submit([e.finish()]);await stage.mapAsync(GPUMapMode.READ);
+    const coordinates=new Float64Array([...f.dims,...source.axes.flat(),...source.originWorldM,...f.axes[0],...f.axes[1],...f.axes[2]]);
+    const [gridHash,wallTopologyHash]=await Promise.all([fingerprint(coordinates),fingerprint(stage.getMappedRange().slice(0))]);
+    return {gridHash,wallTopologyHash};
+  }finally{packed.destroy();stage.destroy();}
+}
+
+// Retain only a numerical predictor on the GPU. The next solve rebuilds the
+// wall and projects the predictor through its own pressure operator.
+async function savePredictor(gpu,solver,count,check){
+  const kernel=await gpu.kernel('CFD retain stationary momentum predictor',`
+    @group(0) @binding(0) var<storage,read> pred:array<vec4f>;@group(0) @binding(1) var<storage,read_write> retained:array<vec4f>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i<arrayLength(&retained)){retained[i]=vec4f(pred[2u*i].xyz,0);}}`);
+  check();const buffer=gpu.device.createBuffer({label:'CFD stationary restart',size:16*count,usage:GPUBufferUsage.STORAGE});
+  try{gpu.run(kernel,[solver.predicted,buffer],[Math.ceil(count/128)]);return buffer;}catch(e){buffer.destroy();throw e;}
+}
+
 // Estimate uncertainty from complete time blocks after startup. Short or
 // constant histories have insufficient information to infer autocorrelation.
 function forceUncertainty(windows,axes,dragAxis=[1,0,0]){
@@ -529,7 +564,7 @@ function physicalLoads(ctx,source,fluid,diameter,windows){
   return result;
 }
 
-async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
+async function solveNativeFrame(ctx,source,fidelity,check,publish,display,history){
   const {capture,motion,translation,owner}=source,{Speed,Medium,Altitude}=capture.params,U=translation?.relativeSpeedMPerS??Speed;
   const fluid=mediumProperties(Medium,Altitude),device=ctx.device,budget=flowBudgets[fidelity];
   if(translation&&Medium==='Air'&&capture.params.Ground==='Road'&&Math.abs(translation.velocityBoxMPerS[1])>1e-8)
@@ -539,6 +574,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     check();
     publish({...physicalLoads(ctx,source,fluid,0,[{steps:1,time:0,force:[0,0,0],moment:[0,0,0]}]),
       solver:'uniform-equilibrium',fidelity,occurrences:capture.meshes.length,medium:fluid,steps:0,completeWindows:0,
+      ...(history.paired?{paired:{baselineJob:history.prior.id,baselineGridHash:history.prior.gridHash,
+        baselineWallTopologyHash:history.prior.wallTopologyHash,deltaDragN:-history.prior.drag}}:{}),
       uncertainty:{blocks:0,standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
       validity:{stationary:true,maxDivergencePerS:0,relativeDivergenceMax:0,temporalConvergence:'exact'}});
     return true;
@@ -551,13 +588,17 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
-  const f=gradeCapturedDomain({origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
+  const settings={origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
     rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
     sweptDiameterM:diameter,groupTransport:!!motion,implicitRadiusM:motion?.625*diameter:0,
-    subcellSurface:!!motion,apertureFlow:!!motion,surfacePressure:true,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined},
-  domain.bodies,budget.tier,cap);
+    subcellSurface:!!motion,apertureFlow:!!motion,surfacePressure:true,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined};
+  const prior=history.prior;
+  if(history.paired&&(!prior||prior.frameKey!==source.frameKey))throw failure('CFD_PAIR_UNAVAILABLE','The baseline needs the same CFD box, physical frame, ground and fidelity.');
+  if(history.paired&&domain.bodies.min.some((x,a)=>x<prior.grid.axes[a][0]-1e-12||domain.bodies.max[a]>prior.grid.axes[a].at(-1)+1e-12))
+    throw failure('CFD_PAIR_OUTSIDE_GRID','The edited geometry extends beyond the paired computational domain.');
+  const f=history.paired?{...settings,...prior.grid}:gradeCapturedDomain(settings,domain.bodies,budget.tier,cap);
   const crossesRegion=bounds=>bounds.some(b=>Array.from({length:8},(_,k)=>ctx.math.point(domain.region.inverse,
     b.min.map((v,a)=>k&(1<<a)?b.max[a]:v))).some(p=>p.some((v,a)=>v<LOCAL_BOX.min[a]-1e-4||v>LOCAL_BOX.max[a]+1e-4)));
   const partiallyContained=crossesRegion(swept);
@@ -579,6 +620,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
   request=requestAnimationFrame(tick);
   try{
     const guarded={...capture,assertCurrent:check},geom=await nativeFlowGeometry(gpu,f,guarded,dt);check();
+    const hashes=await discretization(gpu,f,geom.response,source);check();
+    const sameGrid=prior?.gridHash===hashes.gridHash,sameWalls=prior?.wallTopologyHash===hashes.wallTopologyHash;
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;check();
     const stable=groups?factor*groups.stableStep:Infinity;
     if(dt>stable){
@@ -605,6 +648,24 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     const fixed=regional?.sum??solver.transverseImpulse??solver.loads,reduceMoment=await sumForce(gpu,fixed,count,4,count);
     const reduceTransverse=solver.transverseImpulse?await sumForce(gpu,fixed,count,4):null;
     const scheduler=viewportBudget(device,()=>lastFrame);
+    let restart=null;
+    if(f.laminar&&sameGrid&&prior?.buffer&&prior.frameKey===source.frameKey&&(history.paired||prior.geometryKey===source.geometryKey)){
+      restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check);check();
+    }
+    const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,
+      sameDiscretizationAsPrev:sameGrid&&sameWalls,previousJob:prior?.id??null};
+    function publishSample(value){
+      const paired=history.paired?{baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
+        deltaDragN:value.forceLocal.drag-prior.drag}:null;
+      publish({...value,validity:{...value.validity,...gridValidity},...(paired?{paired}:{}),
+        initialization:restart?{kind:'projected-stationary-predictor',fromJob:prior.id,...restart}:{kind:'uniform-inflow'}});
+    }
+    async function retain(drag){
+      const {origin,dims,h,axes,minPitch,domainEnd}=f;
+      const buffer=f.laminar&&16*count<=checkpointBytes?await savePredictor(gpu,solver,count,check):null;
+      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag});}
+      catch(e){buffer?.destroy();throw e;}
+    }
     let step=0;
     for(let window=0;window<budget.windows;window++){
       check();const e=device.createCommandEncoder();for(const b of [force,solver.loads,solver.transverseImpulse])if(b)e.clearBuffer(b);
@@ -643,14 +704,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
             ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
             ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'};
-        publish(result);
+        publishSample(result);
         if(stationary){
-          if(!geom.shape)return true;
+          if(!geom.shape){await retain(physical.forceLocal.drag);return true;}
           if(baseDefect>.025){
             if(window+1<budget.windows)continue;
-            publish({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
+            publishSample({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
           }
-          publish({...result,shape:{state:'solving',objective:'drag'}});
+          publishSample({...result,shape:{state:'solving',objective:'drag'}});
           const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
           await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
           const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
@@ -670,7 +731,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
             await fields.publishAdjoint(adj.lambda);check();
             display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
           }
-          check();publish({...result,shape:sensitivity,surfaceFields:display.description});return true;
+          check();await retain(physical.forceLocal.drag);publishSample({...result,shape:sensitivity,surfaceFields:display.description});return true;
         }
       }
     }
@@ -681,7 +742,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
 export async function activate(context){
   if(context.version!==1)throw failure('API_VERSION','Unsupported Frame plugin API.');
   const find=hash=>{const n=context.document.nodes.find(n=>n.nativeHash===hash&&n.type==='cfd');if(!n)throw failure('INVALID_OWNER','Select an existing CFD object.');return n;};
-  const jobs=new Map(),archives=new Map(),sweeps=new Map(),lineDensities=new Map();
+  const jobs=new Map(),archives=new Map(),sweeps=new Map(),lineDensities=new Map(),checkpoints=new Map();
   let sequence=0,queue=Promise.resolve(),sweepQueue=Promise.resolve(),activeSweep=null;
   const refresh=()=>{context.requestAttributes();context.requestDraw();};
   const closeDisplay=d=>{if(d)setTimeout(()=>d.gpu.close(),0);};
@@ -718,25 +779,47 @@ export async function activate(context){
     }
   }
   function detach(hash){const job=jobs.get(hash);if(job){job.stopped=true;jobs.delete(hash);release(job);}}
-  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);detach(hash);}
-  function newJob(hash,fidelity){
+  function dropCheckpoint(c){checkpoints.delete(c.id);c.buffer?.destroy();}
+  function retainCheckpoint(job,c){
+    const epoch=context.fields.authoringStamp().epoch;
+    checkpoints.set(job.id,{...c,id:job.id,owner:job.owner,device:job.device,epoch,frameKey:job.source.frameKey,geometryKey:job.source.geometryKey});
+    let bytes=0,count=0;
+    for(const entry of [...checkpoints.values()].reverse()){
+      bytes+=entry.buffer?.size??0;
+      if(++count>8||bytes>checkpointBytes)dropCheckpoint(entry);
+    }
+  }
+  function previousCheckpoint(job){
+    const epoch=context.fields.authoringStamp().epoch;
+    const entries=[...checkpoints.values()].reverse().filter(c=>c.owner===job.owner&&c.epoch===epoch&&c.device===job.device);
+    const prior=job.pairedWithJob?entries.find(c=>c.id===job.pairedWithJob):entries[0];
+    if(job.pairedWithJob&&(!prior||job.source.frameKey!==prior.frameKey))
+      throw failure('CFD_PAIR_UNAVAILABLE','Choose a retained stationary job of this box at the same physical frame and fidelity.');
+    return {prior,paired:!!job.pairedWithJob,save:c=>retainCheckpoint(job,c)};
+  }
+  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}lineDensities.delete(hash);discardArchive(hash);detach(hash);
+    for(const c of checkpoints.values())if(c.owner===hash)dropCheckpoint(c);}
+  function newJob(hash,fidelity,pairedWithJob){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
     const world=context.document.world(hash),pivot=context.document.pivot(hash);
     source.owner=hash;source.boxAxes=boxAxes(world);
     const basis=source.translation?.basis;
     source.axes=flowAxes(source.boxAxes,basis);
+    source.originWorldM=physicalOrigin(world,source.axes,source.motion);
+    source.frameKey=JSON.stringify([fidelity,world,source.axes,source.originWorldM,!!source.motion,source.capture.params.Medium==='Air'&&source.capture.params.Ground==='Road']);
+    source.geometryKey=source.capture.meshes.length?context.scene.signature(hash,[],{bounds:LOCAL_BOX}):null;
     source.dragAxis=basis?.map(v=>v[0])??[1,0,0];
     source.pivot=context.math.point(flowMetric(world,source.motion?.axisOriginM??[0,0,0],basis),pivot.slice(12,15));
     const key=JSON.stringify([fidelity,source.capture.signature,source.animationSignature,world,pivot,source.fps,
-      source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS]);
-    return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,key,state:'queued',result:null,stopped:false};
+      source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS,pairedWithJob]);
+    return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,pairedWithJob,key,state:'queued',result:null,stopped:false};
   }
   function remember(job){
     const a=archive(job.owner,true);if(!a)return;
     const {surfaceFields,shape,...numbers}=job.result;
     if(!surfaceFields){closeDisplay(job.display);job.display=null;}
     const old=a.solutions.get(job.key);if(old?.display&&old.display!==job.display)closeDisplay(old.display);
-    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,state:job.state,
+    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,pairedWithJob:job.pairedWithJob,state:job.state,
       numbers,fields:surfaceFields,shape,display:job.display,hadFields:!!surfaceFields,used:performance.now()});
     a.solutions.set(job.key,solution);a.frames.set(job.source.frame,solution);a.version++;job.solution=solution;trimDisplays();
   }
@@ -767,7 +850,7 @@ export async function activate(context){
       const a=archive(hash),solution=a?.frames.get(context.document.frame);
       if(solution){
         try{
-          const restored=newJob(hash,solution.fidelity);
+          const restored=newJob(hash,solution.fidelity,solution.pairedWithJob);
           if(restored.key===solution.key){restoreSolution(restored,solution);job=restored;}
           else discardArchive(hash);
         }catch{discardArchive(hash);}
@@ -788,15 +871,17 @@ export async function activate(context){
       job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,steps:j.result?.steps??0,error:j.error??null}:null,
       animation:sweepInfo(sweeps.get(hash))};
   }
-  function start(hash,{fidelityBudget='standard'}={},sweep=null){
+  function start(hash,{fidelityBudget='standard',pairedWithJob}={},sweep=null){
     const node=find(hash);
     if(!Object.hasOwn(flowBudgets,fidelityBudget))throw failure('INVALID_ARGUMENT','Choose preview, standard or fine fidelity.');
+    if(pairedWithJob!==undefined&&(!Number.isSafeInteger(pairedWithJob)||pairedWithJob<=0))throw failure('INVALID_ARGUMENT','Choose a positive baseline job identifier.');
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
     if(!sweep&&sweepBusy(sweeps.get(hash))){sweeps.get(hash).moved=true;stop(hash);}
     const old=current(hash);
-    if(old&&old.fidelity===fidelityBudget&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
-    const job=newJob(hash,fidelityBudget),{device,source}=job,a=archive(hash);
+    if(old&&old.fidelity===fidelityBudget&&old.pairedWithJob===pairedWithJob&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
+    const job=newJob(hash,fidelityBudget,pairedWithJob),{device,source}=job,a=archive(hash);
     const cached=a?.solutions.get(job.key);
+    if(pairedWithJob&&!cached)previousCheckpoint(job);
     detach(hash);
     if((cached?.state==='ready'||sweep&&cached?.state==='unconverged')&&(!cached.hadFields||cached.display)){
       restoreSolution(job,cached);a.frames.set(source.frame,cached);a.version++;refresh();return status(hash);
@@ -808,7 +893,7 @@ export async function activate(context){
         job.display={gpu:gpuScope(device),chunks:[],mode:'Drag'};
         const done=await solveNativeFrame(context,source,fidelityBudget,()=>verify(job),result=>{
           verify(job);job.result=result;job.display?.flow?.set(lineDensities.get(hash)??0);refresh();
-        },job.display);
+        },job.display,previousCheckpoint(job));
         verify(job);job.state=done?'ready':'unconverged';remember(job);
       }catch(e){
         if(job.stopped||jobs.get(hash)!==job)return;
@@ -1048,7 +1133,7 @@ export async function activate(context){
         return wallMotionReport(context,hash,p);
       }},
     {id:'solve-frame',description:'Start a Cartesian finite-volume solve on the visible evaluated scene at this frame. Returns a job handle.',
-      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
+      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)},pairedWithJob:{type:'integer',minimum:1}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
     {id:'solve-animation',description:'Measure each native animation frame in an inclusive interval, preserving the held playhead on completion.',
       inputSchema:{type:'object',properties:{firstFrame:{type:'integer',minimum:0},lastFrame:{type:'integer',minimum:0},
         fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:solveAnimation},
@@ -1082,6 +1167,8 @@ export async function activate(context){
     if(changed)refresh();
   }
   function documentChanged(){
+    if(checkpoints.size){const stamp=sweepStamp();
+      for(const c of checkpoints.values())if(c.device!==context.device||stamp&&c.epoch!==stamp.epoch)dropCheckpoint(c);}
     if(jobs.size||archives.size||sweeps.size){
       const live=new Set(context.document.nodes.filter(n=>n.type==='cfd').map(n=>n.nativeHash));
       for(const hash of new Set([...jobs.keys(),...archives.keys(),...sweeps.keys()]))if(!live.has(hash))retire(hash);
@@ -1465,6 +1552,21 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   if(equilibrium)stats.flowReconstruction=equilibrium.stats;
   return {state:s0,predicted:pred,pressure:mg.p,pressureHierarchy:mg,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,
     groupTransport:grouped?.stats,mobility,fluxConvergence:stats,
+    async restart(buffer,velocityRatio,scheduler,assertCurrent){
+      if(!f.laminar||f.cutCells||f.rotor||buffer.size!==count*16||!(velocityRatio>0&&Number.isFinite(velocityRatio)))throw Error('Invalid steady momentum checkpoint');
+      const load=await gpu.kernel('CFD initialize the new momentum predictor',base+decl(0,'seed','vec4f')+decl(1,'initial','Cell')+decl(2,'pred','Cell',true)+
+        main(`var v=initial[i];v.uk=vec4f(seed[i].xyz*${velocityRatio},v.uk.w);pred[i]=v;`));
+      assertCurrent();const seed=gpu.bind(load,[buffer,s0,pred]);
+      await scheduler.perform([phase('restart and rebuild pressure geometry',e=>{mg.updateGeometry(e);gpu.dispatch(e,load,seed,grid);gpu.dispatch(e,rhs,r,grid);}),
+        ...projection(16),phase('project the restart predictor',e=>{gpu.dispatch(e,project,c,grid);e.clearBuffer(fluxTail);}),...first,check],assertCurrent);
+      let maximum=await measure(),passes=1;
+      while(maximum>target&&passes<16){
+        await scheduler.perform([...krylovRestarts[Math.min(passes-1,krylovRestarts.length-1)],check],assertCurrent);
+        maximum=await measure();passes++;
+      }
+      if(!Number.isFinite(maximum)||maximum>target)throw Error('The restart pressure projection missed its stored mass tolerance');
+      return {relativeDivergenceMax:maximum,maxDivergencePerS:maximum/f.period,projectionPasses:passes};
+    },
     async steadyDefect(){
       const next=gpu.buffer('CFD steady momentum residual trial',s0.size),peak=gpu.buffer('CFD steady momentum residual',4);
       const read=gpu.staging('CFD steady momentum residual scalar',4);
