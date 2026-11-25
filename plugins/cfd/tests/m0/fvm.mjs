@@ -93,6 +93,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           var invD=1./widths[axis];if(inside(j)){invD=spacingInv(axis,p[axis],side);}
           if(!inside(j)){
             if(floorFace(axis,side)){b.uk=vec4f(vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u,k);b.wt=a.wt;}
+            ${f.tunnelSymmetry?'else if(axis!=0u){b=a;b.uk[axis]=-u[axis];}':''}
             else if(!openFace(axis,side)||q<0.){b=far();}
           }
           let donor=select(b.uk,a.uk,q>=0.);var up=donor;

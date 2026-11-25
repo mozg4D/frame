@@ -1,5 +1,20 @@
 import {cellCenter,cellWidth} from './rectilinear.mjs';
 
+// Sample at physical streamwise stations. Keep the actual vertical coordinates
+// so the tunnel boundary layer and wake can be compared with independent LDA.
+export function tunnelProfiles(f,axialVelocity){
+  const [nx,ny]=f.dims;
+  return [-.4,1.044+.08,1.044+.16,1.044+.24].map(xM=>{
+    let left=0;
+    while(left+1<nx&&cellCenter(f,0,left+1)<xM)left++;
+    if(left+1>=nx||xM<cellCenter(f,0,left))throw Error('Wake station is outside the sampled tunnel');
+    const x0=cellCenter(f,0,left),x1=cellCenter(f,0,left+1),t=(xM-x0)/(x1-x0);
+    const profile=Array.from({length:ny},(_,j)=>({heightM:cellCenter(f,1,j),
+      uOverU:((1-t)*axialVelocity(left,j)+t*axialVelocity(left+1,j))/f.U}));
+    return {xM,profile};
+  });
+}
+
 // Averages span complete sampling windows. The sphere reference is on-axis.
 // The Ahmed reference is the downstream extent of the reversed-flow region
 // in the symmetry plane, not a zero crossing at an arbitrary body height.

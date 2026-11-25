@@ -26,6 +26,9 @@ const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform')&&!args.includes('--solver=mr-lbm'))};
 selection.trace=args.includes('--trace-steps');
 selection.projectionShape=args.includes('--projection-shape');
+selection.matchedTunnel=args.includes('--matched-tunnel');
+if(selection.matchedTunnel&&(!nativeAhmed||selection.fixture!=='ahmed-wake'||!selection.graded||
+  selection.solver&&selection.solver!=='cartesian-fvm'))throw Error('Use the graded native Cartesian Ahmed wake fixture for the matched tunnel');
 selection.measuredPlanform=args.includes('--uiuc-planform');
 if(selection.measuredPlanform&&(scenePath||nativeSphere||nativeAhmed||selection.fixture&&selection.fixture!=='propeller'))
   throw Error('UIUC planform data apply only when creating the propeller reference geometry');

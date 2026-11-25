@@ -2,7 +2,7 @@ import {gpuScope} from './gpu.mjs';
 import {flowFixture,geometryKernel,gradedFixture,gridWGSL,references} from './fixtures.mjs';
 import {cartesianSolver,faceBalanceWGSL} from './fvm.mjs';
 import {momentSolver} from './mr-lbm.mjs';
-import {wakeLength} from './wake.mjs';
+import {wakeLength,tunnelProfiles} from './wake.mjs';
 import {viewportBudget} from './viewport-budget.mjs';
 import {cellCenter,cellWidth,metricWGSL,metricBuffer} from './rectilinear.mjs';
 import {cutGroups} from './cut-groups.mjs';
@@ -245,6 +245,8 @@ export async function runCase(device,f,kind,progress,capture=null){
     const latticeTick=batchedLattice?{kind:'packed lattice step',encode:geom.encode?e=>{geom.encode(e);solver.encode(e);}:solver.encode}:null;
     let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
+    const tunnelSum=f.tunnelSymmetry?new Float64Array(f.dims[0]*f.dims[1]):null;
+    let tunnelSamples=0,tunnelWindows=0;
     const limitSteps=f.periodLimit?Math.max(1,Math.round(f.periodLimit*f.period/dt)):Infinity;
     for(let window=0;window<32&&step<limitSteps;window++){
       await f.checkKinematics?.();
@@ -283,7 +285,8 @@ export async function runCase(device,f,kind,progress,capture=null){
       const coefficient=forceN/f.normalization;
       let isolatedWake=null;
       if(complete&&measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
-        isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
+        isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};
+        if(tunnelSum){for(let i=0;i<tunnelSum.length;i++)tunnelSum[i]+=plane[i];tunnelSamples+=steps;tunnelWindows++;}}
       const radialProfile=annular&&complete?await annular(scale,forceN,load[1]):null;
       const nativePressure=geom.skin?await geom.skin.measure(f.rho*(f.h/dt)**2/(step-first),f.omega):null;
       const latticeMass=solver.mass?await solver.mass.measure(step-first):null;
@@ -324,6 +327,10 @@ export async function runCase(device,f,kind,progress,capture=null){
       w.latticeMass?.relativeGlobalMassDefect<1e-6&&w.latticeMass.densityRatioRange[0]>0&&Number.isFinite(w.latticeMass.densityRatioRange[1])):null;
     const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&powerPassed!==false&&wakePassed!==false&&viewport.qualified&&massPassed!==false&&latticeMassPassed!==false;
     const totalMs=performance.now()-start;
+    const tunnelDiagnostics=f.tunnelSymmetry?{boundsM:{min:f.origin,max:f.domainEnd},pressureOpen:f.pressureOpen,
+      averagingFromPeriod:4,completeWindows:tunnelWindows,sampledTimeS:tunnelSamples*dt,
+      meanWakeLengthM:tunnelSamples?windowWake(f,dt,tunnelSum,tunnelSamples):null,
+      stations:tunnelSamples?tunnelProfiles(f,(i,j)=>tunnelSum[i+j*f.dims[0]]*f.h/(dt*tunnelSamples)):[]}:undefined;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.coarseSpectral?'coarse-separable-and-block':f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
       wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':f.latticeSurfaceWall?'Native triangle normal constraint and Spalding wall stress':'Volume penalization',
@@ -335,7 +342,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.apertureFlow?'relative flow integrated on each open polygon':f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
-      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,periodLimit:f.periodLimit,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
+      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,periodLimit:f.periodLimit,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,tunnelDiagnostics,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};

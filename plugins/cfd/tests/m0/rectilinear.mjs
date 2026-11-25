@@ -43,7 +43,7 @@ export function surfaceGradedAxis(start,end,coreLo,coreHi,bodyLo,bodyHi,pitch,sk
 }
 
 export function rectilinearDomain(f,bounds,pitches,cap){
-  const end=f.origin.map((x,k)=>x+f.dims[k]*f.h),length=bounds.max.map((v,k)=>v-bounds.min[k]);
+  const end=f.domainEnd??f.origin.map((x,k)=>x+f.dims[k]*f.h),length=bounds.max.map((v,k)=>v-bounds.min[k]);
   const scale=Math.max(...length);
   let factor=1;
   for(;;){

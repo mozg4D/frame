@@ -3,7 +3,7 @@ import {boxAxes,boxMetric,captureFlowSurfaces,researchSceneContext} from './nati
 import {runCase} from './flow.mjs';
 import {mediumProperties} from './fluid.mjs';
 import {LOCAL_BOX} from '../../plugin.js';
-import {ahmedMesh} from './ahmed.mjs';
+import {ahmedMesh,wakeTunnel} from './ahmed.mjs';
 import {rotorParts} from './rotor.mjs';
 import {nativeAxialSpin} from './rigid-spin.mjs';
 
@@ -118,7 +118,7 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
     geometry:supportBounds.length?'Mounted native Ahmed body and four cylinder supports on the fixed tunnel floor, combined loads':
       'Evaluated native Ahmed polygon surface on a fixed floor, body-only load'};
   const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):
-    await runCase(device,selection.graded?gradedFixture(f,tier,hull.bounds):f,selection.solver??'cartesian-fvm',progress,capture);
+    await runCase(device,selection.graded?gradedFixture(selection.matchedTunnel?wakeTunnel(f):f,tier,hull.bounds):f,selection.solver??'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent,supportBoundsM:supportBounds,sourceSignature:capture.signature};
 }
 

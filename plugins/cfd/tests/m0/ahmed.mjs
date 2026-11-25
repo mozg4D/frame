@@ -19,3 +19,11 @@ export function ahmedMesh(){
   const tail=4*(rings.length-1);quad(tail,tail+1,tail+2,tail+3);
   return {name:'Ahmed body 25 degrees',vertices,indices};
 }
+
+// Aultman and Duan, Fluids 10, 35 (2025), sections 2.3 and 3.1.
+// Their inlet run-up and symmetry boundaries approximate the measured open jet.
+// Keep this wind tunnel separate from the body-only drag experiment.
+export function wakeTunnel(f){
+  return {...f,origin:[-2,0,-.9375],domainEnd:[5,1.375,.9375],
+    pressureOpen:[false,true,false,false,false,false],tunnelSymmetry:true};
+}

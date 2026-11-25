@@ -19,8 +19,18 @@ import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} fro
 import {pressureAxis} from './m0/separable-pressure.mjs';
 import {pressureTransfers} from './m0/coarse-spectral.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
-import {ahmedMesh} from './m0/ahmed.mjs';
+import {ahmedMesh,wakeTunnel} from './m0/ahmed.mjs';
+import {tunnelProfiles} from './m0/wake.mjs';
 import {cutBlockInverse} from './m0/cut-block-factor.mjs';
+test('wind tunnel retains physical bounds, a single pressure outlet and fixed LDA stations on graded axes',()=>{
+  const box=wakeTunnel(flowFixture('ahmed-wake',1)),bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
+  const grid=rectilinearDomain(box,bounds,[.04,.02,.03],750000);
+  assert.deepEqual(grid.axes.map(a=>[a[0],a.at(-1)]),[[-2,5],[0,1.375],[-.9375,.9375]]);
+  assert.deepEqual(box.pressureOpen,[false,true,false,false,false,false]);
+  const at=(x,y)=>.23+.5*x+1.7*y;
+  const curves=tunnelProfiles(grid,(i,j)=>grid.U*at(cellCenter(grid,0,i),cellCenter(grid,1,j)));
+  for(const row of curves)for(const p of row.profile)assert.ok(Math.abs(p.uOverU-at(row.xM,p.heightM))<1e-12);
+});
 test('native rotor components are closed and the shaft bore retains its design volume',()=>{
   const parts=rotorParts(),volumes=[];
   for(const {vertices:v,indices:t} of parts){
