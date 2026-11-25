@@ -2245,7 +2245,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       ...(n?projection(n):[phase('local pressure relaxation',mg.polish)]),
       phase('flux correction',e=>{gpu.dispatch(e,refineFlux,refineGroup,grid);gpu.dispatch(e,accumulate,pressureGroup,grid);})];
   }
-  const check=phase('verify volume flow',e=>{e.clearBuffer(peak);gpu.dispatch(e,norm,normGroup,grid);e.copyBufferToBuffer(peak,0,stage,0,4);});
+  function storedMass(e,destination,offset){
+    e.clearBuffer(peak);gpu.dispatch(e,norm,normGroup,grid);e.copyBufferToBuffer(peak,0,destination,offset,4);
+  }
+  const check=phase('verify volume flow',e=>storedMass(e,stage,0));
   const samplePlane=phase('sample wake',e=>gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]));
   const fixed=refinement(f.axes?18:24),first=refinement(f.globalPressure?8:12),extra=refinement(f.globalPressure?8:18);
   const krylovRestarts=[extra,refinement(24),refinement(48),refinement(96)];
@@ -2276,8 +2279,9 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     }),...projection(16),phase('impose initial wall impermeability',e=>gpu.dispatch(e,refineFlux,refineGroup,grid)),...first,check],current);
     let maximum=await measure(),passes=1;
     while(maximum>target&&passes<16){
-      if(equilibrium&&await equilibrium.correct(scheduler,current)){
-        await scheduler.perform([check],current);maximum=await measure();if(maximum<=target)break;
+      if(equilibrium){
+        const correction=await equilibrium.correctMeasured(scheduler,current,storedMass);
+        if(correction.accepted){maximum=correction.mass*f.period/dt;if(maximum<=target)break;}
       }
       await scheduler.perform([...krylovRestarts[Math.min(passes-1,krylovRestarts.length-1)],check],current);
       maximum=await measure();passes++;
@@ -2871,9 +2875,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let allowLocal=!!f.cutCells,restart=0,nextReconstruction=1;
       while(maximum>target&&passes<16){
         if(equilibrium&&passes>=nextReconstruction){
-          if(await equilibrium.correct(scheduler,assertCurrent)){
+          const correction=await equilibrium.correctMeasured(scheduler,assertCurrent,storedMass);
+          if(correction.accepted){
             trace?.push(equilibrium.replay);
-            await scheduler.perform([check],assertCurrent);maximum=await measure();nextReconstruction=Infinity;
+            maximum=correction.mass*f.period/dt;nextReconstruction=Infinity;
             if(maximum<=target)break;
           }else nextReconstruction=passes+2;
         }
@@ -5143,7 +5148,17 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   await device.queue.onSubmittedWorkDone();for(const b of [...distances,bucket,histogram,one,changed])b.destroy();
 
   const sum=gpu.buffer('CFD compensated subtree discharges',8*n);
-  const audit=gpu.buffer('CFD discharge reconstruction bounds',12),auditStage=gpu.staging('CFD conservative reconstruction limit',12);
+  const audit=gpu.buffer('CFD discharge reconstruction bounds',16),auditStage=gpu.staging('CFD reconstruction and stored mass',20);
+  const limits=gpu.buffer('CFD admissible discharge and sealed-pocket bounds',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+  // Every measured bound is nonnegative FP32. Comparing its bits with the
+  // largest representable value below the original FP64 limit preserves the
+  // CPU acceptance test at its rounding boundary and rejects infinities.
+  const limitFloat=new Float32Array(1),limitBits=new Uint32Array(limitFloat.buffer);
+  function upperBits(value){
+    if(value===0)return 0;
+    limitFloat[0]=value;return Math.min(0x7f7fffff,limitBits[0]-Number(limitFloat[0]>value));
+  }
+  const compatibilityLimit=upperBits(7e-7/Math.max(1,f.period??1));let lastLimit;
   const energy=gpu.buffer('CFD face energy by workgroup',4*grid[0]);
   const stats={levels:levels.subarray(0,-1).filter(v=>v>0).length,reached:reached-sealed.cells,sealedUnreached:sealed.cells,
     sealedComponents:sealed.components,maxSealedCompatibilityPerS:0,maxAcceptedSealedCompatibilityPerS:0,attempts:0,accepted:0,
@@ -5189,16 +5204,19 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   // The missing elliptic correction minimizes sum(q^2/conductance) among
   // flows with this defect. A feasible discharge bounds its pressure energy.
   const reduce=await gpu.kernel('CFD upper bound on the remaining pressure gradient',arr(0,'terms','f32')+arr(1,'audit','f32',true)+`
+    @group(0) @binding(2) var<uniform> limit:vec4u;
     var<workgroup> sums:array<f32,128>;
     @compute @workgroup_size(128) fn main(@builtin(local_invocation_index) lane:u32){
       var s=0.;for(var i=lane;i<arrayLength(&terms);i+=128u){s+=terms[i];}sums[lane]=s;
       for(var d=64u;d>0u;d/=2u){workgroupBarrier();if(lane<d){sums[lane]+=sums[lane+d];}}
-      if(lane==0u){audit[1]=sqrt(sums[0]/${volume});}
+      if(lane==0u){let rms=sqrt(sums[0]/${volume});audit[1]=rms;
+        let bounds=bitcast<vec3u>(vec3f(audit[0],rms,audit[2]));
+        audit[3]=select(0.,1.,limit.z!=0u&&all(bounds<=limit.xxy));}
     }`);
-  const reduceGroup=gpu.bind(reduce,[energy,audit]);
+  const reduceGroup=gpu.bind(reduce,[energy,audit,limits]);
   const apply=await gpu.kernel('CFD share equilibrated discharges on both incidences',common+fields+addFlowWGSL+
-    arr(0,'h','Flux',true)+arr(1,'l','Flux',true)+arr(2,'dir','u32')+arr(3,'sum','vec2f')+each(`
-      let own=dir[i];if(own==NONE){return;}var hi=h[i];var lo=l[i];
+    arr(0,'h','Flux',true)+arr(1,'l','Flux',true)+arr(2,'dir','u32')+arr(3,'sum','vec2f')+arr(4,'audit','f32')+each(`
+      let own=dir[i];if(own==NONE||audit[3]!=1.){return;}var hi=h[i];var lo=l[i];
       for(var c=0u;c<6u;c++){let a=c/2u;let sign=select(-1.,1.,upper(c));var d=vec2f(0);
         if(own==c){d=-sign*sum[i];}else{let q=neighbour(p,c);if(!inside(q)){continue;}
           let j=index(q);if(dir[j]!=(c^1u)){continue;}d=sign*sum[j];}
@@ -5206,7 +5224,9 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
         pair=addFlow(pair.x,pair.y,d.y);
         if(upper(c)){hi.hi[a]=pair.x;lo.hi[a]=pair.y;}else{hi.lo[a]=pair.x;lo.lo[a]=pair.y;}
       }h[i]=hi;l[i]=lo;`));
-  const applyGroup=gpu.bind(apply,[flux,tail,parent,sum]);
+  const applyGroup=gpu.bind(apply,[flux,tail,parent,sum,audit]);
+  const acceptedPath=gpu.buffer('CFD previously accepted discharge reconstruction',new Float32Array([0,0,0,1]));
+  const replayGroup=gpu.bind(apply,[flux,tail,parent,sum,acceptedPath]);
   const usePrefix=f.prefixForest??(ranges.length>=24&&reached>=16384);
   const prefix=usePrefix?await prefixSubtreeSums(gpu,f,common,parent,ordered,ranges,reached,flux,tail,sum):null;
   if(prefix){ordered.destroy();for(const r of ranges)r.buffer.destroy();}
@@ -5217,22 +5237,33 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   stats.subtreeMethod=prefix?'contiguous subtree intervals':'depth ordering';
   stats.subtreeDispatches=proposals.length;
   if(prefix)stats.largestRootCells=prefix.largestRoot;
-  proposals.push({kind:'bound face perturbation',encode:e=>{
-    e.clearBuffer(audit);gpu.dispatch(e,bound,boundGroup,grid);gpu.dispatch(e,reduce,reduceGroup,[1]);e.copyBufferToBuffer(audit,0,auditStage,0,12);
-  }});
-  const publish={kind:'equilibrate shared discharges',encode:e=>gpu.dispatch(e,apply,applyGroup,grid)};
-  return {stats,replay:[...proposals.slice(0,-1),publish],async correct(scheduler,assertCurrent,limit=1e-5){
-    await scheduler.perform(proposals,assertCurrent);await auditStage.mapAsync(GPUMapMode.READ);let peak,rms,compatibility;
-    try{[peak,rms,compatibility]=new Float32Array(auditStage.getMappedRange());}finally{auditStage.unmap();}
+  const bounds={kind:'bound face perturbation',encode:e=>{
+    e.clearBuffer(audit);gpu.dispatch(e,bound,boundGroup,grid);gpu.dispatch(e,reduce,reduceGroup,[1]);
+  }};
+  const publish=group=>({kind:'equilibrate shared discharges',encode:e=>gpu.dispatch(e,apply,group,grid)});
+  const applyMeasured=[...proposals,bounds,publish(applyGroup)];
+  async function certify(scheduler,assertCurrent,limit,storedMass){
+    if(lastLimit!==limit){
+      device.queue.writeBuffer(limits,0,new Uint32Array([upperBits(limit),compatibilityLimit,Number(limit>=0),0]));lastLimit=limit;
+    }
+    const verify={kind:'read conservative reconstruction',encode:e=>{
+      storedMass?.(e,auditStage,16);e.copyBufferToBuffer(audit,0,auditStage,0,16);
+    }};
+    await scheduler.perform([...applyMeasured,verify],assertCurrent);
+    await auditStage.mapAsync(GPUMapMode.READ);let peak,rms,compatibility,decision,mass;
+    try{[peak,rms,compatibility,decision,mass]=new Float32Array(auditStage.getMappedRange());}finally{auditStage.unmap();}
     stats.attempts++;stats.maxTriedRelativeSpeed=Math.max(peak,stats.maxTriedRelativeSpeed);
     stats.maxSealedCompatibilityPerS=Math.max(stats.maxSealedCompatibilityPerS,compatibility);
-    if(!(compatibility<=7e-7/Math.max(1,f.period??1)))return false;
-    if(!Number.isFinite(peak)||!Number.isFinite(rms)||peak>limit||rms>limit)return false;
-    await scheduler.perform([publish],assertCurrent);stats.accepted++;
-    stats.maxAcceptedSealedCompatibilityPerS=Math.max(stats.maxAcceptedSealedCompatibilityPerS,compatibility);
-    stats.maxAcceptedRelativeSpeed=Math.max(peak,stats.maxAcceptedRelativeSpeed);
-    stats.maxAcceptedRelativeRmsPressureGradientBound=Math.max(rms,stats.maxAcceptedRelativeRmsPressureGradientBound);return true;
-  }};
+    if(decision===1){stats.accepted++;
+      stats.maxAcceptedSealedCompatibilityPerS=Math.max(stats.maxAcceptedSealedCompatibilityPerS,compatibility);
+      stats.maxAcceptedRelativeSpeed=Math.max(peak,stats.maxAcceptedRelativeSpeed);
+      stats.maxAcceptedRelativeRmsPressureGradientBound=Math.max(rms,stats.maxAcceptedRelativeRmsPressureGradientBound);
+    }
+    return {accepted:decision===1,mass};
+  }
+  return {stats,replay:[...proposals,publish(replayGroup)],
+    async correct(scheduler,current,limit=1e-5){return (await certify(scheduler,current,limit)).accepted;},
+    correctMeasured:(scheduler,current,storedMass)=>certify(scheduler,current,1e-5,storedMass)};
 }
 
 export const countOf=dims=>dims.reduce((a,b)=>a*b);

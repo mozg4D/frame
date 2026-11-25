@@ -23,11 +23,20 @@ export async function verifyFluxEquilibration(device){
   try{
     const hi=gpu.buffer('CFD shared circulation',high),lo=gpu.buffer('CFD independent small defects',low);
     const tree=await fluxEquilibration(gpu,f,dt,gpu.buffer('CFD baffle and sealed pocket',mu),hi,lo);
-    const scheduler={async perform(ops){const e=device.createCommandEncoder();for(const op of ops)op.encode(e);device.queue.submit([e.finish()]);}};
+    let batches=0;
+    const scheduler={async perform(ops){
+      const e=device.createCommandEncoder();for(const op of ops)op.encode(e);
+      device.queue.submit([e.finish()]);batches++;
+    }};
     const stage=gpu.staging('CFD independent discharge measurement',32*n);
     const refused=!(await tree.correct(scheduler,null,1e-15));
-    const old=await gpu.read(lo,stage,8*n);const pristine=old.every((v,i)=>Object.is(v,low[i]));
+    const rejectedBatches=batches;
+    const unchanged=async(x,y)=>(await gpu.read(hi,stage,8*n)).every((v,i)=>Object.is(v,x[i]))&&
+      (await gpu.read(lo,stage,8*n)).every((v,i)=>Object.is(v,y[i]));
+    const reset=()=>{device.queue.writeBuffer(hi,0,high);device.queue.writeBuffer(lo,0,low);};
+    const pristine=await unchanged(high,low);
     const accepted=await tree.correct(scheduler,null,1e-4);const a=await gpu.read(hi,stage,8*n),b=await gpu.read(lo,stage,8*n);
+    const acceptedBatches=batches-rejectedBatches;
     const flow=k=>a[k]+b[k],initial=k=>high[k]+low[k];
     let initialDiv=0,divergence=0,unshared=0,leak=0,energy=0,peak=0,volume=0;
     for(let i=0;i<n;i++){
@@ -47,8 +56,28 @@ export async function verifyFluxEquilibration(device){
     }
     const relativeBoundError=Math.abs(tree.stats.maxAcceptedRelativeRmsPressureGradientBound/Math.sqrt(energy/volume)-1);
     const speedBoundError=Math.abs(tree.stats.maxAcceptedRelativeSpeed/peak-1);
-    return {refused,pristine,applied:accepted,initialDiv,divergence,unshared,leak,relativeBoundError,speedBoundError,...tree.stats,
-      pass:refused&&pristine&&accepted&&tree.stats.subtreeMethod==='depth ordering'&&tree.stats.sealedUnreached===1&&initialDiv>1e-6&&divergence<1e-9&&
+    // Both thresholds round to the same FP32 number. The smaller FP64 limit
+    // must still reject, even after a successful earlier reconstruction.
+    const bound=Math.max(tree.stats.maxAcceptedRelativeSpeed,tree.stats.maxAcceptedRelativeRmsPressureGradientBound);
+    const below=bound*(1-1e-9);reset();
+    const nearRefused=Math.fround(below)===bound&&!await tree.correct(scheduler,null,below)&&await unchanged(high,low);
+    const onBound=await tree.correct(scheduler,null,bound)&&await unchanged(a,b);
+    reset();const zeroRefused=!await tree.correct(scheduler,null,-0)&&await unchanged(high,low);
+    await scheduler.perform(tree.replay);const replayExact=await unchanged(a,b);
+    // Read a changed low word from inside the same batch. An early measurement
+    // would observe its original value even when the final field was correct.
+    reset();const sampleIndex=b.findIndex((v,i)=>v!==low[i]);
+    const beforeMeasured=batches;
+    const measured=sampleIndex<0?null:await tree.correctMeasured(scheduler,null,(e,destination,offset)=>{
+      e.copyBufferToBuffer(lo,4*sampleIndex,destination,offset,4);
+    });
+    const measuredBatches=batches-beforeMeasured;
+    const capturedAfterWrite=measured?.accepted&&Object.is(measured.mass,b[sampleIndex])&&await unchanged(a,b);
+    return {refused,pristine,applied:accepted,initialDiv,divergence,unshared,leak,relativeBoundError,speedBoundError,
+      rejectedBatches,acceptedBatches,measuredBatches,nearRefused,onBound,zeroRefused,replayExact,capturedAfterWrite,...tree.stats,
+      pass:refused&&pristine&&accepted&&nearRefused&&onBound&&zeroRefused&&replayExact&&capturedAfterWrite&&
+        [rejectedBatches,acceptedBatches,measuredBatches].every(v=>v===1)&&
+        tree.stats.subtreeMethod==='depth ordering'&&tree.stats.sealedUnreached===1&&initialDiv>1e-6&&divergence<1e-9&&
         unshared===0&&leak===0&&relativeBoundError<1e-4&&speedBoundError<1e-4};
   }finally{gpu.close();}
 }
