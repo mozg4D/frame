@@ -96,9 +96,14 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
       let p=vec3f(${floats(f.origin)})+cellCenters(point(i))*${f.h};
       let sdf=distanceToBody(p,phase);let w=1.-smoothstep(-0.7*${f.h},0.7*${f.h},sdf);
       wall[i]=vec4f(sdf/${f.h},-p.z*${f.omega*dt/f.h},p.y*${f.omega*dt/f.h},w);
-      ${withPressure?`let h=cellWidths(point(i))*${f.h/2};var faces=vec3f(mobility(p+vec3f(h.x,0.,0.)),mobility(p+vec3f(0.,h.y,0.)),mobility(p+vec3f(0.,0.,h.z)));
+      ${withPressure?`let cell=point(i);let halfWidth=cellWidths(cell)*${f.h/2};var faces=vec3f(0);
+        if(sdf>0.){for(var a=0u;a<3u;a++){
+          var next=cell;next[a]=min(cell[a]+1,DIMS[a]-1);
+          let nextPoint=vec3f(${floats(f.origin)})+cellCenters(next)*${f.h};var face=p;face[a]+=halfWidth[a];
+          if(distanceToBody(nextPoint,phase)>0.){faces[a]=${f.wallModeled?'1.':'mobility(face)'};}
+        }}
         ${f.rotor?'let flags=cuts[i];faces=select(faces,vec3f(0),(vec3u(flags)&vec3u(1u,2u,4u))!=vec3u(0));':''}
-        response[i]=vec4f(faces,mobility(p));`:''}
+        response[i]=vec4f(faces,select(0.,${f.wallModeled?'1.':`fluidMobility(sdf/${f.h})`},sdf>0.));`:''}
     }`;
   const pipe=await gpu.kernel('CFD benchmark immersed geometry',code);
   const phase=gpu.buffer('CFD rotor phase',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);

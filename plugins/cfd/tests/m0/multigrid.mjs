@@ -1,15 +1,15 @@
 import {gridWGSL} from './fixtures.mjs';
 import {gpuBlocks} from './blocks.mjs';
 import {devicePressureCG} from './pressure-cg.mjs';
-import {metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {cellWidth,metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {separablePressure} from './separable-pressure.mjs';
 
+function pressureBoundarySides(f){
+  return f.pressureOpen??[!!f.rotor,true,!(f.name==='ahmed'||f.movingRoad),true,true,true];
+}
 export function openBoundaries(f){
-  if(f.pressureOpen){
-    const mask=f.pressureOpen.reduce((bits,open,i)=>bits|(Number(open)<<i),0);
-    return `fn openFace(axis:u32,side:i32)->bool{return (${mask}u&(1u<<(axis*2u+select(0u,1u,side>0))))!=0u;}`;
-  }
-  return `fn openFace(axis:u32,side:i32)->bool{
-    return !((${!f.rotor} && axis==0u && side<0)||(${f.name==='ahmed'||!!f.movingRoad} && axis==1u && side<0));}`;
+  const mask=pressureBoundarySides(f).reduce((bits,open,i)=>bits|(Number(open)<<i),0);
+  return `fn openFace(axis:u32,side:i32)->bool{return (${mask}u&(1u<<(axis*2u+select(0u,1u,side>0))))!=0u;}`;
 }
 const ro=(i,s)=>`@group(0) @binding(${i}) var<storage,read> ${s}:array<f32>;`;
 const rw=(i,s)=>`@group(0) @binding(${i}) var<storage,read_write> ${s}:array<f32>;`;
@@ -93,19 +93,63 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     const down=gpu.bind(restrict,[fine.scratch,coarse.rhs]),up=gpu.bind(prolong,[coarse.p,fine.p],metricBuffer(gpu,fine.metric));
     fine.down=e=>{gpu.dispatch(e,restrict,down,coarse.group);e.clearBuffer(coarse.p);};
     fine.up=e=>gpu.dispatch(e,prolong,up,fine.group);
+    if(f.axes&&!f.globalPressure&&l>0){
+      const inject=await gpu.kernel('CFD constant coarse correction',gridWGSL({dims:fine.dims})+ro(0,'c')+rw(1,'p')+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+          let q=point(i)/2;p[i]+=c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}`);
+      const group=gpu.bind(inject,[coarse.p,fine.p]);fine.inject=e=>gpu.dispatch(e,inject,group,fine.group);
+    }
   }
   const fine=levels[0],block=await gpuBlocks(gpu,8,f.dims,false);
-  const correction=gpu.buffer('CFD Schwarz correction',fine.p.size),bb=block.binding(fine.scratch,correction);
-  const add=await gpu.kernel('CFD pressure Schwarz update',ro(0,'z')+rw(1,'p')+`
-    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){if(g.x<arrayLength(&p)){p[g.x]+=0.75*z[g.x];}}`);
-  const addBind=gpu.bind(add,[correction,fine.p]);
-  function cycle(e,l){
+  let schwarz;
+  if(!f.axes){
+    const correction=gpu.buffer('CFD Schwarz correction',fine.p.size),bb=block.binding(fine.scratch,correction);
+    const add=await gpu.kernel('CFD pressure Schwarz update',ro(0,'z')+rw(1,'p')+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){if(g.x<arrayLength(&p)){p[g.x]+=0.75*z[g.x];}}`);
+    const addBind=gpu.bind(add,[correction,fine.p]);
+    schwarz=e=>{fine.residual(e);block.encode(e,bb);gpu.dispatch(e,add,addBind,fine.group);};
+  }
+  function cycle(e,l,symmetric=false){
     const level=levels[l];
     if(l===levels.length-1){level.damp(e,5);return;}
-    level.damp(e,1);level.residual(e);level.down(e);cycle(e,l+1);level.up(e);level.damp(e,1);
+    level.damp(e,1);level.residual(e);level.down(e);cycle(e,l+1,symmetric);
+    if(symmetric)level.inject(e);else level.up(e);level.damp(e,1);
   }
-  const refine=await devicePressureCG(gpu,fine,block,gridWGSL(f)+openBoundaries(f)+row);
+  // PCG needs adjoint transfers. Sum the extensive residual and inject its
+  // coarse correction, with identical symmetric pre- and post-smoothing.
+  // The equilibrated block inverse supplies the complementary local solve.
+  async function coarseCorrection(pair,z){
+    const c=levels[1],[cx,cy]=c.dims,[nx,ny]=fine.dims;
+    const restrict=await gpu.kernel('CFD coarse Krylov residual',gridWGSL({dims:c.dims})+
+      '@group(0) @binding(0) var<storage,read> pair:array<vec2f>;'+rw(1,'b')+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+        let start=2*point(i);var r=0.;for(var k=0;k<8;k++){let q=start+vec3i(k&1,(k>>1)&1,k>>2);
+          r+=pair[u32(q.x+${nx}*(q.y+${ny}*q.z))].x;}b[i]=r;}`);
+    const add=await gpu.kernel('CFD combined block and global pressure correction',gridWGSL(f)+ro(0,'c')+
+      '@group(0) @binding(1) var<storage,read> pair:array<vec2f>;'+rw(2,'z')+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+        let q=point(i)/2;let s=pair[i].y;if(s>0.){z[i]+=c[u32(q.x+${cx}*(q.y+${cy}*q.z))]/s;}}`);
+    const down=gpu.bind(restrict,[pair,c.rhs]),up=gpu.bind(add,[c.p,pair,z]);
+    return e=>{gpu.dispatch(e,restrict,down,c.group);e.clearBuffer(c.p);cycle(e,1,true);gpu.dispatch(e,add,up,fine.group);};
+  }
+  async function globalCorrection(pair,z){
+    const widths=f.dims.map((n,k)=>Array.from({length:n},(_,i)=>cellWidth(f,k,i)));
+    const inverse=await separablePressure(gpu,f.dims,widths,pressureBoundarySides(f));
+    const field=gpu.buffer('CFD global Krylov correction',fine.p.size),apply=inverse.binding(fine.scratch,field);
+    const pairField='@group(0) @binding(0) var<storage,read> pair:array<vec2f>;';
+    const unpack=await gpu.kernel('CFD integrated global residual',pairField+rw(1,'r')+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){if(g.x<arrayLength(&r)){r[g.x]=pair[g.x].x;}}`);
+    const combine=await gpu.kernel('CFD global plus local pressure correction',pairField+ro(1,'corr')+rw(2,'z')+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<arrayLength(&z)){
+        let s=pair[i].y;if(s>0.){z[i]+=corr[i]/s;}}}`);
+    const before=gpu.bind(unpack,[pair,fine.scratch]),after=gpu.bind(combine,[pair,field,z]);
+    const stages=[{kind:'global residual',encode:e=>gpu.dispatch(e,unpack,before,fine.group)},
+      ...apply.stages,{kind:'combine pressure corrections',encode:e=>gpu.dispatch(e,combine,after,fine.group)}];
+    return Object.assign(e=>{for(const op of stages)op.encode(e);},{stages});
+  }
+  const pre=f.globalPressure?globalCorrection:f.axes&&levels.length>1?coarseCorrection:null;
+  const refine=await devicePressureCG(gpu,fine,block,gridWGSL(f)+openBoundaries(f)+row,pre);
   return {p:fine.p,rhs:fine.rhs,refine,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
-    if(!f.axes){fine.residual(e);block.encode(e,bb);gpu.dispatch(e,add,addBind,fine.group);}cycle(e,0);
+    schwarz?.(e);cycle(e,0);
   }};
 }

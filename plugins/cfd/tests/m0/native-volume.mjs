@@ -112,10 +112,10 @@ export async function nativeFlowGeometry(gpu,f,capture){
         let w=cellWidths(cell)*${.5*f.h/band.h};var m=vec3f(0);
         if(d>0.){for(var a=0u;a<3u;a++){
           var next=cell;next[a]=min(cell[a]+1,DIMS[a]-1);var face=p;face[a]+=w[a];
-          if(sample(samplePoint(next))>0.){m[a]=fluidMobility(sample(face));}
+          if(sample(samplePoint(next))>0.){m[a]=${f.wallModeled?'1.':'fluidMobility(sample(face))'};}
         }}
         wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));let mask=vec3u(crossed[i])&vec3u(1u,2u,4u);
-        response[i]=vec4f(select(m,vec3f(0),mask!=vec3u(0)),select(0.,fluidMobility(d),d>0.));}`);
+        response[i]=vec4f(select(m,vec3f(0),mask!=vec3u(0)),select(0.,${f.wallModeled?'1.':'fluidMobility(d)'},d>0.));}`);
     const e=gpu.device.createCommandEncoder();crossed.encode(e);
     scratch.dispatch(e,pipe,scratch.bind(pipe,[distance,crossed.mask,wall,response],metricBuffer(scratch,f)),[Math.ceil(n/128)]);
     gpu.device.queue.submit([e.finish()]);await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();

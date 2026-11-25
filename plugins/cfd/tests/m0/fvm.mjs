@@ -1,6 +1,7 @@
 import {gridWGSL} from './fixtures.mjs';
 import {openBoundaries,pressureMultigrid} from './multigrid.mjs';
 import {metricBuffer,metricWGSL} from './rectilinear.mjs';
+import {wallResistanceWGSL} from './wall-law.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -18,6 +19,14 @@ export const faceBalanceWGSL=`
     var sum=0.;var tail=0.;for(var k=0u;k<6u;k++){
       let a=k%3u;let x=select(hi[a],-lo[a],k>=3u);let t=sum+x;
       tail+=select((x-t)+sum,(sum-t)+x,abs(sum)>=abs(x));sum=t;}return sum+tail;}`;
+
+// Renormalize after every correction. A large cold-start correction can
+// otherwise occupy the second word and lose subsequent small increments.
+export const addFlowWGSL=`
+  fn twoSum(a:f32,b:f32)->vec2f{let s=a+b;
+    return vec2f(s,select((b-s)+a,(a-s)+b,abs(a)>=abs(b)));}
+  fn addFlow(high:f32,low:f32,delta:f32)->vec2f{
+    let d=twoSum(low,delta);let s=twoSum(high,d.x);return twoSum(s.x,s.y+d.y);}`;
 
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
@@ -40,10 +49,18 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
   const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}let p=point(i);${body}}`;
   const init=await gpu.kernel('CFD uniform initial flow',base+decl(0,'s','Cell',true)+decl(1,'flux','Flux',true)+main('s[i]=far();let q=vec4f(U*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);'));
   gpu.run(init,[s0,flux],grid,coords);
-  const momentum=await gpu.kernel('CFD finite-volume momentum and SST transport',base+
+  const wallBindings=f.wallModeled?[force,loads,mobility]:[];
+  const wallFunctions=f.wallModeled?wallResistanceWGSL+
+    decl(5,'force','f32',true)+decl(6,'load','vec4f',true)+decl(7,'permeability','vec4f')+`
+    fn wallIncrement(relative:vec3f,n:vec3f,d:f32,areaOverVolume:f32)->vec3f{
+      let slip=tangentialSlip(relative,n);let rate=areaOverVolume*wallResistance(length(slip),d,NU);
+      return (rate/(1.+rate))*slip;}`:'';
+  const momentum=await gpu.kernel('CFD finite-volume momentum and SST transport',base+wallFunctions+
     decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+decl(3,'out','Cell',true)+decl(4,'tail','Flux')+main(`
       let a=s[i];let solid=wall[i];let u=a.uk.xyz;let k=max(a.uk.w,1e-12);let omega=max(a.wt.x,1e-8);
+      ${f.wallModeled?`if(permeability[i].w==0.){out[i]=Cell(vec4f(0.,solid.yz,1e-12),vec2f(60.*NU/(.075*.25),0.),vec2f(0));return;}`:''}
       let widths=cellWidths(p);let area=faceAreas(widths);let volume=area.x*widths.x;
+      ${f.wallModeled?'var cutArea=vec3f(0);var normalHint=vec3f(0);var sdfGradient=vec3f(0);':''}
       var adv=vec4f(0);var diff=vec3f(0);var grad:mat3x3f;var gk=vec3f(0);var gw=vec3f(0);
       var advW=0.;var dk=0.;var dw=0.;var edk=0.;var edw=0.;
       for(var axis=0u;axis<3u;axis++){var e=vec3i(0);e[axis]=1;
@@ -65,12 +82,18 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
             up+=.5*axisMetric(axis,upIndex).y*select(vec4f(0),sign(back)*min(abs(back),abs(forward)),back*forward>vec4f(0));}
           adv+=q*up;advW+=q*select(b.wt.x,omega,q>=0.);
           let change=b.uk-a.uk;let nut=0.5*(a.wt.y+b.wt.y);
-          let lap=invD/widths[axis];let gradWeight=.5*dir*invD;
+          var lap=invD/widths[axis];let gradWeight=.5*dir*invD;
+          ${f.wallModeled?`if(inside(j)){let k=index(j);let open=permeability[select(k,i,side>0)][axis];
+            let blocked=(1.-open)*area[axis];cutArea[axis]+=blocked;normalHint[axis]-=dir*blocked;
+            sdfGradient[axis]+=gradWeight*(wall[k].x-solid.x);lap*=open;
+          }else if(floorFace(axis,side)){lap=0.;}`:''}
           diff+=(NU+nut)*lap*change.xyz;grad[axis]+=gradWeight*change.xyz;
           gk[axis]+=gradWeight*change.w;gw[axis]+=gradWeight*(b.wt.x-omega);
           dk+=lap*change.w;dw+=lap*(b.wt.x-omega);edk+=nut*lap*change.w;edw+=nut*lap*(b.wt.x-omega);
         }
       }
+      var kn=K0;var wn=O0;var nut=0.;
+      if(${!(f.sphere||f.laminar)}){
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
       let dist=max(0.5,select(solid.x,min(solid.x,axisMetric(1u,p.y).x),${f.name==='ahmed'||!!f.movingRoad}));
       let cd=max(2.*0.856*dot(gk,gw)/omega,1e-14);
@@ -79,12 +102,12 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
       let f2=tanh(pow(min(10.,max(2.*a1,a2)),2.));
       let prod=min(a.wt.y*ss,10.*0.09*k*omega);
       let beta=mix(0.0828,0.075,f1);let gamma=mix(0.44,5./9.,f1);
-      var kn=max(1e-12,(k+prod-adv.w+NU*dk+mix(1.,0.85,f1)*edk)/(1.+0.09*omega));
-      var wn=max(1e-8,(omega-advW+NU*dw+mix(0.856,0.5,f1)*edw+gamma*select(0.,prod/max(a.wt.y,1e-10),a.wt.y>0.)+
+      kn=max(1e-12,(k+prod-adv.w+NU*dk+mix(1.,0.85,f1)*edk)/(1.+0.09*omega));
+      wn=max(1e-8,(omega-advW+NU*dw+mix(0.856,0.5,f1)*edw+gamma*select(0.,prod/max(a.wt.y,1e-10),a.wt.y>0.)+
         (1.-f1)*2.*0.856*dot(gk,gw)/omega)/(1.+beta*omega));
       let damping=1.-exp(-${10*cref}*solid.w);
       kn=mix(kn,1e-12,damping);wn=mix(wn,60.*NU/(0.075*0.25),damping);
-      let nut=select(0.31*kn/max(0.31*wn,sqrt(ss)*f2),0.,${!!(f.sphere||f.laminar)});
+      nut=0.31*kn/max(0.31*wn,sqrt(ss)*f2);}
       var tentative=u-adv.xyz+diff;
       ${f.rotatingFrame?`let transverse=tentative.yz;
         tentative.y=${Math.cos(f.omega*dt)}*transverse.x+${Math.sin(f.omega*dt)}*transverse.y;
@@ -94,6 +117,22 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
         let depth=min(x,domain-x)/domain;let edge=1.-smoothstep(0.,0.11,min(depth.x,min(depth.y,depth.z)));
         let reservoir=1.-exp(-${cref}*edge);tentative=mix(tentative,vec3f(0),reservoir);
         kn=mix(kn,K0,reservoir);wn=mix(wn,O0,reservoir);}
+      ${f.wallModeled?`
+      if(permeability[i].w>0.){
+        if(any(cutArea>vec3f(0))){
+          let gradient=select(normalHint,sdfGradient,length(sdfGradient)>1e-6);
+          let n=gradient/max(length(gradient),1e-12);
+          let height=max(0.,solid.x);let normalPitch=1./max(length(n/widths),1e-8);
+          let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+(cellCenters(p)-height*n)*${f.h};
+          let movingWall=${f.rotor?`vec3f(0.,-arm.z,arm.y)*${f.omega*dt/f.h}`:'vec3f(0)'};
+          let reaction=wallIncrement(tentative-movingWall,n,max(height,.5*normalPitch),dot(cutArea,abs(n))/volume);
+          tentative-=reaction;force[i]+=volume*reaction.x;load[i]+=volume*vec4f(0.,cross(arm,reaction).x,reaction.yz);
+        }
+        if(p.y==0&&floorFace(1u,-1)){
+          let road=vec3f(${f.movingRoad?'U':'0.'},0.,0.);
+          tentative-=wallIncrement(tentative-road,vec3f(0,1,0),.5*widths.y,1./widths.y);
+        }
+      }`:''}
       out[i]=Cell(vec4f(tentative,kn),vec2f(wn,nut),vec2f(0));`));
   const pressureRhs=decl(0,'s','Cell')+decl(1,'wall','vec4f')+decl(2,'mu','vec4f')+immersedFaceWGSL+`
     fn body(i:u32)->vec3f{return vec3f(0.,wall[i].yz);}
@@ -109,39 +148,52 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
     decl(4,'out','Cell',true)+decl(5,'flux','Flux',true)+decl(6,'force','f32',true)+decl(7,'load','vec4f',true)+main(`
     let pi=pressure[i];var t=s[i];var hi=vec3f(0);var lo=vec3f(0);var rawAverage=vec3f(0);
     var impulse=vec3f(0.);var pressureDrag=0.;let widths=cellWidths(p);let area=faceAreas(widths);let volume=widths.x*area.x;
+    ${f.wallModeled?'var velocityCorrection=vec3f(0);':''}
     for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
       var e=vec3i(0);e[a]=side;let j=p+e;var delta=0.;
       if(inside(j)){delta=(pressure[index(j)]-pi)*spacingInv(a,p[a],side);}else if(openFace(a,side)){delta=-2.*pi/widths[a];}
       let slope=f32(side)*delta;let data=face(i,p,a,side);let q=projectFace(data.x,data.y,data.z,slope);
       if(side>0){hi[a]=q.x;}else{lo[a]=q.x;}rawAverage[a]+=0.5*data.x;
-      impulse[a]+=0.5*q.y;if(a==0u){pressureDrag-=0.5*(1.-data.z)*slope;}
+      ${f.wallModeled?`velocityCorrection[a]-=.5*data.z*slope;
+        if(inside(j)&&mu[i].w>0.){impulse[a]+=f32(side)*pi*(1.-data.z)/widths[a];}`:
+        'impulse[a]+=0.5*q.y;if(a==0u){pressureDrag-=0.5*(1.-data.z)*slope;}'}
     }}
+    ${f.wallModeled?`
+    // On an impermeable physical face the Neumann pressure equals the fluid
+    // cell pressure. Its traction acts on the body. Its prescribed mass flow
+    // already enters the RHS, so it supplies no additional momentum penalty.
+    t.uk=vec4f(t.uk.xyz+velocityCorrection,t.uk.w);pressureDrag=impulse.x;`:`
     // The cell-to-face average loses a subcell velocity component. Fluid keeps
     // that component. Any part removed inside the solid acts on the body.
     let subcell=t.uk.xyz-rawAverage;let fluidFraction=mu[i].w;
     impulse+=(1.-fluidFraction)*subcell;
-    t.uk=vec4f(0.5*(hi+lo)+fluidFraction*subcell,t.uk.w);
+    t.uk=vec4f(0.5*(hi+lo)+fluidFraction*subcell,t.uk.w);`}
     let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+cellCenters(p)*${f.h};
     out[i]=t;flux[i]=Flux(vec4f(hi*area,0),vec4f(lo*area,0));force[i]+=volume*impulse.x;
     load[i]+=volume*vec4f(pressureDrag,cross(arm,impulse).x,impulse.yz);`));
-  const m=gpu.bind(momentum,[s0,flux,wall,pred,fluxTail],coords),r=gpu.bind(rhs,[pred,wall,mobility,mg.rhs],coords),c=gpu.bind(project,[pred,wall,mobility,mg.p,s0,flux,force,loads],coords);
+  const m=gpu.bind(momentum,[s0,flux,wall,pred,fluxTail,...wallBindings],coords),r=gpu.bind(rhs,[pred,wall,mobility,mg.rhs],coords),c=gpu.bind(project,[pred,wall,mobility,mg.p,s0,flux,force,loads],coords);
   // Refine against the fluxes actually stored in FP32. The smaller correction
   // retains its own word on each face and participates in the next advection.
   const basePressure=gpu.buffer('CFD pressure before flux refinement',4*count);
   const imbalance=await gpu.kernel('CFD stored flux defect',base+faceBalanceWGSL+decl(0,'flux','Flux')+decl(1,'b','f32',true)+decl(2,'tail','Flux')+
     main('b[i]=-(faceBalance(flux[i].hi.xyz,flux[i].lo.xyz)+faceBalance(tail[i].hi.xyz,tail[i].lo.xyz));'));
   const residualGroup=gpu.bind(imbalance,[flux,mg.rhs,fluxTail]);
-  const refineFlux=await gpu.kernel('CFD apply low-amplitude flux and pressure reaction',base+decl(0,'mu','vec4f')+decl(1,'pressure','f32')+
-    decl(2,'tail','Flux',true)+decl(3,'s','Cell',true)+decl(4,'force','f32',true)+decl(5,'load','vec4f',true)+main(`
+  const refineFlux=await gpu.kernel('CFD apply low-amplitude flux and pressure reaction',base+addFlowWGSL+decl(0,'mu','vec4f')+decl(1,'pressure','f32')+
+    decl(2,'tail','Flux',true)+decl(3,'s','Cell',true)+decl(4,'force','f32',true)+decl(5,'load','vec4f',true)+decl(6,'primary','Flux',true)+main(`
       let pi=pressure[i];var hi=vec3f(0);var lo=vec3f(0);var impulse=vec3f(0);let widths=cellWidths(p);let area=faceAreas(widths);
       for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){var e=vec3i(0);e[a]=side;let j=p+e;var slope=0.;var weight=1.;
         if(inside(j)){let k=index(j);weight=mu[select(k,i,side>0)][a];slope=f32(side)*(pressure[k]-pi)*spacingInv(a,p[a],side);}
         else if(openFace(a,side)){slope=-2.*f32(side)*pi/widths[a];}
-        let extra=-weight*slope;if(side>0){hi[a]=extra;}else{lo[a]=extra;}impulse[a]-=.5*(1.-weight)*slope;
-      }}tail[i].hi+=vec4f(hi*area,0);tail[i].lo+=vec4f(lo*area,0);s[i].uk=vec4f(s[i].uk.xyz+.5*(hi+lo),s[i].uk.w);
+        let extra=-weight*slope;if(side>0){hi[a]=extra;}else{lo[a]=extra;}
+        ${f.wallModeled?'if(inside(j)&&mu[i].w>0.){impulse[a]+=f32(side)*pi*(1.-weight)/widths[a];}':'impulse[a]-=.5*(1.-weight)*slope;'}
+      }}
+      for(var a=0u;a<3u;a++){
+        let plus=addFlow(primary[i].hi[a],tail[i].hi[a],hi[a]*area[a]);let minus=addFlow(primary[i].lo[a],tail[i].lo[a],lo[a]*area[a]);
+        primary[i].hi[a]=plus.x;tail[i].hi[a]=plus.y;primary[i].lo[a]=minus.x;tail[i].lo[a]=minus.y;
+      }s[i].uk=vec4f(s[i].uk.xyz+.5*(hi+lo),s[i].uk.w);
       let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+cellCenters(p)*${f.h};
       let volume=widths.x*area.x;force[i]+=volume*impulse.x;load[i]+=volume*vec4f(impulse.x,cross(arm,impulse).x,impulse.yz);`));
-  const refineGroup=gpu.bind(refineFlux,[mobility,mg.p,fluxTail,s0,force,loads],coords);
+  const refineGroup=gpu.bind(refineFlux,[mobility,mg.p,fluxTail,s0,force,loads,flux],coords);
   const accumulate=await gpu.kernel('CFD accumulate physical pressure',decl(0,'first','f32')+decl(1,'p','f32',true)+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i<arrayLength(&p)){p[i]+=first[i];}}`);
   const pressureGroup=gpu.bind(accumulate,[basePressure,mg.p]);
@@ -150,31 +202,60 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<arrayLength(&plane)){
       let a=(i+${nx*ny*(nz/2-1)}u)*2u;plane[i]+=0.5*(s[a].x+s[a+${nx*ny*2}u].x);}}`);
   const sb=gpu.bind(sample,[s0,plane]);
-  // Different command-buffer boundaries leave the numerical iteration order
-  // intact. The interactive path can give the viewport the queue between them.
-  const phases=new Map();
-  function work(cold,sampling){
-    const key=Number(cold)+2*Number(sampling);if(phases.has(key))return phases.get(key);
-    const list=[],phase=(kind,encode)=>list.push({kind,encode});
-    function correct(iterations){
-      phase('V-cycle',mg.solve);phase('Krylov start',mg.refine.prepare);
-      for(let i=0;i<iterations;i++)phase('Krylov iteration',e=>mg.refine.iterate(e,i+1===iterations));
-    }
-    if(cold||(f.rotor&&!f.rotatingFrame))phase('geometry coarsening',mg.updateGeometry);
-    phase('momentum',e=>gpu.dispatch(e,momentum,m,grid));phase('flux imbalance',e=>gpu.dispatch(e,rhs,r,grid));
-    correct(cold?24:f.rotor?10:6);
-    function actualDefect(e){e.copyBufferToBuffer(mg.p,0,basePressure,0,4*count);e.clearBuffer(mg.p);gpu.dispatch(e,imbalance,residualGroup,grid);}
-    phase('pressure reaction',e=>{gpu.dispatch(e,project,c,grid);e.clearBuffer(fluxTail);actualDefect(e);});
-    // A stretched far field can leave a slow error mode after the first Krylov
-    // solve. Restart from the measured defect of the updated two-word flows.
-    const passes=f.axes?[18,18]:[24];
-    for(const [j,n] of passes.entries()){
-      correct(n);phase('flux correction',e=>{gpu.dispatch(e,refineFlux,refineGroup,grid);gpu.dispatch(e,accumulate,pressureGroup,grid);
-        if(j+1<passes.length)actualDefect(e);else if(sampling)gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]);});
-    }
-    phases.set(key,list);return list;
+  const peak=gpu.buffer('CFD maximum stored mass defect',4),stage=gpu.staging('CFD single residual value',4);
+  const norm=await gpu.kernel('CFD stored volume flux convergence',base+faceBalanceWGSL+decl(0,'flux','Flux')+decl(1,'tail','Flux')+`
+    @group(0) @binding(2) var<storage,read_write> globalMax:atomic<u32>;
+    var<workgroup> lanes:array<u32,128>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u,@builtin(local_invocation_index) j:u32){
+      let i=gid.x;var q=0.;if(i<CELLS){let w=cellWidths(point(i));
+        q=abs(faceBalance(flux[i].hi.xyz,flux[i].lo.xyz)+faceBalance(tail[i].hi.xyz,tail[i].lo.xyz))/(w.x*w.y*w.z);}
+      lanes[j]=bitcast<u32>(q);for(var stride=64u;stride>0u;stride/=2u){
+        workgroupBarrier();if(j<stride){lanes[j]=max(lanes[j],lanes[j+stride]);}}
+      if(j==0u){atomicMax(&globalMax,lanes[0]);}}`);
+  const normGroup=gpu.bind(norm,[flux,fluxTail,peak],coords);
+  const phase=(kind,encode)=>({kind,encode});
+  function projection(n){
+    if(mg.refine.prepareStages)return [phase('V-cycle',mg.solve),...mg.refine.prepareStages,
+      ...Array.from({length:n-1},()=>mg.refine.innerStages).flat(),...mg.refine.lastStages];
+    return [phase('V-cycle',mg.solve),phase('Krylov start',mg.refine.prepare),
+      ...Array.from({length:n},(_,i)=>phase('Krylov iteration',e=>mg.refine.iterate(e,i+1===n)))];
   }
-  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,phases:(i,sampling)=>work(i===0,sampling),step(i,sampling){
-    const e=gpu.device.createCommandEncoder();for(const op of work(i===0,sampling))op.encode(e);gpu.device.queue.submit([e.finish()]);
-  }};
+  const forecast=[false,true].map(cold=>[
+    ...(cold||(f.rotor&&!f.rotatingFrame)?[phase('geometry coarsening',mg.updateGeometry)]:[]),
+    phase('momentum',e=>gpu.dispatch(e,momentum,m,grid)),phase('flux imbalance',e=>gpu.dispatch(e,rhs,r,grid)),
+    ...projection(f.globalPressure?(cold?16:f.rotor?5:3):(cold?24:f.rotor?10:6)),
+    phase('pressure reaction',e=>{gpu.dispatch(e,project,c,grid);e.clearBuffer(fluxTail);})
+  ]);
+  function refinement(n){
+    return [phase('stored flux defect',e=>{e.copyBufferToBuffer(mg.p,0,basePressure,0,4*count);
+      e.clearBuffer(mg.p);gpu.dispatch(e,imbalance,residualGroup,grid);}),
+      ...projection(n),phase('flux correction',e=>{gpu.dispatch(e,refineFlux,refineGroup,grid);gpu.dispatch(e,accumulate,pressureGroup,grid);})];
+  }
+  const check=phase('verify volume flow',e=>{e.clearBuffer(peak);gpu.dispatch(e,norm,normGroup,grid);e.copyBufferToBuffer(peak,0,stage,0,4);});
+  const samplePlane=phase('sample wake',e=>gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]));
+  const fixed=refinement(f.axes?18:24),first=refinement(f.globalPressure?8:12),extra=refinement(f.globalPressure?8:18);
+  const stats={steps:0,additionalPasses:0,maximumPasses:0,maxRelativeDivergence:0,initialDefectHistory:[]};
+  async function measure(){
+    await stage.mapAsync(GPUMapMode.READ);
+    try{return new Float32Array(stage.getMappedRange())[0]*f.period/dt;}finally{stage.unmap();}
+  }
+  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,fluxConvergence:stats,
+    async advance(i,sampling,scheduler,assertCurrent){
+      await scheduler.perform([...forecast[Number(i===0)],...first,check],assertCurrent);
+      let maximum=await measure(),passes=1;
+      if(i===0)stats.initialDefectHistory.push(maximum);
+      while(maximum>7e-7&&passes<6){
+        await scheduler.perform([...extra,check],assertCurrent);maximum=await measure();passes++;
+        if(i===0)stats.initialDefectHistory.push(maximum);
+      }
+      if(!Number.isFinite(maximum))throw Error('Nonfinite residual in the stored CFD volume flows');
+      stats.steps++;stats.additionalPasses+=passes-1;stats.maximumPasses=Math.max(stats.maximumPasses,passes);
+      stats.maxRelativeDivergence=Math.max(stats.maxRelativeDivergence,maximum);
+      if(sampling)await scheduler.perform([samplePlane],assertCurrent);
+    },
+    step(i,sampling){
+      const e=gpu.device.createCommandEncoder();for(const op of forecast[Number(i===0)])op.encode(e);
+      for(let k=0;k<(f.axes?2:1);k++)for(const op of fixed)op.encode(e);
+      if(sampling)samplePlane.encode(e);gpu.device.queue.submit([e.finish()]);
+    }};
 }

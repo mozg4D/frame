@@ -8,13 +8,13 @@ import {gridWGSL} from './fixtures.mjs';
 // A zero-thickness impermeable piston accelerates initially resting fluid
 // between two equal-pressure reservoirs. The independent one-dimensional
 // solution is uniform final velocity and opposing linear pressure ramps.
-export async function verifyPiston(device,graded=false){
+export async function verifyPiston(device,graded=false,globalPressure=false){
   const gpu=gpuScope(device),dims=[32,8,8],[nx,ny,nz]=dims,n=nx*ny*nz;
   const h=.001,origin=[-.0005,.0195,-.0005];
   const axes=graded?dims.map((d,k)=>Float64Array.from({length:d+1},(_,i)=>{
     const t=i/d;return origin[k]+h*d*(t+.36*t*(t-1));
   })):undefined;
-  const grid={dims,h,origin,axes,pressureOpen:[true,true,false,false,false,false]},coords=metricBuffer(gpu,grid);
+  const grid={dims,h,origin,axes,globalPressure,pressureOpen:[true,true,false,false,false,false]},coords=metricBuffer(gpu,grid);
   // This harness owns an isolated Frame document. These methods are the
   // native host methods behind the plugin geometry SDK.
   const context=researchSceneContext(frameEngine);

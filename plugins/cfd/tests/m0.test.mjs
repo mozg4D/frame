@@ -13,6 +13,23 @@ import {bladeStation} from './m0/rotor.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
 import {gradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
+import {pressureAxis} from './m0/separable-pressure.mjs';
+test('whole-domain pressure modes satisfy the variable-width boundary stencil and mass normalization',()=>{
+  const w=[.35,.5,.8,1,1.2,1.9,3,4];
+  for(const [left,right] of [[true,false],[false,false],[true,true]]){
+    const {eig,forward,backward}=pressureAxis(w,left,right),n=w.length;
+    assert.equal(eig[0]===0,!left&&!right);
+    for(let k=0;k<n;k++){
+      let norm=0;
+      for(let i=0;i<n;i++){
+        const v=backward[n*i+k];norm+=v*v*w[i];assert.equal(v,forward[n*k+i]);
+        let lap=i?2*(v-backward[n*(i-1)+k])/(w[i-1]+w[i]):left?2*v/w[i]:0;
+        lap+=i+1<n?2*(v-backward[n*(i+1)+k])/(w[i+1]+w[i]):right?2*v/w[i]:0;
+        assert.ok(Math.abs(lap-eig[k]*w[i]*v)<2e-6);
+      }assert.ok(Math.abs(norm-1)<1e-6);
+    }
+  }
+});
 test('graded orthogonal cells partition the same domain and integrate a linear pressure gradient',()=>{
   const f={dims:[80,40,40],h:.01,origin:[-.2,-.2,-.2]};
   const m=rectilinearDomain(f,{min:[0,-.03,-.08],max:[.07,.04,.08]},[.004,.003,.006],350000);

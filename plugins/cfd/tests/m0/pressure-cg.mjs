@@ -1,7 +1,7 @@
 // Resident PCG on the actual immersed operator. A diagonally equilibrated
 // regular Dirichlet block inverse is SPD also on the active fluid subspace.
 // Geometry and pressure stay on Frame's device, including all scalar reductions.
-export async function devicePressureCG(gpu,level,block,operator){
+export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrection){
   const count=level.dims.reduce((a,b)=>a*b),groups=level.group;
   const buffer=(name,bytes)=>gpu.buffer('CFD pressure CG '+name,bytes);
   const pair=buffer('residual and equilibration',8*count),d=buffer('direction',4*count),ad=buffer('operator product',4*count);
@@ -42,15 +42,25 @@ export async function devicePressureCG(gpu,level,block,operator){
       partial(`for(var j=lane;j<${groups[0]}u;j+=128u){value+=sums[j];}`,'let sum=lanes[0];let old=control[0];'+update));
     reductions.push([pipe,gpu.bind(pipe,[partials,control])]);
   }
-  const pre=block.binding(scaled,z);
+  const pre=block.binding(scaled,z),coarse=await makeCoarseCorrection?.(pair,z);
+  function applyPreconditioner(e){block.encode(e,pre);coarse?.(e);}
   const prepare=e=>{
-    gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);block.encode(e,pre);
+    gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);applyPreconditioner(e);
     gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[0],[1]);gpu.dispatch(e,direction,directionGroup,groups);
   };
   const iterate=(e,last)=>{
     gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);
-    if(!last){block.encode(e,pre);gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[2],[1]);gpu.dispatch(e,direction,directionGroup,groups);}
+    if(!last){applyPreconditioner(e);gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[2],[1]);gpu.dispatch(e,direction,directionGroup,groups);}
   };
   function refine(e,iterations){prepare(e);for(let i=0;i<iterations;i++)iterate(e,i+1===iterations);}
-  return Object.assign(refine,{prepare,iterate});
+  if(!coarse?.stages)return Object.assign(refine,{prepare,iterate});
+  const preStages=[{kind:'local pressure block',encode:e=>block.encode(e,pre)},...coarse.stages];
+  const inner=(e,index)=>{gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[index],[1]);gpu.dispatch(e,direction,directionGroup,groups);};
+  const prepareStages=[{kind:'true pressure residual',encode:e=>{gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);}},
+    ...preStages,{kind:'Krylov initial direction',encode:e=>inner(e,0)}];
+  const product={kind:'Krylov product and update',encode:e=>{
+    gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);
+  }};
+  const innerStages=[product,...preStages,{kind:'Krylov new direction',encode:e=>inner(e,2)}];
+  return Object.assign(refine,{prepare,iterate,prepareStages,innerStages,lastStages:[product]});
 }
