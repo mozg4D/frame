@@ -9,13 +9,16 @@ const cases={
   'animation':['live-solve-check','verifyAnimationSolve'],'offline':['live-solve-check','verifyOfflineRender'],
   'streamlines':['streamlines-check','verifyNativeFlowLines'],'streamline-reference':['streamlines-check','verifyStreamlines'],
   'load-reference':['load-profiles-check','verifyLoadProfiles'],'rotor-profiles':['load-profiles-check','verifyRotorProfiles'],
+  'translation':['translation-check','verifyTranslation'],'observer':['translation-check','verifyAnimatedObserver'],
+  'saved-translation':['translation-check','verifySavedTranslation'],
+  'oblique-shape':['steady-shape-check','verifyObliqueSteadyForce'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
 };
 const args=process.argv.slice(2),which=args.find(v=>v.startsWith('--case='))?.slice(7);
 if(!Object.hasOwn(cases,which))throw Error('Choose --case='+Object.keys(cases).join(', '));
 const [moduleName,method]=cases[which],name='plugins/cfd/tests/m0/'+moduleName+'.mjs',output=resolve(args.find(v=>v.startsWith('--out='))?.slice(6)??'tests/results/cfd-live-'+which+'.json');
 const files=[...new Set(['index.html','plugins/cfd/plugin.js','plugins/cfd/plugin.json','plugins/cfd/tests/native-flow.mjs',
-  'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name])];
+  'plugins/cfd/tests/m0/live-solve-check.mjs','tools/browser.mjs',name,...which==='saved-translation'?['plugins/cfd/tests/m0/native-case.mjs','plugins/cfd/tests/m0/flow.mjs']:[]])];
 if(files.some(f=>resolve(f)===output))throw Error('Use a separate path for the result.');
 const hashes=async()=>Object.fromEntries(await Promise.all(files.map(async f=>[f,createHash('sha256').update(await readFile(new URL('../../../'+f,import.meta.url))).digest('hex')])));
 const result={case:which,startedUtc:new Date().toISOString(),sources:await hashes(),pageErrors:[],pass:false};

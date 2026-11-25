@@ -1,7 +1,7 @@
 import {flowFixture,gradedFixture} from './fixtures.mjs';
 import {boxAxes,captureFlowSurfaces,researchSceneContext} from './native-geometry.mjs';
 import {runCase} from './flow.mjs';
-import {mediumProperties,capturedDomain} from '../../plugin.js';
+import {mediumProperties,capturedDomain,flowAxes,vectorInWorld} from '../../plugin.js';
 import {ahmedMesh,wakeTunnel} from './ahmed.mjs';
 import {rotorParts} from './rotor.mjs';
 import {nativeAxialSpin} from './rigid-spin.mjs';
@@ -126,13 +126,23 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
   const boxes=scene.objects.filter(n=>n.type==='cfd');if(!boxes.length)throw Error('The saved Frame scene has no CFD Box');
   const cases=[];
   for(const box of boxes){
-    const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash,{allowStationary:true});
-    const domain=capturedDomain(ctx,box.hash,capture,tier,motion?.axisOriginM);
+    const {capture,motion,translation,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash,{allowStationary:true});
+    const {Speed,Medium,Altitude}=capture.params,fluid=mediumProperties(Medium,Altitude),omega=motion?.omega??0;
+    const U=translation?.relativeSpeedMPerS??Speed,boxInfo={hash:box.hash,name:box.name,parameters:capture.params};
+    const scope=motion?'Constant native shaft kinematics at the saved frame':translation?'Common constant native wall translation at the saved frame':'Stationary evaluated geometry at the saved frame';
+    const context={box:boxInfo,medium:fluid,scope,experimental:true,sourceSignature:capture.signature,...translation?{translation}:{}};
+    const domain=capturedDomain(ctx,box.hash,capture,tier,motion?.axisOriginM,undefined,translation?.basis);
     if(motion&&domain.road)throw Error('A road cannot share an axial rotating reference frame');
-    const {Speed:U,Medium,Altitude}=capture.params,fluid=mediumProperties(Medium,Altitude),omega=motion?.omega??0;
+    if(translation&&domain.road&&Math.abs(translation.velocityBoxMPerS[1])>1e-8)throw Error('A wall moving normal to the road changes the ground clearance during the solve.');
+    if(!capture.meshes.length||!motion&&U===0){
+      assertCurrent();
+      cases.push({...context,fixture:'scene',kind:'uniform-equilibrium',stable:true,massPassed:true,
+        field:{maxDivergencePerS:0,relativeDivergenceMax:0},forceLocalN:[0,0,0],forceWorldN:[0,0,0],meanAxialForceN:0,windows:[],completedSteps:0});
+      continue;
+    }
     const diameter=motion?.diameterM??0,rps=Math.abs(omega)/(2*Math.PI),tip=.5*diameter*Math.abs(omega);
     const maxSpeed=Math.max(U+tip,fluid.nu/domain.h);
-    const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega,
+    const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,ambientSpeed:Speed,maxSpeed,omega,
       rotor:!!motion,sphere:false,movingRoad:domain.road,laminar:!motion&&U*domain.scale/fluid.nu<200,period:motion?1/rps:domain.scale/maxSpeed,
       checkKinematics:assertCurrent,sweptDiameterM:diameter,implicitOuterSpin:!!motion&&graded&&(settings.implicitOuterSpin||settings.autoOuterSpin),pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
       budgetMs,periodLimit:settings.periodLimit,globalPressure,coarseSpectral:settings.coarseSpectral,incrementalPressure:settings.incrementalPressure,cutBlockSmoother:settings.cutBlockSmoother,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
@@ -142,16 +152,28 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,settings.solver??'cartesian-fvm',progress,capture);
-    const windows=result.windows.slice(-2),axes=boxAxes(ctx.document.world(box.hash));
+    const windows=result.windows.slice(-2),authoredAxes=boxAxes(ctx.document.world(box.hash)),axes=flowAxes(authoredAxes,translation?.basis);
     const average=key=>windows.reduce((sum,w)=>sum+w[key],0)/windows.length;
-    const forceLocalN=windows.length?[0,1,2].map(k=>windows.reduce((sum,w)=>sum+(k===0?w.forceN:w.transverseForcesInBoxN[k-1]),0)/windows.length):null;
-    const forceWorldN=forceLocalN?.map((_,k)=>forceLocalN.reduce((sum,v,a)=>sum+v*axes[a][k],0))??null;
+    function frameForces(w){
+      const solver=[w.forceN,...w.transverseForcesInBoxN],world=vectorInWorld(solver,axes);
+      return {world,local:translation?vectorInWorld(solver,translation.basis):solver};
+    }
+    const measured=windows.map(frameForces),meanForce=key=>windows.length?[0,1,2].map(a=>measured.reduce((sum,w)=>sum+w[key][a],0)/windows.length):null;
+    const forceWorldN=meanForce('world'),forceLocalN=meanForce('local');
+    function windowInBox({coefficient,...physical}){
+      if(!translation)return motion?{...physical,thrustCoefficient:coefficient}:physical;
+      const {local,world}=frameForces(physical);
+      const {axialPressureForceN,axialMomentumForceN,torqueXNm,...values}=physical;
+      return {...values,relativeWindAxialForceN:physical.forceN,relativeWindPressureForceN:axialPressureForceN,
+        relativeWindMomentumForceN:axialMomentumForceN,torqueAboutRelativeWindAxisNm:torqueXNm,
+        forceN:local[0],transverseForcesInBoxN:local.slice(1),forceWorldN:world};
+    }
     const {mean,relativeError,forcePassed,windows:trace,...study}=result;
-    await assertCurrent();cases.push({...study,windows:trace.map(({coefficient,...physical})=>motion?{...physical,thrustCoefficient:coefficient}:physical),meanAxialForceN:forceLocalN?.[0]??null,
-      box:{hash:box.hash,name:box.name,parameters:capture.params},medium:fluid,forceLocalN,forceWorldN,
+    await assertCurrent();cases.push({...study,...context,windows:trace.map(windowInBox),meanAxialForceN:forceLocalN?.[0]??null,
+      ...(translation&&result.partialWindow?{partialWindow:windowInBox(result.partialWindow)}:{}),forceLocalN,forceWorldN,
       ...(motion?{motion,rotorMetrics:windows.length?{CT:mean,CP:average('powerCoefficient'),J:U/(rps*diameter),
         axialTorqueNm:average('torqueXNm'),shaftPowerToFluidW:average('shaftPowerToFluidW')}:null}:{}),
-      scope:motion?'Constant native shaft kinematics at the saved frame':'Stationary evaluated geometry at the saved frame',experimental:true,sourceSignature:capture.signature});
+    });
   }
   return cases;
 }

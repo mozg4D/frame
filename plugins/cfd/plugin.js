@@ -31,10 +31,26 @@ export function boxMetric(world){
   const columns=[0,4,8].map(i=>Array.from(world.slice(i,i+3))),axes=boxAxes(world);
   return [...columns.flatMap(col=>[...axes.map(axis=>.001*dot(axis,col)),0]),0,0,0,1];
 }
+export function vectorInWorld(vector,axes){
+  return [0,1,2].map(k=>vector.reduce((sum,v,a)=>sum+v*axes[a][k],0));
+}
+export function flowAxes(box,basis){
+  return basis?basis.map(v=>vectorInWorld(v,box)):box;
+}
+function flowMetric(world,origin,basis){
+  const metric=boxMetric(world);
+  for(let a=0;a<3;a++)metric[12+a]=-origin[a];
+  if(!basis)return metric;
+  for(const k of [0,4,8,12]){
+    const column=metric.slice(k,k+3);
+    for(let a=0;a<3;a++)metric[k+a]=dot(basis[a],column);
+  }
+  return metric;
+}
 
 // Shares the SDK's visibility, occurrence transforms, relative-revision checks
 // and native buffer / paged-texture storage. No polygon readback or mesh copy.
-export function captureFlowSurfaces(device,context,owner,origin=[0,0,0]){
+export function captureFlowSurfaces(device,context,owner,origin=[0,0,0],basis=null){
   const options={bounds:{min:[...LOCAL_BOX.min],max:[...LOCAL_BOX.max]}},keys=['Speed','Medium','Altitude','Ground'];
   const snapshot=context.scene.capture(owner,keys,options),metric=boxMetric(context.document.world(owner));
   if(snapshot.device!==device)throw Error('CFD geometry belongs to a different device');
@@ -45,7 +61,7 @@ export function captureFlowSurfaces(device,context,owner,origin=[0,0,0]){
       throw Object.assign(Error('CFD source geometry or physical frame changed'),{code:'STALE_CFD_GEOMETRY'});
     }
   }
-  const shift=metric.slice();for(let i=0;i<3;i++)shift[12+i]=-origin[i];
+  const shift=flowMetric(context.document.world(owner),origin,basis);
   const meshes=snapshot.meshes.map(mesh=>{
     const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
     for(let k=0;k<8;k++){
@@ -55,6 +71,62 @@ export function captureFlowSurfaces(device,context,owner,origin=[0,0,0]){
     return {...mesh,bounds,ownerMatrix:mesh.matrix,matrix:context.math.mul(shift,mesh.matrix)};
   });
   return {meshes,assertCurrent,signature:snapshot.signature,contentSignature:snapshot.contentSignature,params:snapshot.params};
+}
+
+// Native hard Bezier keys have a straight spatial/time segment. Certify
+// constant slopes on every animated axis before taking a Galilean frame.
+function constantPositionSpan(track,held){
+  const keys=track?.keys;if(!keys?.length)return null;let first=-Infinity,last=Infinity;
+  for(let a=0;a<3;a++){
+    const axis=keys.filter(([,k])=>!k.axes||k.axes.includes(a));
+    if(axis.length<2)continue;
+    const lo=axis[0][0],hi=axis.at(-1)[0];
+    if(held<lo){last=Math.min(last,lo);continue;}if(held>hi){first=Math.max(first,hi);continue;}
+    // Use the outgoing segment at an interior key and the incoming segment
+    // at the final key, just as for a held one-sided shaft velocity.
+    const next=axis.findIndex(([t])=>t>held),end=next<0?axis.length-1:next;
+    const [t0,k0]=axis[end-1],[t1,k1]=axis[end];
+    if(!(t1>t0)||[k0,k1].some(k=>!Number.isFinite(k.v?.[a])||(k.modes?.[a]??k.interp)!=='hard'))return null;
+    first=Math.max(first,t0);last=Math.min(last,t1);
+  }
+  return {first,last};
+}
+function commonTranslation(ctx,owner,ids,doc,channels,animation,speed){
+  if(!ids.length||!channels.length||channels.some(c=>c.path!=='position'))return null;
+  const transforms=new Set();
+  for(const id of ids){
+    if(doc.get(id)?.sources?.some(s=>s!==id))return null;
+    for(let p=id;doc.has(p);p=doc.get(p).parent){if(transforms.has(p))break;transforms.add(p);}
+  }
+  if(channels.some(c=>!transforms.has(c.id))||[...transforms].some(id=>doc.get(id).target))return null;
+  const held=animation.frame,spans=channels.map(c=>constantPositionSpan(c.track,held));if(spans.some(s=>!s))return null;
+  const first=Math.max(0,...spans.map(s=>s.first)),last=Math.min(...spans.map(s=>s.last));
+  if(!(last>first&&held>=first&&held<=last))return null;
+  const delta=last-held>=held-first?Math.min(last-held,30):-Math.min(held-first,30);
+  if(delta===0)return null;
+  const frames=[held,held+.5*delta,held+delta],sample=frames.map(t=>ctx.animation.sampleTransforms(ids,t/animation.fps).objects);
+  let velocity=null;
+  for(let i=0;i<ids.length;i++){
+    const pose=sample[0][i];
+    if(pose.id!==ids[i]||!ctx.math.equal(pose.world,ctx.document.world(ids[i]),1e-8))return null;
+    for(const k of [1,2]){
+      const next=sample[k][i];if(next.id!==pose.id)return null;
+      for(let j=0;j<12;j++)if(Math.abs(next.world[j]-pose.world[j])>1e-8*Math.max(1,Math.abs(pose.world[j])))return null;
+      const rate=.001*animation.fps/(frames[k]-held);
+      const v=[0,1,2].map(a=>(next.world[12+a]-pose.world[12+a])*rate);
+      const roundoff=128*Number.EPSILON*Math.abs(rate)*Math.max(1,...pose.world.slice(12,15).map(Math.abs),...next.world.slice(12,15).map(Math.abs));
+      if(velocity&&Math.hypot(...v.map((x,a)=>x-velocity[a]))>roundoff+1e-8*Math.max(1e-9,Math.hypot(...v),Math.hypot(...velocity)))return null;
+      velocity??=v;
+    }
+  }
+  const axes=boxAxes(ctx.document.world(owner)),local=axes.map(axis=>dot(axis,velocity));
+  const relative=[speed-local[0],-local[1],-local[2]],magnitude=Math.hypot(...relative);
+  const relativeSpeed=magnitude<=128*Number.EPSILON*Math.max(speed,Math.hypot(...velocity))?0:magnitude;
+  // Prefer the authored up direction. The relative wind can be vertical.
+  const x=relativeSpeed?relative.map(v=>v/magnitude):[1,0,0],up=Math.abs(x[1])<.96?[0,1,0]:[0,0,1];
+  const z=ctx.math.cross(x,up),len=Math.hypot(...z),normal=z.map(v=>v/len),y=ctx.math.cross(normal,x);
+  return {velocityWorldMPerS:velocity,velocityBoxMPerS:local,relativeWindBoxMPerS:relative,
+    relativeSpeedMPerS:relativeSpeed,basis:[x,y,normal],verifiedFrames:frames,firstFrame:first,lastFrame:last};
 }
 
 // Recover the unwrapped slope of a native piecewise-linear Euler curve.
@@ -79,21 +151,39 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
   const initial=captureFlowSurfaces(device,ctx,owner),ids=[...new Set(initial.meshes.map(m=>m.hash))];
   const inputs=[owner,...ids],animation=ctx.animation.inspect(inputs);
   const flowParameters=new Set(['Speed','Altitude','Ground','Medium']);
-  const channels=animation.channels.filter(c=>!c.path.startsWith('material:')&&
-    !(c.id===owner&&flowParameters.has(c.path.replace(/^param:/,''))));
   const doc=new Map(animation.objects.map(o=>[o.id,o]));
+  // The box observes an instantaneous region and inlet direction. Only
+  // dependencies of a participating material surface can move its wall.
+  const physical=new Set(ids);
+  for(const id of physical){
+    const object=doc.get(id);if(!object)throw Error('Missing native CFD animation dependency');
+    for(const source of [object.parent,object.target,...object.sources??[]])if(source&&doc.has(source))physical.add(source);
+  }
+  const channels=animation.channels.filter(c=>{
+    if(!physical.has(c.id)||c.path.startsWith('material:')||c.id===owner&&flowParameters.has(c.path.replace(/^param:/,'')))return false;
+    const keys=c.track?.keys;
+    // Native sampling holds the endpoint before the first and after the last
+    // key. At an endpoint keep the one-sided motion for an active interval.
+    return !keys||(keys.length>1&&animation.frame>=keys[0][0]&&animation.frame<=keys.at(-1)[0]);
+  });
   const signatureOf=a=>JSON.stringify([a.objects,a.channels]),signature=signatureOf(animation);
   function verifyAnimation(capture){
     const a=ctx.animation.inspect(inputs);capture.assertCurrent();
     if(a.fps!==animation.fps||a.frame!==animation.frame||signatureOf(a)!==signature)
       throw Error('Native animation or sample time changed during the CFD solve');
   }
-  if(animation.objects.some(o=>o.plugin&&o.plugin!=='cfd'))throw Error('A physical plugin source requires evaluated surface velocities');
+  if(animation.objects.some(o=>physical.has(o.id)&&o.plugin&&o.plugin!=='cfd'))throw Error('A physical plugin source requires evaluated surface velocities');
   if(!channels.length&&allowStationary)return {capture:initial,motion:null,animationSignature:signature,frame:animation.frame,fps:animation.fps,assertCurrent:()=>verifyAnimation(initial)};
+  if(allowStationary){
+    const translation=commonTranslation(ctx,owner,ids,doc,channels,animation,initial.params.Speed);
+    if(translation){
+      const capture=captureFlowSurfaces(device,ctx,owner,[0,0,0],translation.basis);
+      return {capture,motion:null,translation,animationSignature:signature,frame:animation.frame,fps:animation.fps,assertCurrent:()=>verifyAnimation(capture)};
+    }
+    if(channels.some(c=>c.path==='position'))throw failure('UNSUPPORTED_MOTION','The participating surfaces must share one constant linear velocity over the held native key interval.');
+  }
   if(!ids.length||ids.length!==initial.meshes.length||ids.some(id=>doc.get(id)?.type!=='mesh'))
     throw Error('Rigid rotation requires directly evaluated polygon components');
-  const boxOwners=new Set();
-  for(let p=owner;doc.has(p)&&!boxOwners.has(p);p=doc.get(p).parent)boxOwners.add(p);
   const spinOwners=new Set();
   const motions=ids.map(id=>{
     const owners=new Set();for(let p=id;doc.has(p)&&!owners.has(p);p=doc.get(p)?.parent)owners.add(p);
@@ -101,17 +191,17 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
     if(tracks.length===1)spinOwners.add(tracks[0].id);
     return tracks.length===1&&tracks[0].path==='rotation'?axialTrackRate(tracks[0].track,animation.fps):null;
   });
-  if(channels.some(c=>boxOwners.has(c.id)||!spinOwners.has(c.id)||c.path!=='rotation')||animation.objects.some(o=>o.target)||motions.some(m=>!m))
+  if(channels.some(c=>!spinOwners.has(c.id)||c.path!=='rotation')||animation.objects.some(o=>physical.has(o.id)&&o.target)||motions.some(m=>!m))
     throw Error('Expected one unconstrained constant native rotation per component or rigid parent');
   const omega=motions[0].omega;if(motions.some(m=>Math.abs(m.omega-omega)>1e-8*Math.abs(omega)))throw Error('Independent angular speeds in one rotating frame');
   const first=Math.max(...motions.map(m=>m.first)),last=Math.min(...motions.map(m=>m.last)),held=animation.frame;
   if(held<first||held>last||last<=first)throw Error('The current frame must be inside a shared constant-speed interval');
   const {mul,inv}=ctx.math,base=new Map(initial.meshes.map(m=>[m.hash,m.matrix]));
-  const worldToPhysical=box=>mul(boxMetric(box),inv(box)),physicalToWorld=inv(worldToPhysical(ctx.document.world(owner)));
+  const boxWorld=ctx.document.world(owner),fromWorld=mul(boxMetric(boxWorld),inv(boxWorld)),physicalToWorld=inv(fromWorld);
   const offsets=new Map(ids.map(id=>[id,mul(inv(ctx.document.world(id)),mul(physicalToWorld,base.get(id)))]));
   const read=frame=>{
-    const answer=ctx.animation.sampleTransforms([owner,...ids],frame/animation.fps),fromWorld=worldToPhysical(answer.objects[0].world);
-    return new Map(answer.objects.slice(1).map(o=>[o.id,mul(fromWorld,mul(o.world,offsets.get(o.id)))]));
+    const answer=ctx.animation.sampleTransforms(ids,frame/animation.fps);
+    return new Map(answer.objects.map(o=>[o.id,mul(fromWorld,mul(o.world,offsets.get(o.id)))]));
   };
   const heldPoses=read(held);
   for(const [id,m] of base)if(!ctx.math.equal(m,heldPoses.get(id),1e-8))throw Error('The sampled shaft pose disagrees with the evaluated surface');
@@ -138,7 +228,7 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
     }
   }
   if(!identifiable||Math.min(...errors)>2e-5)throw Error('Evaluated Frame poses do not verify the authored axial angular velocity');
-  const sign=errors[0]<=errors[1]?1:-1,physical=sign*omega,axisOrigin=[base.get(ids[0])[12],0,0];let norm=0;
+  const sign=errors[0]<=errors[1]?1:-1,angularRate=sign*omega,axisOrigin=[base.get(ids[0])[12],0,0];let norm=0;
   // The renderer may centre component vertices separately. Fit a common
   // shaft line from the translations of all evaluated occurrences.
   for(const {pose,angle} of poses){
@@ -160,7 +250,7 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
   const capture=captureFlowSurfaces(device,ctx,owner,axisOrigin);
   const assertCurrent=()=>verifyAnimation(capture);
   assertCurrent();
-  return {capture,assertCurrent,animationSignature:signature,frame:held,fps:animation.fps,motion:{omega:physical,rpm:physical*60/(2*Math.PI),fps:animation.fps,heldFrame:held,
+  return {capture,assertCurrent,animationSignature:signature,frame:held,fps:animation.fps,motion:{omega:angularRate,rpm:angularRate*60/(2*Math.PI),fps:animation.fps,heldFrame:held,
     firstFrame:first,lastFrame:last,axisOriginM:axisOrigin,verifiedFrames:samples,relativePoseError:Math.min(...errors),positionErrorM,signature}};
 }
 
@@ -172,9 +262,8 @@ function combinedBounds(bounds){
   return {min,max};
 }
 
-export function capturedDomain(ctx,owner,capture,tier,axisOrigin=[0,0,0],cellBudget=tier===1?750000:3000000){
-  const metric=boxMetric(ctx.document.world(owner));
-  for(let a=0;a<3;a++)metric[12+a]=-axisOrigin[a];
+export function capturedDomain(ctx,owner,capture,tier,axisOrigin=[0,0,0],cellBudget=tier===1?750000:3000000,basis=null){
+  const metric=flowMetric(ctx.document.world(owner),axisOrigin,basis);
   const corners=Array.from({length:8},(_,k)=>ctx.math.point(metric,LOCAL_BOX.min.map((v,a)=>k&(1<<a)?LOCAL_BOX.max[a]:v)));
   const box=combinedBounds(corners.map(p=>({min:p,max:p})));
   const region={center:corners[0].map((v,a)=>(v+corners[7][a])*.5),
@@ -300,9 +389,23 @@ function profileHistogram(binding){
         if(r.exchanged){break;}old=r.old_value;}}
     }`;
 }
-export async function nativeLoadProfiles(gpu,f,domain,diameter){
+export async function nativeLoadProfiles(gpu,f,domain,diameter,basis=null){
   const count=profileCount,n=countOf(f.dims),coords=metricBuffer(gpu,f),rows=f.rotor?4:2,bytes=8*count*rows;
+  // Profile abscissae and force components always use the authored box axes.
+  // After a Galilean change of frame these axes need not match the solver.
+  const projected=basis?[0,1].map(a=>basis.map(row=>row[a])):null;
+  function extent(bounds,axis){
+    const lo=bounds.min.map((v,a)=>axis[a]>=0?v:bounds.max[a]),hi=bounds.max.map((v,a)=>axis[a]>=0?v:bounds.min[a]);
+    return [dot(lo,axis),dot(hi,axis)];
+  }
   const radius=diameter/2,limits=[0,1].map(a=>{
+    if(projected){
+      const direction=projected[a],center=dot(domain.region.center,direction);
+      const half=domain.region.halfAxes.reduce((sum,v)=>sum+Math.abs(dot(v,direction)),0);
+      const [start,end]=extent(domain.bodies,direction),pad=2*direction.reduce((s,v,k)=>s+Math.abs(v)*(f.minPitch?.[k]??f.h),0);
+      const lo=Math.max(center-half,start-pad),hi=Math.min(center+half,end+pad);
+      return hi>lo?[lo,hi]:[center-half,center+half];
+    }
     const pad=2*(f.minPitch?.[a]??f.h),swept=f.rotor&&a===1;
     const lo=Math.max(domain.box.min[a],(swept?-radius:domain.bodies.min[a])-pad);
     const hi=Math.min(domain.box.max[a],(swept?radius:domain.bodies.max[a])+pad);
@@ -317,13 +420,15 @@ export async function nativeLoadProfiles(gpu,f,domain,diameter){
     fn addPhaseLift(i:u32,phase:vec2f,lift:f32){if(i>=CELLS||lift==0.){return;}
       let p=position(i);let y=phase.x*p.y-phase.y*p.z;addProfile(${axis(1,'y')},lift);}`;
   const bins=gpu.buffer('CFD signed load distributions',bytes),stage=gpu.staging('CFD bounded profile readback',bytes);
+  const project=(name,a)=>projected?'dot('+name+',vec3f('+projected[a].join(',')+'))':name+'.'+'xy'[a];
   const shader=await gpu.kernel('CFD axial, vertical and radial wall-load profiles',base+profileHistogram(2)+`
     @group(0) @binding(0) var<storage,read> force:array<f32>;@group(0) @binding(1) var<storage,read> load:array<vec4f>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=CELLS){return;}let l=load[i];let drag=${f.regionalLoads?'l.x':'force[i]'};let p=position(i);
-      addProfile(${axis(0,'p.x')},drag);
+      let reaction=vec3f(drag,l.zw);
+      addProfile(${axis(0,project('p',0))},${project('reaction',0)});
       ${f.rotor?`let r=length(p.yz);let bin=${axis(2,'r')};addProfile(${2*count}u+bin,drag);addProfile(${3*count}u+bin,l.y);`:
-        `addProfile(${count}u+${axis(1,'p.y')},l.z);`}
+        `addProfile(${count}u+${axis(1,project('p',1))},${project('reaction',1)});`}
     }`);
   let group,previous=null,previousSteps=0;
   function bind(force,loads){
@@ -357,14 +462,15 @@ function physicalOrigin(world,axes,motion){
 }
 function wallMotionReport(context,owner,points){
   const result=frozenWallMotion(context.device,context,owner,{allowStationary:true});
-  const {motion,capture}=result,world=context.document.world(owner),axes=boxAxes(world);
+  const {motion,translation,capture}=result,world=context.document.world(owner),axes=boxAxes(world);
   const origin=physicalOrigin(world,axes,motion);
   const angularVelocity=axes[0].map(v=>v*(motion?.omega??0));
-  const velocities=points.map(p=>context.math.cross(angularVelocity,p.map((v,k)=>v-origin[k])));
+  const velocities=points.map(p=>translation?[...translation.velocityWorldMPerS]:context.math.cross(angularVelocity,p.map((v,k)=>v-origin[k])));
   result.assertCurrent();
-  return {kind:motion?'rigid-rotation':'stationary',frame:result.frame,timeSec:result.frame/result.fps,
+  return {kind:motion?'rigid-rotation':translation?'rigid-translation':'stationary',frame:result.frame,timeSec:result.frame/result.fps,
     occurrences:capture.meshes.length,axisOriginWorldM:motion?origin:null,angularVelocityWorldRadPerS:angularVelocity,
-    rpmInBox:motion?.rpm??0,velocityWorldMPerS:velocities,verifiedFrames:motion?.verifiedFrames??[]};
+    rpmInBox:motion?.rpm??0,velocityWorldMPerS:velocities,verifiedFrames:motion?.verifiedFrames??translation?.verifiedFrames??[],
+    ...(translation?{translationWorldMPerS:translation.velocityWorldMPerS,relativeWindBoxMPerS:translation.relativeWindBoxMPerS}:{})};
 }
 
 const flowBudgets={
@@ -375,7 +481,7 @@ const flowBudgets={
 
 // Estimate uncertainty from complete time blocks after startup. Short or
 // constant histories have insufficient information to infer autocorrelation.
-function forceUncertainty(windows,axes){
+function forceUncertainty(windows,axes,dragAxis=[1,0,0]){
   const blocks=windows.slice(3),n=blocks.length;
   if(n<6)return {blocks:n,standardErrorForce:null,ci95Drag:null,autocorrelationSteps:null};
   const forces=blocks.map(w=>[0,1,2].map(k=>w.force.reduce((s,v,a)=>s+v*axes[a][k],0)));
@@ -390,7 +496,7 @@ function forceUncertainty(windows,axes){
     }
     return {mean,se:Math.sqrt(total/(n-1)*correlation/n),correlation};
   }
-  const drag=estimate(blocks.map(w=>w.force[0])),effective=Math.max(1,Math.floor(n/drag.correlation)-1);
+  const drag=estimate(blocks.map(w=>dot(w.force,dragAxis))),effective=Math.max(1,Math.floor(n/drag.correlation)-1);
   const critical=[0,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228];
   const t=effective<critical.length?critical[effective]:effective<20?2.201:effective<30?2.086:2.042;
   return {blocks:n,standardErrorForce:axes.map((_,k)=>estimate(forces.map(v=>v[k])).se),
@@ -406,10 +512,13 @@ function physicalLoads(ctx,source,fluid,diameter,windows){
   const mean=(key,a)=>samples.reduce((sum,w)=>sum+w[key][a]*w.steps,0)/count;
   const force=[0,1,2].map(a=>mean('force',a)),moment=[0,1,2].map(a=>mean('moment',a));
   const aboutPivot=ctx.math.cross(pivot,force).map((v,a)=>moment[a]-v);
-  const world=local=>[0,1,2].map(k=>local.reduce((s,v,a)=>s+v*axes[a][k],0));
+  const forceWorld=vectorInWorld(force,axes),local=source.translation?source.boxAxes.map(axis=>dot(axis,forceWorld)):force;
   const result={frame,timeSec:frame/fps,physicalTimeS:window.time,averagedSteps:count,
-    forceWorld:world(force),forceLocal:{drag:force[0],lift:force[1],side:force[2],magnitude:Math.hypot(...force)},
-    torque:world(aboutPivot),units:{force:'N',torque:'N m',power:'W'}};
+    forceWorld,forceLocal:{drag:local[0],lift:local[1],side:local[2],magnitude:Math.hypot(...force)},
+    torque:vectorInWorld(aboutPivot,axes),units:{force:'N',torque:'N m',power:'W'}};
+  if(source.translation)result.kinematics={kind:'rigid-translation',wallVelocityWorldMPerS:source.translation.velocityWorldMPerS,
+    relativeWindBoxMPerS:source.translation.relativeWindBoxMPerS,relativeSpeedMPerS:source.translation.relativeSpeedMPerS,
+    relativeWindDragN:force[0],streamlineFrame:'body-relative'};
   if(motion){
     const speed=source.capture.params.Speed,rps=Math.abs(motion.rpm)/60,power=-moment[0]*motion.omega;
     result.powerW=power;result.rotorMetrics={CT:force[0]/(fluid.rho*rps**2*diameter**4),
@@ -421,8 +530,10 @@ function physicalLoads(ctx,source,fluid,diameter,windows){
 }
 
 async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
-  const {capture,motion,owner}=source,{Speed:U,Medium,Altitude}=capture.params;
+  const {capture,motion,translation,owner}=source,{Speed,Medium,Altitude}=capture.params,U=translation?.relativeSpeedMPerS??Speed;
   const fluid=mediumProperties(Medium,Altitude),device=ctx.device,budget=flowBudgets[fidelity];
+  if(translation&&Medium==='Air'&&capture.params.Ground==='Road'&&Math.abs(translation.velocityBoxMPerS[1])>1e-8)
+    throw failure('UNSUPPORTED_MOTION','A wall moving normal to the road changes the ground clearance during the solve.');
   const simple=capture.meshes.length===0||(!motion&&U===0);
   if(simple){
     check();
@@ -433,14 +544,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     return true;
   }
   const diameter=motion?await sweptDiameter(device,capture):0;check();
-  const domain=capturedDomain(ctx,owner,capture,budget.tier,motion?.axisOriginM,budget.cells);
+  const domain=capturedDomain(ctx,owner,capture,budget.tier,motion?.axisOriginM,budget.cells,translation?.basis);
   if(motion&&domain.road)throw failure('UNSUPPORTED_MOTION','A moving road and a rotating shaft require separate moving frames.');
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
   if(!Number.isFinite(reynolds)||maxSpeed/fluid.soundSpeedMps>.25)throw failure('FLOW_REGIME','This solve requires an incompressible flow with reference Mach at most 0.25.');
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
-  const f=gradeCapturedDomain({origin:domain.origin,h:domain.h,dims:domain.dims,U,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
+  const f=gradeCapturedDomain({origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
     rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
@@ -483,7 +594,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
     if(!(dt>0&&Number.isFinite(dt)))throw failure('INVALID_TIMESTEP','The evaluated fluid domain has no positive stable timestep.');
     const force=gpu.buffer('CFD integrated axial wall reaction',4*count);
     const fields=await nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response,domain);
-    const profiles=fields.profiles=await nativeLoadProfiles(gpu,f,domain,diameter);
+    const profiles=fields.profiles=await nativeLoadProfiles(gpu,f,domain,diameter,translation?.basis);
     display.draw=await nativeFieldOverlay(ctx,display);check();
     const solver=await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,null,fields);check();
     const roi=f.regionalLoads?await controlVolumeRegion(gpu,f,domain.region):null;
@@ -520,13 +631,13 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
         const physical=physicalLoads(ctx,source,fluid,diameter,step===end?windows:[value]);
         physical.profiles=await profiles.measure(step-first,step===end,f.rho*f.h**4/dt**2);
         physical.profiles.originWorldM=physicalOrigin(ctx.document.world(source.owner),source.axes,source.motion);
-        physical.profiles.axesWorld=source.axes;
+        physical.profiles.axesWorld=source.boxAxes;
         check();await fields.publish(step-first,step===end,physical.forceLocal.drag,check);check();
         const result={...physical,
           solver:'cartesian-fvm',fidelity,occurrences:capture.meshes.length,medium:fluid,cells:count,dims:f.dims,minCellWidthM:f.minPitch,
           steps:step,dtS:dt,completeWindows:windows.length,reynolds,referenceMach:maxSpeed/fluid.soundSpeedMps,
           surfaceFields:display.description,
-          uncertainty:forceUncertainty(windows,source.axes),
+          uncertainty:forceUncertainty(windows,source.axes,source.dragAxis),
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
             temporalConvergence:stationary?'window-stationary':step===end&&window+1===budget.windows?'window-limit':'sampling',
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
@@ -540,7 +651,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
             publish({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
           }
           publish({...result,shape:{state:'solving',objective:'drag'}});
-          const adj=await steadyForceAdjoint(gpu,f,dt,solver);check();
+          const adj=await steadyForceAdjoint(gpu,f,dt,solver,source.dragAxis);check();
           await scheduler.perform([{kind:'freeze primal momentum',encode:adj.start}],check);
           const phase={kind:'stationary force adjoint iteration',encode:e=>adj.step(e,2)};
           const limit=Math.min(12000,Math.max(1200,4*step));let iterations=0,defects;
@@ -611,10 +722,13 @@ export async function activate(context){
   function newJob(hash,fidelity){
     const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
     const world=context.document.world(hash),pivot=context.document.pivot(hash);
-    source.owner=hash;source.axes=boxAxes(world);
-    source.pivot=context.math.point(boxMetric(world),pivot.slice(12,15)).map((v,k)=>v-(source.motion?.axisOriginM[k]??0));
+    source.owner=hash;source.boxAxes=boxAxes(world);
+    const basis=source.translation?.basis;
+    source.axes=flowAxes(source.boxAxes,basis);
+    source.dragAxis=basis?.map(v=>v[0])??[1,0,0];
+    source.pivot=context.math.point(flowMetric(world,source.motion?.axisOriginM??[0,0,0],basis),pivot.slice(12,15));
     const key=JSON.stringify([fidelity,source.capture.signature,source.animationSignature,world,pivot,source.fps,
-      source.motion&&[source.motion.omega,source.motion.axisOriginM]]);
+      source.motion&&[source.motion.omega,source.motion.axisOriginM],source.translation?.velocityWorldMPerS]);
     return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,key,state:'queued',result:null,stopped:false};
   }
   function remember(job){
@@ -4011,7 +4125,7 @@ export async function surfaceLoss(gpu,display,f,dt,chunks,mobility){
       gpu.device.queue.submit([b.finish()]);
       const watts=(await totalPower())/steps;check();
       if(!Number.isFinite(watts))throw failure('NONFINITE_LOSS','The integrated dissipation is nonfinite.');
-      const normalized=f.U>0&&force>=0&&watts>0,scale=normalized?force/watts:1;
+      const normalized=(f.ambientSpeed??f.U)>0&&force>=0&&watts>0,scale=normalized?force/watts:1;
       const reference=.5*f.rho*f.maxSpeed**2*(normalized?1:f.maxSpeed);
       gpu.device.queue.writeBuffer(uniform,0,new Float32Array([1/steps,scale,1/reference,0]));
       const result=gpu.device.createCommandEncoder();for(const p of parts)gpu.dispatch(result,write,p.group,p.grid);

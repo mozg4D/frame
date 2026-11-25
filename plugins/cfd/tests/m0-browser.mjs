@@ -259,11 +259,13 @@ try{
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
   if(fp32Only && (result.webnn||result.features.includes('shader-f16')))throw Error('Optional backends were enabled in the fallback trial');
   if(saveFixture){await mkdir(dirname(resolve(saveFixture)),{recursive:true});await writeFile(resolve(saveFixture),Buffer.from(fixture.base64,'base64'),{flag:'wx'});}
-  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&c.windows.length>0&&(c.kind==='mr-lbm'?
-      c.windows.every(w=>Number.isFinite(w.latticeMass?.relativeGlobalMassDefect)):Number.isFinite(c.field?.relativeDivergenceMax)));
+  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&(c.kind==='uniform-equilibrium'?
+      c.completedSteps===0&&c.stable&&c.massPassed&&c.forceWorldN.every(v=>v===0):
+      c.windows.length>0&&(c.kind==='mr-lbm'?c.windows.every(w=>Number.isFinite(w.latticeMass?.relativeGlobalMassDefect)):Number.isFinite(c.field?.relativeDivergenceMax))));
     report.sceneStudyConverged=result.flow.cases.every(c=>c.stable&&(c.kind==='mr-lbm'?c.latticeMassPassed:c.massPassed));
     if(selection.periodLimit>0&&selection.periodLimit<1){
       report.requestedPartialIntervalCompleted=result.flow.cases.every(c=>{
+        if(c.kind==='uniform-equilibrium')return c.completedSteps===0&&c.stable&&c.massPassed;
         const w=c.partialWindow;
         return w&&!c.budgetExhausted&&c.completedSteps===Math.max(1,Math.round(selection.periodLimit*w.sampleCount/w.periodFraction))&&
           Number.isFinite(w.forceN)&&(!c.motion||Number.isFinite(w.shaftPowerToFluidW))&&

@@ -69,7 +69,7 @@ export async function verifyMomentumTranspose(device){
 // Small independent Float64 primal. Factor the full pressure operator with
 // banded Cholesky and reconstruct the explicitly imposed wall impulse. Its
 // objective includes both limited advection and molecular diffusion.
-function referenceGrid(f,dt,mu,region){
+function referenceGrid(f,dt,mu,region,direction=[1,0,0]){
   const [nx,ny,nz]=f.dims,n=nx*ny*nz,stride=[1,nx,nx*ny],bw=stride[2],row=bw+1;
   const U=f.U*dt/f.h,nu=f.nu*dt/f.h**2,volume=new Float64Array(n),faces=[];
   const chol=new Float64Array(n*row),p=new Float64Array(n),u=new Float64Array(3*n),q=new Float64Array(8*n);
@@ -118,12 +118,12 @@ function referenceGrid(f,dt,mu,region){
     for(const e of faces){
       const {l,r,a,raw,invP,area,m}=e,free=raw-invP*((r>=0?p[r]:0)-(l>=0?p[l]:0));
       const corrected=m*free,opposite=(1-m)*free;
-      if(l>=0){q[8*l+a]=area*corrected;u[3*l+a]+=.5*corrected;rawMean[3*l+a]+=.5*raw;if(a===0)objective+=.5*(region?.[l]??1)*volume[l]*opposite;}
-      if(r>=0){q[8*r+4+a]=area*corrected;u[3*r+a]+=.5*corrected;rawMean[3*r+a]+=.5*raw;if(a===0)objective+=.5*(region?.[r]??1)*volume[r]*opposite;}
+      if(l>=0){q[8*l+a]=area*corrected;u[3*l+a]+=.5*corrected;rawMean[3*l+a]+=.5*raw;objective+=direction[a]*.5*(region?.[l]??1)*volume[l]*opposite;}
+      if(r>=0){q[8*r+4+a]=area*corrected;u[3*r+a]+=.5*corrected;rawMean[3*r+a]+=.5*raw;objective+=direction[a]*.5*(region?.[r]??1)*volume[r]*opposite;}
     }
     for(let i=0;i<n;i++)for(let k=0;k<3;k++){
       const j=3*i+k,sub=v[j]-rawMean[j],c=mu[4*i+3];u[j]+=c*sub;next[j]=u[j];
-      if(k===0)objective+=(region?.[i]??1)*volume[i]*(1-c)*sub;
+      objective+=direction[k]*(region?.[i]??1)*volume[i]*(1-c)*sub;
     }
     for(const e of faces){
       const {l,r,i,a,s,area,dist,inside,open}=e,discharge=l>=0?q[8*l+a]:q[8*r+4+a];
@@ -177,14 +177,14 @@ function perturbedSphere(f,patch=-1,delta=0){
   return mu;
 }
 
-async function reverseSteady(gpu,f,dt,mobility,primal,v,forceMask){
+async function reverseSteady(gpu,f,dt,mobility,primal,v,forceMask,direction){
   const device=gpu.device,n=v.length/3;
   const pack=(src,stride)=>Float32Array.from({length:n*stride},(_,j)=>j%stride<3?src[3*Math.floor(j/stride)+j%stride]:0);
   const mg=await pressureMultigrid(gpu,f,mobility);
   const solved={mobility,forceMask,pressureHierarchy:mg,state:gpu.buffer('CFD steady primal velocity',pack(primal.u,8)),
     predicted:gpu.buffer('CFD steady predicted momentum',pack(v,8)),flux:gpu.buffer('CFD steady face flow',Float32Array.from(primal.q)),
     fluxTail:gpu.buffer('CFD zero reference flow tail',32*n)};
-  const adj=await steadyForceAdjoint(gpu,f,dt,solved);
+  const adj=await steadyForceAdjoint(gpu,f,dt,solved,direction);
   const prepare=device.createCommandEncoder();mg.updateGeometry(prepare);device.queue.submit([prepare.finish()]);
   device.queue.writeBuffer(mg.p,0,Float32Array.from(primal.p));
   const start=device.createCommandEncoder();adj.start(start);device.queue.submit([start.finish()]);
@@ -196,32 +196,33 @@ async function reverseSteady(gpu,f,dt,mobility,primal,v,forceMask){
   return {adj,defects,iterations};
 }
 
-export async function verifySteadyForce(device,regional=false){
+export async function verifySteadyForce(device,regional=false,direction=[1,0,0]){
   const gpu=gpuScope(device),n=512,h=.006,dt=.001,rho=1.2,U=.42;
   const axes=[0,1,2].map(a=>Float64Array.from({length:9},(_,i)=>h*i*(1+.006*(a+1)*i)));
   const f={dims:[8,8,8],axes,h,dt,rho,nu:.06*h*h/dt,U,origin:[0,0,0],laminar:true};
   const region=regional?Float32Array.from({length:n},(_,i)=>Math.max(0,Math.min(1,4.73-(i>>6)))):null;
-  const scale=rho*h**4/dt**2,mu=perturbedSphere(f),primal=referenceGrid(f,dt,mu,region);
+  const scale=rho*h**4/dt**2,mu=perturbedSphere(f),primal=referenceGrid(f,dt,mu,region,direction);
   const v=new Float64Array(3*n);for(let i=0;i<n;i++)v[3*i]=U*dt/h;
   const converged=primal.settle(v);
   try{
     const mobility=gpu.buffer('CFD manufactured immersed sphere',Float32Array.from(mu));
-    const {adj,defects,iterations}=await reverseSteady(gpu,f,dt,mobility,primal,v,region?gpu.buffer('CFD partial objective',region):null);
+    const {adj,defects,iterations}=await reverseSteady(gpu,f,dt,mobility,primal,v,region?gpu.buffer('CFD partial objective',region):null,direction);
     const gradient=await gpu.read(adj.gradient,gpu.staging('CFD shape coefficients for paired solutions',16*n),4*n);
     const patches=[],epsilon=1e-4*h;
     for(let patch=0;patch<6;patch++){
       const upper=perturbedSphere(f,patch,epsilon),lower=perturbedSphere(f,patch,-epsilon);
-      const plus=referenceGrid(f,dt,upper,region).settle(v.slice()),minus=referenceGrid(f,dt,lower,region).settle(v.slice());
+      const plus=referenceGrid(f,dt,upper,region,direction).settle(v.slice()),minus=referenceGrid(f,dt,lower,region,direction).settle(v.slice());
       let derivative=0;for(let i=0;i<mu.length;i++)derivative+=gradient[i]*(upper[i]-lower[i])/(2*epsilon);
       const fd=(plus.objective-minus.objective)*scale/(2*epsilon);
       patches.push({patch,adjointNPerM:derivative,finiteDifferenceNPerM:fd,relativeError:Math.abs(derivative-fd)/Math.max(1e-15,Math.abs(fd))});
     }
     const err=Math.hypot(...patches.map(s=>s.adjointNPerM-s.finiteDifferenceNPerM))/Math.hypot(...patches.map(s=>s.finiteDifferenceNPerM));
-    return {converged,iterations,defects,epsilonM:epsilon,patches,relativeL2:err,pass:Math.max(...defects)<4e-6&&err<.015&&patches.every(p=>p.relativeError<.04)};
+    return {converged,iterations,defects,objectiveDirection:direction,epsilonM:epsilon,patches,relativeL2:err,pass:Math.max(...defects)<4e-6&&err<.015&&patches.every(p=>p.relativeError<.04)};
   }finally{gpu.close();}
 }
 
 export const verifyRegionalSteadyForce=device=>verifySteadyForce(device,true);
+export const verifyObliqueSteadyForce=device=>verifySteadyForce(device,true,[-.6,.48,.64]);
 
 export async function verifyNativeSteadyForce(device){
   const h=.009,dt=.001,n=512,rho=1.21,U=.38,scale=rho*h**4/dt**2;
