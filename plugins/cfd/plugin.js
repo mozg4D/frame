@@ -574,6 +574,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     check();
     publish({...physicalLoads(ctx,source,fluid,0,[{steps:1,time:0,force:[0,0,0],moment:[0,0,0]}]),
       solver:'uniform-equilibrium',fidelity,occurrences:capture.meshes.length,medium:fluid,steps:0,completeWindows:0,
+      dragHotspots:[],separationZones:[],shapeSensitivitySummary:[],
       ...(history.paired?{paired:{baselineJob:history.prior.id,baselineGridHash:history.prior.gridHash,
         baselineWallTopologyHash:history.prior.wallTopologyHash,deltaDragN:-history.prior.drag}}:{}),
       uncertainty:{blocks:0,standardErrorForce:[0,0,0],ci95Drag:[0,0],autocorrelationSteps:null},
@@ -665,16 +666,19 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag}}:{})},...(paired?{paired}:{}),
         initialization:restart?{kind:refinement?'projected-nested-predictor':'projected-stationary-predictor',fromJob:prior.id,...restart}:{kind:'uniform-inflow'}});
     }
+    let surfaceComponents=null;
     async function publishFinished(value){
       const statistics=await nativeSurfaceStatistics(device,geom.skin.chunks,display.chunks,domain.region,source,check);
       const regime=await nativeFlowRegime(device,f,dt,solver.state,geom.response,geom.skin.chunks,fluid.soundSpeedMps,check);
+      surfaceComponents=await nativeSurfaceComponents(device,geom.skin.chunks,display.chunks,statistics,domain.region,source,f,
+        display.description.loss,prior?.surfaceComponents,check,history.paired);
       check();display.colorScale=statistics.surfaceColorScale;
-      publishSample({...value,validity:{...value.validity,...regime},...statistics});
+      publishSample({...value,validity:{...value.validity,...regime},...statistics,...surfaceComponents});
     }
     async function retain(drag,transportWeights=null){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
       const buffer=f.laminar&&16*count<=checkpointBytes?await savePredictor(gpu,solver,count,check):null;
-      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag,transportWeights});}
+      try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,drag,transportWeights,surfaceComponents});}
       catch(e){buffer?.destroy();throw e;}
     }
     let step=0;
@@ -720,7 +724,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           else publishSample(result);
           continue;
         }
-        if(!geom.shape){await retain(physical.forceLocal.drag);await publishFinished(result);return true;}
+        if(!geom.shape){await publishFinished(result);await retain(physical.forceLocal.drag);return true;}
         if(baseDefect>.025){
           if(window+1<windowLimit){publishSample(result);continue;}
           await publishFinished({...result,shape:{state:'unsteady-base',stationaryMomentumDefect:baseDefect}});return true;
@@ -750,7 +754,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           else transportWeights=null;
           display.description={...display.description,shape:sensitivity,available:[...display.description.available,'Shape']};
         }
-        check();await retain(physical.forceLocal.drag,transportWeights);await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});return true;
+        check();await publishFinished({...result,shape:sensitivity,surfaceFields:display.description});await retain(physical.forceLocal.drag,transportWeights);return true;
       }
     }
     return false;
@@ -4285,37 +4289,44 @@ const positiveAtomicWGSL=`
       if(res.exchanged){break;}prev=res.old_value;}
   }`;
 
-// Split each native triangle into three equal-area vertex patches. Clip the
-// patch in barycentric coordinates so area ratios survive any authored affine
-// transform, including shear and reflection.
+// Clip each equal-area corner patch in barycentric coordinates. Both
+// field integration and connected-region geometry use this exact polygon.
+const clippedCornerWGSL=`
+  struct Polygon{uv:array<vec2f,12>,count:u32}
+  fn basis(k:u32)->vec2f{return vec2f(f32(k==1u),f32(k==2u));}
+  fn cornerPolygon(a:vec3f,b:vec3f,c:vec3f,k:u32,clip:bool)->Polygon{
+    let v=basis(k);var p:Polygon;p.count=4u;p.uv[0]=v;p.uv[1]=.5*(v+basis((k+1u)%3u));
+    p.uv[2]=vec2f(1./3.);p.uv[3]=.5*(v+basis((k+2u)%3u));
+    let lo=vec3f(-500.,0.,-500.);let hi=vec3f(500.,1000.,500.);
+    if(!clip||(all(min(a,min(b,c))>=lo)&&all(max(a,max(b,c))<=hi))){return p;}
+    for(var d=0u;d<3u;d++){for(var side=-1;side<=1;side+=2){
+      if(p.count<3u){return p;}let plane=select(lo[d],hi[d],side>0);var out:Polygon;
+      let slope=vec2f(b[d]-a[d],c[d]-a[d]);var u=p.uv[p.count-1u];var du=f32(side)*(plane-a[d]-dot(slope,u));
+      for(var i=0u;i<p.count;i++){
+        let w=p.uv[i];let dw=f32(side)*(plane-a[d]-dot(slope,w));
+        if((du<0.)!=(dw<0.)&&du!=0.&&dw!=0.){out.uv[out.count]=mix(u,w,du/(du-dw));out.count++;}
+        if(dw>=0.){out.uv[out.count]=w;out.count++;}u=w;du=dw;
+      }p=out;
+    }}return p;
+  }
+  fn twiceArea(a:vec2f,b:vec2f,c:vec2f)->f32{let u=b-a;let v=c-a;return abs(u.x*v.y-u.y*v.x);}`;
 export async function clipNativeSurfaceRegion(gpu,chunks){
   const device=gpu.device,programs=new Map();
   for(const chunk of chunks){
     const {mesh,first,triangles}=chunk;
-    if(!programs.has(mesh.storage))programs.set(mesh.storage,await gpu.kernel('CFD exposed triangle portion in the authored box',meshReader(mesh.storage)+`
+    if(!programs.has(mesh.storage))programs.set(mesh.storage,await gpu.kernel('CFD exposed triangle portion in the authored box',meshReader(mesh.storage)+clippedCornerWGSL+`
       struct Pose{owner:mat4x4f,first:u32,triangles:u32}
       @group(0) @binding(2) var<uniform> pose:Pose;@group(0) @binding(3) var<storage,read_write> cover:array<f32>;
       fn local(k:u32)->vec3f{return (pose.owner*vec4f(sourcePoint(k),1.)).xyz;}
-      fn basis(k:u32)->vec2f{return vec2f(f32(k==1u),f32(k==2u));}
       @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
         let i=g.x;if(i>=arrayLength(&cover)){return;}let tri=3u*(pose.first+i/3u);
         let a=local(tri);let b=local(tri+1u);let c=local(tri+2u);let lo=vec3f(-500.,0.,-500.);let hi=vec3f(500.,1000.,500.);
         let lower=min(a,min(b,c));let upper=max(a,max(b,c));
         if(any(lower>hi)||any(upper<lo)){cover[i]=0.;return;}
         if(all(lower>=lo)&&all(upper<=hi)){cover[i]=1.;return;}
-        let q=i%3u;let v=basis(q);let ab=b-a;let ac=c-a;var p:array<vec2f,12>;var count=4u;
-        p[0]=v;p[1]=.5*(v+basis((q+1u)%3u));p[2]=vec2f(1./3.);p[3]=.5*(v+basis((q+2u)%3u));
-        for(var k=0u;k<3u;k++){for(var s=-1;s<=1;s+=2){
-          if(count<3u){cover[i]=0.;return;}let cut=select(lo[k],hi[k],s>0);var n=0u;var out:array<vec2f,12>;
-          var u=p[count-1u];var du=f32(s)*(cut-a[k]-ab[k]*u.x-ac[k]*u.y);
-          for(var j=0u;j<count;j++){
-            let w=p[j];let dw=f32(s)*(cut-a[k]-ab[k]*w.x-ac[k]*w.y);
-            if(((du<0.)!=(dw<0.))&&du!=0.&&dw!=0.){out[n]=mix(u,w,du/(du-dw));n++;}
-            if(dw>=0.){out[n]=w;n++;}u=w;du=dw;
-          }p=out;count=n;
-        }}
-        var twice=0.;for(var k=2u;k<count;k++){let ab=p[k-1u]-p[0];let ac=p[k]-p[0];twice+=ab.x*ac.y-ab.y*ac.x;}
-        cover[i]=clamp(3.*abs(twice),0.,1.);
+        let p=cornerPolygon(a,b,c,i%3u,true);var twice=0.;
+        for(var k=2u;k<p.count;k++){twice+=twiceArea(p.uv[0],p.uv[k-1u],p.uv[k]);}
+        cover[i]=clamp(3.*twice,0.,1.);
       }`));
     const data=new ArrayBuffer(80);new Float32Array(data,0,16).set(mesh.ownerMatrix);new Uint32Array(data,64,2).set([first,triangles]);
     const pose=gpu.buffer('CFD surface portion pose',new Uint8Array(data),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
@@ -4778,6 +4789,205 @@ export async function nativeSurfaceStatistics(device,chunks,shown,region,frame,c
     }
     return {pressureStats:pressure,separationStats:separation,surfaceColorScale:{percentile:97.5,pressurePa:values[2],lossDensity:values[3],shapeNPerM3:values[4]}};
   }finally{scratch.close();}
+}
+
+// Use the native index topology for connectivity, including across chunks of
+// a paged mesh. One oriented derivative sign is processed at a time.
+const patchLimit=8,patchWords=40;
+async function surfacePatchPrograms(gpu,storage){
+  const base=meshReader(storage)+`
+    struct Site{point:vec4f,normal:vec4f,near:vec4f,far:vec4f}
+    struct Config{span:vec4u,flow:vec4f,inverse:mat4x4f,world:mat4x4f}
+    @group(0) @binding(2) var<storage,read_write> parent:array<atomic<u32>>;
+    @group(0) @binding(3) var<storage,read> field:array<vec4f>;
+    @group(0) @binding(4) var<uniform> cfg:Config;
+    @group(0) @binding(5) var<storage,read> sites:array<Site>;
+    fn mixBits(value:u32)->u32{var x=value;x=(x^(x>>16u))*0x7feb352du;x=(x^(x>>15u))*0x846ca68bu;return x^(x>>16u);}
+    fn measure(i:u32)->f32{
+      let f=field[i];let mode=cfg.span.z;let cut=cfg.flow.x;
+      if(mode==0u){return select(0.,f.y,f.z>0.&&f.x>=cut&&f.x>0.);}
+      if(mode==1u){return select(0.,3.*sites[3u*i].point.w*f.w,f.y>=cut);}
+      let density=select(f.x,-f.x,mode==3u);
+      return select(0.,abs(f.y),f.z>0.&&density>=cut&&density>0.);
+    }
+    fn root(id:u32)->u32{
+      var x=id;loop{let p=atomicLoad(&parent[x]);if(x==p){break;}
+        let g=atomicLoad(&parent[p]);atomicMin(&parent[x],g);x=g;}return x;
+    }
+    fn unite(a:u32,b:u32){
+      var x=root(a);var y=root(b);loop{if(x==y){break;}
+        let hi=max(x,y);let lo=min(x,y);let r=atomicCompareExchangeWeak(&parent[hi],hi,lo);
+        if(r.exchanged){break;}x=root(r.old_value);y=root(lo);}
+    }
+    fn logical(i:u32,k:u32)->u32{return vertex(3u*(cfg.span.x+i)+k);}`;
+  const kernel=(label,src)=>gpu.kernel('CFD '+label,base+src);
+  const topology=await kernel('native patch topology signature',`
+    @group(0) @binding(6) var<storage,read_write> signature:array<atomic<u32>>;
+    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=cfg.span.y){return;}var h=mixBits(cfg.span.x+i);
+      for(var k=0u;k<3u;k++){h=mixBits(h^logical(i,k));}atomicAdd(&signature[0],h);atomicXor(&signature[1],mixBits(h));}`);
+  const join=await kernel('connect selected native triangles',`
+    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=cfg.span.y||measure(i)<=0.){return;}let a=logical(i,0u);unite(a,logical(i,1u));unite(a,logical(i,2u));}`);
+  const score=await kernel('integrate connected surface components',profileHistogram(6)+`
+    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=cfg.span.y){return;}let w=measure(i);if(w>0.){addProfile(root(logical(i,0u)),w);}}`);
+  const detail=await kernel('measure clipped native surface patches',clippedCornerWGSL+profileHistogram(6)+`
+    struct Selected{roots:array<vec4u,2>,prior:array<vec4u,16>,counts:vec4u}
+    @group(0) @binding(7) var<uniform> selected:Selected;
+    fn order(x:f32)->u32{if(x==0.){return 0x80000000u;}let b=bitcast<u32>(x);return select(b^0x80000000u,~b,x<0.);}
+    @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=cfg.span.y||measure(i)<=0.){return;}let id=root(logical(i,0u));var slot=0u;
+      for(;slot<selected.counts.x;slot++){if(selected.roots[slot/4u][slot%4u]==id){break;}}
+      if(slot==selected.counts.x){return;}let t=3u*i;let center=(sites[t].point.xyz+sites[t+1u].point.xyz+sites[t+2u].point.xyz)/3.;
+      var world:array<vec3f,3>;var box:array<vec3f,3>;
+      for(var k=0u;k<3u;k++){let p=vec4f(2.*sites[t+k].point.xyz-center,1.);
+        world[k]=(cfg.world*p).xyz;box[k]=(cfg.inverse*p).xyz;}
+      let word=40u*slot;let mode=cfg.span.z;var area=0.;var integral=vec3f(0);var normal=vec3f(0);
+      var lo=vec3f(3.4e38);var hi=-lo;
+      for(var k=0u;k<3u;k++){
+        let s=sites[t+k];let n=s.normal.xyz;if(dot(n,n)<.5||s.point.w<=0.){continue;}
+        if(mode==1u){let drive=vec3f(cfg.flow.y,cfg.flow.z*s.point.z,-cfg.flow.z*s.point.y);
+          let tangent=drive-n*dot(drive,n);if(s.normal.w<0.||dot(tangent,tangent)<=cfg.flow.w){continue;}}
+        let poly=cornerPolygon(box[0],box[1],box[2],k,cfg.span.w!=0u);
+        if(poly.count<3u){continue;}var subArea=0.;var subCenter=vec2f(0);
+        for(var j=2u;j<poly.count;j++){let u=poly.uv[0];let v=poly.uv[j-1u];let w=poly.uv[j];
+          let a=3.*s.point.w*twiceArea(u,v,w);subCenter+=a*(u+v+w)/3.;subArea+=a;}
+        if(subArea<=0.){continue;}let ab=world[1]-world[0];let ac=world[2]-world[0];
+        integral+=world[0]*subArea+ab*subCenter.x+ac*subCenter.y;area+=subArea;normal+=(cfg.world*vec4f(n,0)).xyz*subArea;
+        for(var j=0u;j<poly.count;j++){let w=world[0]+ab*poly.uv[j].x+ac*poly.uv[j].y;lo=min(lo,w);hi=max(hi,w);}
+      }
+      if(area<=0.){return;}let bin=word/2u;addProfile(bin,area);
+      for(var d=0u;d<3u;d++){addProfile(bin+1u+d,integral[d]);addProfile(bin+4u+d,normal[d]);
+        atomicMax(&hist[word+16u+d],~order(lo[d]));atomicMax(&hist[word+19u+d],order(hi[d]));}
+      let f=field[i];var value=f.y;if(mode==1u){value=f.y*measure(i);}addProfile(bin+7u,value);
+      atomicAdd(&hist[word+22u],1u);let tri=cfg.span.x+i;atomicMax(&hist[word+23u+(mixBits(tri)%8u)],~tri);
+      for(var j=0u;j<8u*selected.counts.y;j++){
+        if(selected.prior[j/4u][j%4u]==tri){atomicAdd(&hist[word+31u+j/8u],1u);}}
+    }`);
+  return {topology,join,score,detail};
+}
+
+// Read back at most eight candidates per rank bucket, irrespective of mesh
+// size. Equal integrals use the smallest native vertex as a deterministic tie.
+async function surfacePatchRanking(gpu){
+  return gpu.kernel('CFD strongest connected surface patches',`
+    @group(0) @binding(0) var<storage,read> score:array<vec2f>;
+    @group(0) @binding(1) var<storage,read_write> result:array<vec2u>;
+    var<workgroup> lanes:array<vec2u,64>;
+    fn above(a:vec2u,b:vec2u)->bool{return a.x>b.x||(a.x==b.x&&a.y>b.y);}
+    @compute @workgroup_size(64) fn main(@builtin(local_invocation_index) k:u32,@builtin(workgroup_id) g:vec3u,
+      @builtin(num_workgroups) groups:vec3u){
+      var previous=vec2u(0xffffffffu);for(var rank=0u;rank<8u;rank++){
+        var best=vec2u(0);for(var i=64u*g.x+k;i<arrayLength(&score);i+=64u*groups.x){
+          let v=score[i];let x=v.x+v.y;let pair=vec2u(bitcast<u32>(x),~i);
+          if(x>0.&&above(previous,pair)&&above(pair,best)){best=pair;}}
+        lanes[k]=best;
+        for(var width=32u;width>0u;width/=2u){workgroupBarrier();if(k<width&&above(lanes[k+width],lanes[k])){lanes[k]=lanes[k+width];}}
+        workgroupBarrier();previous=lanes[0];if(k==0u){result[8u*g.x+rank]=previous;}workgroupBarrier();
+      }
+    }`);
+}
+
+const patchLists=['dragHotspots','separationZones','shapeSensitivitySummary','shapeSensitivitySummary'];
+export async function nativeSurfaceComponents(device,chunks,shown,statistics,region,frame,f,loss,previous,check,paired=false){
+  const all={dragHotspots:[],separationZones:[],shapeSensitivitySummary:[]},occurrences=new Map(),copies=new Map(),programs=new Map();
+  const cut=[statistics.surfaceColorScale.lossDensity,.2,statistics.surfaceColorScale.shapeNPerM3,statistics.surfaceColorScale.shapeNPerM3];
+  for(const [i,c] of chunks.entries()){
+    if(!occurrences.has(c.mesh))occurrences.set(c.mesh,[]);occurrences.get(c.mesh).push({c,show:shown[i]});
+  }
+  const shared=gpuScope(device),unmeasured=[];
+  const floating=new Float32Array(1),bits=new Uint32Array(floating.buffer);
+  function decode(order){bits[0]=order&0x80000000?order^0x80000000:~order;return floating[0];}
+  function sort(a,b){return b.strength-a.strength||a.occurrence-b.occurrence||a.anchorVertex-b.anchorVertex;}
+  try{
+    const rank=await surfacePatchRanking(shared);
+    const init=await shared.kernel('CFD initialize patch connectivity',`
+      @group(0) @binding(0) var<storage,read_write> parent:array<u32>;
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(num_workgroups) groups:vec3u){
+        for(var i=g.x;i<arrayLength(&parent);i+=groups.x*128u){parent[i]=i;}}`);
+    for(const [mesh,parts] of occurrences){
+      check();const occurrence=parts[0].show.occurrence,n=mesh.vertexCount,ordinal=copies.get(mesh.hash)??0;copies.set(mesh.hash,ordinal+1);
+      if(!n)continue;
+      if(8*n>Math.min(device.limits.maxStorageBufferBindingSize,device.limits.maxBufferSize)){unmeasured.push(occurrence);continue;}
+      if(!programs.has(mesh.storage))programs.set(mesh.storage,await surfacePatchPrograms(shared,mesh.storage));
+      const p=programs.get(mesh.storage),gpu=gpuScope(device),groups=Math.min(128,Math.ceil(n/64));
+      try{
+        const parent=gpu.buffer('CFD native vertex component roots',4*n),scores=gpu.buffer('CFD integrated component ranking',8*n);
+        const ranked=gpu.buffer('CFD shortlisted component roots',groups*8*8),summary=gpu.buffer('CFD component areas and bounds',4*patchLimit*patchWords);
+        const sig=gpu.buffer('CFD ordered index fingerprint',8),selected=gpu.buffer('CFD selected roots and previous anchors',304,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+        const stage=gpu.staging('CFD bounded component summaries',Math.max(ranked.size,summary.size,8));
+        const indexResource=meshResources(mesh)[1];
+        function group(pipe,entries){return device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:entries.map(([binding,r])=>({binding,resource:binding===1?indexResource:{buffer:r}}))});}
+        const spans=parts.map(({c,show})=>{
+          const bytes=new ArrayBuffer(160),ints=new Uint32Array(bytes),floats=new Float32Array(bytes);
+          ints.set([c.first,c.triangles,0,Number(!!c.cover)]);floats.set([0,f.U,f.omega,(1e-5*f.maxSpeed)**2],4);
+          floats.set(region.inverse,8);floats.set([...frame.axes.flatMap(a=>[...a,0]),0,0,0,1],24);
+          const cfg=gpu.buffer('CFD native patch sampling frame',new Uint8Array(bytes),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+          return {c,show,cfg,ints,floats,bytes,grid:[Math.ceil(c.triangles/64)]};
+        });
+        const enc=device.createCommandEncoder();
+        for(const s of spans)gpu.dispatch(enc,p.topology,group(p.topology,[[1],[4,s.cfg],[6,sig]]),s.grid);
+        device.queue.submit([enc.finish()]);const signature=new Uint32Array((await gpu.read(sig,stage,2)).buffer);check();
+        const key=[mesh.hash,ordinal,n,mesh.triangleCount,...Array.from(signature,x=>x.toString(16))].join('/');
+        for(let mode=0;mode<4;mode++){
+          if(cut[mode]==null)continue;
+          const list=patchLists[mode],prior=(previous?.[list]??[]).filter(r=>r.topologyKey===key&&r.mode===mode);
+          const e=device.createCommandEncoder();e.clearBuffer(scores);
+          gpu.dispatch(e,init,gpu.bind(init,[parent]),[Math.min(device.limits.maxComputeWorkgroupsPerDimension,Math.ceil(n/128))]);
+          for(const s of spans){
+            s.ints[2]=mode;s.floats[4]=cut[mode];device.queue.writeBuffer(s.cfg,0,s.bytes);
+            const field=[s.show.loss,s.show.visible,s.show.shape,s.show.shape][mode];
+            s.core=[[1],[2,parent],[3,field],[4,s.cfg],[5,s.c.site]];
+            gpu.dispatch(e,p.join,group(p.join,s.core),s.grid);
+          }
+          for(const s of spans)gpu.dispatch(e,p.score,group(p.score,[...s.core,[6,scores]]),s.grid);
+          gpu.dispatch(e,rank,gpu.bind(rank,[scores,ranked]),[groups]);device.queue.submit([e.finish()]);
+          const data=await gpu.read(ranked,stage,ranked.size/4),ids=new Uint32Array(data.buffer),top=[];check();
+          for(let i=0;i<data.length;i+=2)if(data[i]>0)top.push({strength:data[i],root:~ids[i+1]>>>0});
+          top.sort((a,b)=>b.strength-a.strength||a.root-b.root);top.length=Math.min(top.length,patchLimit);
+          if(!top.length)continue;
+          const pick=new Uint32Array(76).fill(0xffffffff);top.forEach((r,i)=>pick[i]=r.root);
+          prior.forEach((r,i)=>pick.set(r.anchorTriangles,8+8*i));pick.set([top.length,prior.length,0,0],72);
+          device.queue.writeBuffer(selected,0,pick);
+          const details=device.createCommandEncoder();details.clearBuffer(summary);
+          for(const s of spans)gpu.dispatch(details,p.detail,group(p.detail,[...s.core,[6,summary],[7,selected]]),s.grid);
+          device.queue.submit([details.finish()]);const values=await gpu.read(summary,stage,summary.size/4),raw=new Uint32Array(values.buffer);check();
+          const items=[],matches=[];
+          for(const [i,row] of top.entries()){
+            const o=patchWords*i,sum=k=>values[o+2*k]+values[o+2*k+1],area=sum(0);if(!(area>0))continue;
+            const xyz=[0,1,2],world=(x,a)=>x+frame.originWorldM[a],count=raw[o+22],integral=sum(7);
+            const component={mode,topologyKey:key,anchorVertex:row.root,occurrence,strength:row.strength,triangleCount:count,
+              anchorTriangles:Array.from(raw.slice(o+23,o+31)).filter(Boolean).map(x=>~x>>>0),areaM2:area,
+              centroid:xyz.map(a=>world(sum(1+a)/area,a)),meanNormal:xyz.map(a=>sum(4+a)/area),
+              bbox:[...xyz.map(a=>world(decode(~raw[o+16+a]),a)),...xyz.map(a=>world(decode(raw[o+19+a]),a))],
+              persistentId:key+'/'+mode+'/'+row.root};
+            if(mode===0){component.attributedPowerW=integral;component.sharePercent=100*integral/loss.attributedPowerW;
+              if(loss.forceNormalizationN!=null)component.forceN=loss.forceNormalizationN*integral/loss.attributedPowerW;}
+            else if(mode===1){component.areaFraction=area/statistics.separationStats.sampledAreaM2;component.meanGammaRev=integral/area;}
+            else{component.action=mode===2?'push_in':'pull_out';component.sensitivityNPerMm=integral;}
+            for(const [j,old] of prior.entries()){
+              const hits=raw[o+31+j];if(hits>0)matches.push({component,old,hits,fraction:hits/old.anchorTriangles.length});
+            }
+            items.push(component);
+          }
+          matches.sort((a,b)=>b.fraction-a.fraction||b.hits-a.hits||sort(a.component,b.component)||a.old.anchorVertex-b.old.anchorVertex);
+          const used=new Set(),assigned=new Set();
+          for(const {component,old,hits,fraction} of matches){
+            if(used.has(old.persistentId)||assigned.has(component))continue;
+            used.add(old.persistentId);assigned.add(component);component.persistentId=old.persistentId;component.matchedAnchorCount=hits;
+            component.matchedAnchorFraction=fraction;
+            if(paired&&mode===0&&component.forceN!=null&&old.forceN!=null)component.deltaFromPrevN=component.forceN-old.forceN;
+          }
+          for(const c of items)if(!assigned.has(c)&&used.has(c.persistentId))c.persistentId+='/'+c.anchorTriangles[0];
+          all[list].push(...items);all[list].sort(sort);all[list].length=Math.min(patchLimit,all[list].length);
+        }
+      }finally{gpu.close();}
+    }
+    return {...all,surfaceComponents:{connectivity:'shared native vertex',limitPerField:patchLimit,coordinateFrame:'world',coordinateUnit:'m',
+      rankedBy:{dragHotspots:'attributed W',separationZones:'observed m2',shapeSensitivitySummary:'absolute N/mm'},
+      lossDensityThreshold:cut[0],lossDensityUnit:loss.unit,reversalThreshold:cut[1],absoluteShapeThresholdNPerM3:cut[2],unmeasuredOccurrences:unmeasured}};
+  }finally{shared.close();}
 }
 
 function regimeNumbers(fluidSpeed,wallRelativeSpeed,referenceSpeed,soundSpeed){

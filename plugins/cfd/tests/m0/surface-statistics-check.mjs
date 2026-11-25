@@ -75,6 +75,7 @@ export async function verifyLiveSurfaceReport(device){
     const area=.5e-6*Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]);
     const p=await op('probe',{occurrence:0,triangle});
     rows.push({p:p.pressurePa,abs:Math.abs(p.pressurePa),pa:area*p.pressureCoverage,loss:p.lossDensity,area:p.areaM2,
+      watts:p.attributedPowerW,sensitivity:p.shapePatchNPerMm,signed:p.shapeDensityNPerM3,
       shape:Math.abs(p.shapeDensityNPerM3),shapeArea:p.areaM2,separationArea:area*p.separationCoverage,gamma:p.gammaRev});
   }
   const p=r.pressureStats,s=r.surfaceColorScale,withPressure=rows.filter(v=>v.pa>0),peak=faces[p.maxSurface.triangle].map(i=>vertices[i]);
@@ -82,13 +83,30 @@ export async function verifyLiveSurfaceReport(device){
   const values=[p.p05Pa,p.p95Pa,s.pressurePa,s.lossDensity,s.shapeNPerM3],area=rows.reduce((sum,x)=>sum+x.pa,0);
   const inFace=p.maxCoord.every((x,k)=>1000*x>=Math.min(...peak.map(q=>q[k]))-.001&&1000*x<=Math.max(...peak.map(q=>q[k]))+.001);
   const v=r.validity,y=v.yPlusPercentiles;
+  const componentFields=[r.dragHotspots,r.separationZones,r.shapeSensitivitySummary],expectedComponents=[[],[],[]];
+  for(let mode=0;mode<4;mode++){
+    const selected=new Set(rows.map((row,i)=>{
+      const score=[row.loss>0&&row.loss>=s.lossDensity,row.gamma>=.2,row.signed>0&&row.signed>=s.shapeNPerM3,
+        row.signed<0&&-row.signed>=s.shapeNPerM3][mode];return score?i:null;}).filter(i=>i!=null));
+    while(selected.size){
+      const q=[selected.values().next().value],ids=[];selected.delete(q[0]);
+      while(q.length){const i=q.pop();ids.push(i);for(const j of selected)if(faces[i].some(id=>faces[j].includes(id))){q.push(j);selected.delete(j);}}
+      const strength=ids.reduce((sum,i)=>sum+[rows[i].watts,rows[i].separationArea,Math.abs(rows[i].sensitivity),Math.abs(rows[i].sensitivity)][mode],0);
+      if(strength>0)expectedComponents[Math.min(2,mode)].push({mode,root:Math.min(...ids.flatMap(i=>faces[i])),strength});
+    }
+  }
+  const componentsPass=componentFields.every((list,j)=>{
+    const expected=expectedComponents[j].sort((a,b)=>b.strength-a.strength||a.root-b.root).slice(0,8);
+    return list?.length===expected.length&&list.every(c=>expected.some(e=>c.mode===e.mode&&c.anchorVertex===e.root&&Math.abs(c.strength/e.strength-1)<3e-5));
+  });
   await op('pressure-map');await op('separation-map');await op('shape-map');const reused=await op('results');
-  return {pass:current.state==='ready'&&r.shape?.state==='ready'&&r.validity.stationary&&inFace&&
+  return {pass:current.state==='ready'&&r.shape?.state==='ready'&&r.validity.stationary&&inFace&&componentsPass&&
     values.every((v,i)=>v===expected[i])&&p.minPa===Math.min(...withPressure.map(v=>v.p))&&p.maxPa===Math.max(...withPressure.map(v=>v.p))&&
     Math.abs(p.sampledAreaM2/area-1)<3e-6&&reused.job.id===current.job.id&&
     y.p50>0&&y.p95>=y.p50&&Math.abs(y.sampledAreaM2/area-1)<3e-6&&y.meanSecondDistanceM>y.meanFirstDistanceM&&
     v.maxMach>=r.referenceMach&&v.maxMach>=v.maxSampledWallRelativeMach&&v.maxFluidMach>0,
     job:current.job.id,triangles:faces.length,pressure:p,separation:r.separationStats,colorScale:s,independentQuantiles:expected,
+    componentsPass,dragHotspots:r.dragHotspots,separationZones:r.separationZones,shapeSensitivitySummary:r.shapeSensitivitySummary,
     independentlySampledAreaM2:area,shape:r.shape?.state,maxDivergencePerS:r.validity.maxDivergencePerS,
     regime:{maxMach:v.maxMach,maxFluidMach:v.maxFluidMach,maxSampledWallRelativeMach:v.maxSampledWallRelativeMach,
       referenceMach:v.referenceMach,compressibilityErrorEstimate:v.compressibilityErrorEstimate,yPlusPercentiles:y},reference};
