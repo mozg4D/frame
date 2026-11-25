@@ -100,7 +100,7 @@ export async function verifyLiveSphere(){
     if(performance.now()-start>4*60*60*1000)throw Error('Native sphere did not finish in the allotted run.');
   }while(value.state==='queued'||value.state==='solving');
   const r=value.result,cd=r.forceLocal.drag/(.5*r.medium.rho*U**2*Math.PI*.04**2),shape=r.shape;
-  let changedPixels=0,vertices=0,outwardSensitivity=0,nonzero=0,probe=null;
+  let changedPixels=0,vertices=0,outwardSensitivity=0,nonzero=0,probe=null,hover=null;
   if(shape?.state==='ready'){
     const command=(operation,args={})=>call('plugins.command',{id,operation,args});
     const part=r.surfaceFields.occurrences[0];
@@ -120,9 +120,13 @@ export async function verifyLiveSphere(){
     changedPixels=before.filter((a,i)=>a.slice(0,3).some((v,k)=>Math.abs(v-after[i][k])>12)).length;
     probe=await command('probe',{occurrence:0,triangle:Math.floor(part.triangles/3)});
     if(button.getAttribute('aria-pressed')!=='true'||!Number.isFinite(probe.shapeDensityNPerM3))throw Error('Native Shape selection or probe failed');
+    const canvas=document.querySelector('#frame-engine-canvas'),[x,y]=points[4];
+    canvas.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerType:'mouse',clientX:x,clientY:y}));
+    for(let i=0;i<80;i++){await new Promise(resolve=>setTimeout(resolve,40));const label=canvas.closest('.view').querySelector('.frame-surface-probe');
+      if(label?.getClientRects().length){hover=label.textContent;break;}}
   }
-  return {pass:value.state==='ready'&&Math.abs(cd/1.087-1)<.05&&r.validity.maxDivergencePerS<1e-6&&shape?.state==='ready'&&changedPixels>0&&nonzero>0,
-    elapsedMs:performance.now()-start,cd,referenceCd:1.087,result:r,shapeCheck:{vertices,nonzero,outwardSensitivityNPerMm:outwardSensitivity,changedPixels,probe}};
+  return {pass:value.state==='ready'&&Math.abs(cd/1.087-1)<.05&&r.validity.maxDivergencePerS<1e-6&&shape?.state==='ready'&&changedPixels>0&&nonzero>0&&/^Shape .+N\/m³.+N\/mm$/.test(hover),
+    elapsedMs:performance.now()-start,cd,referenceCd:1.087,result:r,shapeCheck:{vertices,nonzero,outwardSensitivityNPerMm:outwardSensitivity,changedPixels,probe,hover}};
 }
 
 export async function verifyLiveRotating(device){
@@ -209,4 +213,108 @@ export async function verifyLiveRegions(){
   return {regions,forceError,momentError,maxAreaError,outside,inside,invalid,
     pass:regions.every(r=>r.steps===full.steps&&Math.abs(r.time-full.time)<1e-8&&r.cells===full.cells&&r.divergence<1e-6)&&
       full.force[0]>0&&forceError<.002&&momentError<.002&&maxAreaError<5e-10&&Math.min(...outside,...inside)>0&&invalid===0};
+}
+
+export async function verifyLiveHover(device,movePointer){
+  const call=(name,params={})=>frameAI.call(name,params),math=frameEngine.pluginMath;
+  await call('scene.new');
+  const vertices=[[-40,60,-40],[40,60,-40],[40,140,-40],[-40,140,-40],[-40,60,40],[40,60,40],[40,140,40],[-40,140,40]];
+  const faces=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,4,7],[0,7,3],[1,2,6],[1,6,5],[0,1,5],[0,5,4],[3,7,6],[3,6,2]];
+  const body=await call('mesh.create',{name:'Native probe reference',vertices:vertices.flat(),indices:faces.flat(),storage:'texture'});
+  const make=()=>call('scene.create',{type:'cfd',params:{Speed:.017}});
+  const big=(await make()).hash,small=(await make()).hash;
+  await call('transform.apply',{ids:[small],size:[180,180,180],position:[0,0,0],coordinates:'world'});
+  const center=math.point(frameEngine.pluginWorld(small),[0,500,0]);
+  await call('transform.apply',{ids:[small],position:[0,100,0].map((v,i)=>v-center[i]),coordinates:'world'});
+  const op=(id,operation,args={})=>call('plugins.command',{id,operation,args});
+  await call('scene.select',{ids:[body.hash]});await call('view.set',{index:1,single:true,shading:'solid',focus:body.hash});
+  await call('diagnostics.frame',{frames:2});
+  let triangle=-1,screen;
+  for(const [t,ids] of faces.entries()){
+    const center=[0,1,2].map(a=>ids.reduce((s,i)=>s+vertices[i][a],0)/3);
+    const p=await call('view.project',{point:center}),[x,y]=p.screen;
+    const pick=await call('view.pick',{x,y});
+    if(pick.point&&Math.hypot(...pick.point.map((v,a)=>v-center[a]))<.1){triangle=t;screen=[x,y];break;}
+  }
+  if(triangle<0)throw Error('Cannot identify the visible native polygon in the test view');
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  for(const id of [big,small]){
+    await op(id,'solve-frame',{fidelityBudget:'preview'});const until=performance.now()+150000;
+    for(;;){
+      const state=await op(id,'results');
+      if(['ready','unconverged'].includes(state.state)&&state.result?.surfaceFields)break;
+      if(state.state==='failed'||state.state==='stale'||performance.now()>until)throw Error('No complete hover reference: '+JSON.stringify(state));
+      await wait(120);
+    }
+  }
+  await op(big,'pressure-map');await op(small,'separation-map');
+  const format=v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=1e5)?v.toExponential(3):String(Number(v.toPrecision(4)));
+  const a=await op(big,'probe',{occurrence:0,triangle}),b=await op(small,'probe',{occurrence:0,triangle});
+  if(a.pressurePa===null||b.gammaRev===null||b.lossDensity===null)throw Error('Chosen face has incomplete reference fields');
+  const expected={Pressure:'Pressure  '+format(a.pressurePa)+' Pa  ·  Cp '+format(a.Cp),Separation:'Separation  '+format(100*b.gammaRev)+'%',
+    Drag:'Drag  '+format(b.lossDensity)+' '+(b.lossDensityUnit==='N/m2'?'N/m²':'W/m²')};
+  const canvas=document.querySelector('#frame-engine-canvas'),section=canvas.closest('.view');
+  const move=([x,y])=>movePointer?movePointer(x,y):canvas.dispatchEvent(new PointerEvent('pointermove',{clientX:x,clientY:y,pointerId:1,pointerType:'mouse',bubbles:true}));
+  const visible=()=>{const el=section.querySelector('.frame-surface-probe');return el?.getClientRects().length?el.textContent:null;};
+  async function expect(value){
+    for(let i=0;i<80;i++){if(visible()===value)return visible();await wait(50);}
+    throw Error('Native hover showed '+JSON.stringify(visible())+'; expected '+JSON.stringify(value)+' '+JSON.stringify({error:canvas.dataset.operationError,screen}));
+  }
+  const pixel=async()=>(await call('diagnostics.pixels',{points:[screen]})).colors[0];
+  await move(screen);const normal=await expect(expected.Separation),defaultColor=await pixel();
+  await call('scene.select',{ids:[big]});await call('diagnostics.frame',{frames:2});
+  const selected=await expect(expected.Pressure),selectedColor=await pixel();
+  await call('scene.select',{ids:[small]});await call('diagnostics.frame',{frames:2});
+  await expect(expected.Separation);const smallerColor=await pixel();
+  await op(small,'drag-map');const changedMode=await expect(expected.Drag);
+  const rect=canvas.getBoundingClientRect();await move([rect.left+5,rect.top+25]);await wait(175);await expect(null);
+  await move(screen);await expect(expected.Drag);
+  await call('transform.set',{ids:[body.hash],channel:'position',axis:0,value:250,coordinates:'world'});await call('diagnostics.frame',{frames:2});
+  await expect(null);const final=[(await op(big,'results')).state,(await op(small,'results')).state];
+  return {triangle,screen,reference:{large:a,small:b},normal,selected,changedMode,defaultColor,selectedColor,smallerColor,final,
+    pass:defaultColor.every((v,i)=>v===smallerColor[i])&&defaultColor.slice(0,3).some((v,i)=>Math.abs(v-selectedColor[i])>5)&&final.every(v=>v==='stale')};
+}
+
+// Compact instances share one hidden source mesh and owner hash. The native
+// ray must recover the transformed instance and its original triangle.
+export async function verifyCloudHover(){
+  const call=(name,params={})=>frameAI.call(name,params),math=frameEngine.pluginMath;
+  await call('scene.new');const {hash:atoms}=await call('plugins.create',{plugin:'atomic'});
+  const atom=(operation,args={})=>call('plugins.command',{id:atoms,operation,args});
+  await atom('create-crystal',{species:6,lattice:10,cells:[6,6,6]});
+  const list=(await atom('inspect',{count:216})).atoms;
+  const {hash:cloud}=await atom('create-selection',{tag:'Fixed',ids:list.map(a=>a.id),name:'Compact native surfaces'});
+  await call('scene.update',{id:cloud,parent:''});await call('scene.delete',{ids:[atoms]});
+  const {hash:id}=await call('scene.create',{type:'cfd',params:{Speed:.02}});
+  const box=frameEngine.pluginWorld(id),meshes=frameEngine.pluginSnapshot(id,[],true).meshes.filter(m=>m.hash===cloud);
+  if(meshes.length!==216)throw Error('Missing native compact occurrences: '+meshes.length);
+  const worlds=meshes.map(m=>math.mul(box,m.matrix));
+  const best=worlds.reduce((a,m,i)=>m[13]>worlds[a][13]?i:a,0),world=worlds[best],radius=Math.hypot(...world.slice(0,3));
+  const target=math.point(world,[0,0,0]),size=[1,1,1].map(()=>2.2*radius);
+  await call('transform.apply',{ids:[id],size,position:[0,0,0],coordinates:'world'});
+  const base=math.point(frameEngine.pluginWorld(id),[0,500,0]);
+  await call('transform.apply',{ids:[id],position:target.map((v,a)=>v-base[a]),coordinates:'world'});
+  await call('scene.select',{ids:[id]});await call('view.set',{index:1,single:true,shading:'solid',focus:id});
+  await call('diagnostics.frame',{frames:3});
+  const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+  await op('solve-frame',{fidelityBudget:'preview'});let state;const until=performance.now()+150000;
+  do{
+    await new Promise(resolve=>setTimeout(resolve,100));state=await op('results');
+    if(state.state==='failed'||state.state==='stale'||performance.now()>until)throw Error('Missing compact surface result: '+JSON.stringify(state));
+  }while(!['ready','unconverged'].includes(state.state));
+  const r=state.result,local=math.mul(math.inv(frameEngine.pluginWorld(id)),world);
+  const current=frameEngine.pluginSnapshot(id,[],true,false,{min:[-500,0,-500],max:[500,1000,500]}).meshes;
+  const occurrence=current.findIndex(m=>m.hash===cloud&&math.equal(m.matrix,local,1e-8));
+  if(occurrence<0)throw Error('The authored box missed its target occurrence');
+  const t=(1+Math.sqrt(5))/2,u=3*Math.hypot(1,t),triangle=1,center=math.point(world,[0,(2*t+1)/u,t/u]);
+  await op('pressure-map');const expected=await op('probe',{occurrence,triangle});
+  if(expected.pressurePa===null)throw Error('The exposed compact triangle has no pressure');
+  const [x,y]=(await call('view.project',{point:center})).screen,canvas=document.querySelector('#frame-engine-canvas');
+  canvas.dispatchEvent(new PointerEvent('pointermove',{clientX:x,clientY:y,pointerType:'mouse',bubbles:true}));
+  let text=null;
+  for(let i=0;i<80;i++){await new Promise(resolve=>setTimeout(resolve,50));const el=canvas.closest('.view').querySelector('.frame-surface-probe');
+    if(el?.getClientRects().length){text=el.textContent;break;}}
+  const p=parseFloat(text?.split('Pressure')[1]);
+  return {pass:Number.isFinite(p)&&Math.abs(p-expected.pressurePa)<Math.max(1e-12,Math.abs(p)*.00051),
+    authoredOccurrences:meshes.length,participating:r.occurrences,occurrence,triangle,radius,screen:[x,y],expected,text};
 }

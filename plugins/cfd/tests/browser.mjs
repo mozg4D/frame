@@ -56,6 +56,9 @@ export async function pluginChecks(parent){
   check('production plugin loads only its installed assets',requests.every(p=>['plugin.json','icon.svg','plugin.js'].some(n=>p==='/plugins/cfd/'+n)),requests);
   const live=await page.evaluate(async()=>{const m=await import('/plugins/cfd/tests/m0/live-solve-check.mjs');return m.verifyLiveSolve();});
   check('native flow, surface probes, mode switching, cancellation and invalidation',live.pass,live);
+  await page.exposeFunction('moveCFDTestPointer',(x,y)=>page.mouse.move(x,y));
+  const hover=await page.evaluate(async()=>{const m=await import('/plugins/cfd/tests/m0/live-solve-check.mjs');return m.verifyLiveHover(frameEngine.renderer.device,window.moveCFDTestPointer);});
+  check('cursor samples the visible native triangle and the winning region on overlap',hover.pass,hover);
   const gpu=await page.evaluate(async()=>{await frameEngine.renderer.device.queue.onSubmittedWorkDone();return {validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__cfdErrors,lost:__cfdLost};});check('native solver and maps have no GPU or page errors',!gpu.validation&&!gpu.uncaptured.length&&!gpu.lost&&!errors.length,{gpu,errors});
   return {pass:true,checks,timings,hardwareVerified:true,evidence:{hardware,gpu,frames,requests},scope:'Native CFD authoring, wall motion, finite-volume solve and surface observations.'};
  }catch(error){if(page)await page.screenshot({path:fileURLToPath(new URL('../../../tests/results/cfd-authoring-failure.png',import.meta.url))}).catch(()=>{});return {pass:false,checks,timings,error:error.stack,hardwareVerified:false};}finally{await context?.close();}

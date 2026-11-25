@@ -539,7 +539,7 @@ export async function activate(context){
     source.owner=hash;source.axes=boxAxes(world);
     source.pivot=context.math.point(boxMetric(world),pivot.slice(12,15)).map((v,k)=>v-(source.motion?.axisOriginM[k]??0));
     retire(hash);
-    const job={owner:hash,id:++sequence,device,world,pivot,source,fidelity:fidelityBudget,state:'queued',result:null,stopped:false};
+    const job={owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity:fidelityBudget,state:'queued',result:null,stopped:false};
     jobs.set(hash,job);
     async function run(){
       try{
@@ -576,6 +576,26 @@ export async function activate(context){
     const value=await probeSurface(job.device,job.display,occurrence,triangle);
     verify(job);if(job.result!==result)throw failure('STALE_CFD_RESULT','The surface averaging window changed during the probe.');
     return {frame:result.frame,physicalTimeS:result.physicalTimeS,...value};
+  }
+  function surfaceProbe(hash,hit){
+    const job=jobs.get(hash);
+    if(!hit)return !!job?.result?.surfaceFields;
+    if(!job?.result?.surfaceFields||!current(hash)?.result)return null;
+    const inverse=job.inverse,point=context.math.point(inverse,hit.point);
+    if(point.some((v,a)=>v<LOCAL_BOX.min[a]||v>LOCAL_BOX.max[a]))return null;
+    const relative=context.math.mul(inverse,hit.world),mode=job.display.mode;
+    const part=job.display.chunks.find(c=>c.mesh.hash===hit.hash&&c.mesh.positions===hit.positions&&c.mesh.indices===hit.indices&&
+      hit.triangle>=c.first&&hit.triangle<c.first+c.triangles&&context.math.equal(c.mesh.ownerMatrix,relative,1e-8));
+    if(!part)return null;
+    const format=v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=1e5)?v.toExponential(3):String(Number(v.toPrecision(4)));
+    return probe(hash,{occurrence:part.occurrence,triangle:hit.triangle}).then(p=>{
+      if(job.display?.mode!==mode)return null;
+      if(mode==='Pressure'&&p.pressurePa!==null)return {text:'Pressure  '+format(p.pressurePa)+' Pa'+(p.Cp===null?'':'  ·  Cp '+format(p.Cp))};
+      if(mode==='Separation'&&p.gammaRev!==null)return {text:'Separation  '+format(100*p.gammaRev)+'%'};
+      if(mode==='Shape'&&p.shapeDensityNPerM3!=null)return {text:'Shape  '+format(p.shapeDensityNPerM3)+' N/m³  ·  '+format(p.shapePatchNPerMm)+' N/mm'};
+      if(mode==='Drag'&&p.lossDensity!==null)return {text:'Drag  '+format(p.lossDensity)+' '+(p.lossDensityUnit==='N/m2'?'N/m²':'W/m²')};
+      return null;
+    }).catch(e=>{if(['STALE_CFD_RESULT','STALE_CFD_GEOMETRY','CFD_FIELDS_UNAVAILABLE','CANCELLED','INVALID_OWNER'].includes(e.code))return null;throw e;});
   }
   async function shapeGradient(hash,{occurrence,firstVertex,count}){
     find(hash);
@@ -649,7 +669,7 @@ export async function activate(context){
       readouts:[{id:'force',label:result&&!result.validity.stationary?'Force (N) ≈':'Force (N)',columns:['X','Y','Z','|F|'],
         values:result?[...result.forceWorld,result.forceLocal.magnitude].map(v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=10000)?v.toExponential(2):String(Number(v.toPrecision(4)))):null}]};
   });
-  await context.viewport.register({retire,renderStage:'opaque',surfaceWarnings:false,
+  await context.viewport.register({retire,renderStage:'opaque',surfaceWarnings:false,surfaceOrder:'selected-smallest',surfaceProbe,
     render:state=>{const job=current(state.hash);if(job?.result?.surfaceFields)job.display.draw(state);},
     pivot:[...LOCAL_BOX.pivot],bounds:{min:[...LOCAL_BOX.min],max:[...LOCAL_BOX.max]},lines:helperLines(),color:[.45,.68,.78,.75],selectedColor:[.7,.86,1,.9],settings:()=>[0,0,0,0],shader:'fn pluginSurface(local:vec3f, normal:vec3f, build:vec3f, settings:vec4f)->vec4f { discard; return vec4f(0.0); }'});
 }
@@ -3899,7 +3919,7 @@ async function nativeFieldOverlay(ctx,display){
         }else{
           if(input.loss.x<=0.){discard;}let signed=input.loss.y;
           color=mix(neutral,select(vec3f(.13,.34,.85),vec3f(.86,.16,.10),signed>0.),sqrt(abs(signed)/(1.+abs(signed))));
-        }return vec4f(color,.87);
+        }return vec4f(color,1.);
       }`});
     const pl=device.createPipelineLayout({bindGroupLayouts:[layout,cache.camera]});
     const pipelines=await Promise.all([false,true].map(orthographic=>device.createRenderPipelineAsync({label:'CFD surface observations',
