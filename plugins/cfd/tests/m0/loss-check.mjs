@@ -73,3 +73,32 @@ export async function verifyDissipation(device){
     return {samples,windows,pass:samples.every(s=>s.exact?s.error<5e-6:s.watts<1e-16)&&windows.every(w=>w.pass)};
   }finally{gpu.close();}
 }
+
+// A covered and a half-covered patch share one wall bin. The far wake
+// belongs to a third patch entirely outside the box.
+export async function verifyRegionalLoss(device){
+  const gpu=gpuScope(device),display={gpu,chunks:[{}]},n=512,h=.003;
+  try{
+    const f={dims:[8,8,8],h,origin:[0,0,0],U:2,maxSpeed:2,rho:998.2,regionalLoads:true};
+    const anchors=[2,2,383],areas=[.003,.007,.008],cover=[1,.5,0],data=new Float32Array(3*3*16);
+    for(const [t,i] of anchors.entries()){
+      const center=[i%8,Math.floor(i/8)%8,Math.floor(i/64)].map(v=>(v+.5)*h);
+      for(let j=0;j<3;j++)data.set([...center,areas[t]/3,1,0,0,0],16*(3*t+j));
+    }
+    const chunk={triangles:3,site:gpu.buffer('CFD clipped power reference sites',data),
+      cover:gpu.buffer('CFD independent surface fractions',Float32Array.from({length:9},(_,i)=>cover[Math.floor(i/3)]))};
+    const op=await surfaceLoss(gpu,display,f,.001,[chunk],null);
+    const current=new Float32Array(n),read=gpu.staging('CFD independently integrated regional loss',48),windows=[];
+    for(const [steps,total,multiplier,mean,force] of [[3,3,1,1,1.5],[5,8,2,13/8,1.8],[2,7,3,16/7,-.2]]){
+      for(const [i,watts] of [[1,2],[4,3],[447,12]])current[i]=watts*steps*multiplier;
+      device.queue.writeBuffer(op.current,0,current);const report=await op.publish(total,true,force,()=>{});
+      const fields=await gpu.read(display.chunks[0].loss,read,12),expected=[1.5,1.75,0].map(v=>v*mean);
+      const integrated=areas.reduce((sum,a,i)=>sum+a*cover[i]*fields[4*i],0);
+      const maxPowerError=Math.max(...expected.map((v,i)=>Math.abs(v-fields[4*i+1])));
+      const maxAreaError=Math.max(...areas.map((v,i)=>Math.abs(v*cover[i]-fields[4*i+2])));
+      windows.push({report,integrated,maxPowerError,maxAreaError,pass:maxPowerError<2e-5&&maxAreaError<1e-8&&
+        Math.abs(report.attributedPowerW-3.25*mean)<2e-5&&Math.abs(integrated-(force<0?3.25*mean:force))<2e-5&&fields[8]===0});
+    }
+    return {windows,pass:windows.every(w=>w.pass)};
+  }finally{gpu.close();}
+}

@@ -27,6 +27,7 @@ const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:
 selection.trace=args.includes('--trace-steps');
 selection.projectionShape=args.includes('--projection-shape');
 selection.steadyShape=args.includes('--steady-shape');
+selection.region=args.includes('--region');
 selection.matchedTunnel=args.includes('--matched-tunnel');
 if(selection.matchedTunnel&&(!nativeAhmed||selection.fixture!=='ahmed-wake'||!selection.graded||
   selection.solver&&selection.solver!=='cartesian-fvm'))throw Error('Use the graded native Cartesian Ahmed wake fixture for the matched tunnel');
@@ -169,6 +170,15 @@ try{
     const steadyShape=shapeSuite?{transport:await shapeSuite.verifyMomentumTranspose(device),force:await shapeSuite.verifySteadyForce(device),
       native:await shapeSuite.verifyNativeSteadyForce(device)}:null;
     if(steadyShape&&Object.values(steadyShape).some(v=>!v.pass))throw Error('The steady force adjoint disagrees with paired physical solves: '+JSON.stringify(steadyShape));
+    let region=null;
+    if(selection.region){
+      const cut=await import('./plugins/cfd/tests/m0/region-check.mjs');
+      const shape=await import('./plugins/cfd/tests/m0/steady-shape-check.mjs');
+      const loss=await import('./plugins/cfd/tests/m0/loss-check.mjs');
+      region={volumes:await cut.verifyRegionVolumes(device),wrench:await cut.verifyRegionalWrench(device),
+        loss:await loss.verifyRegionalLoss(device),adjoint:await shape.verifyRegionalSteadyForce(device)};
+      if(Object.values(region).some(v=>!v.pass))throw Error('Partial CFD box failed independent balances: '+JSON.stringify(region));
+    }
     if(nativeProjectionShape&&!nativeProjectionShape.pass)throw Error('Pressure force sensitivity failed the re-authored native vertex perturbations: '+JSON.stringify(nativeProjectionShape));
     if(nativeProjectionShape)await window.cfdProgress('Shape: pressure projection passed independent 3D cut-plane and native vertex perturbations');
     const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device,selection.graded,selection.globalPressure);
@@ -242,7 +252,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,surfaceLoss,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,steadyShape,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,surfaceLoss,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,steadyShape,region,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});

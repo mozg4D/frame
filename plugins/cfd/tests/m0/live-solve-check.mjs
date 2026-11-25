@@ -148,3 +148,65 @@ export async function verifyLiveRotating(device){
       job:started.job,rpm:motion.rpm,shaftWorkErrorW,result:r,probes};
   }finally{await op('stop');}
 }
+
+// Three normal Frame objects measure a box and two complementary parts of it.
+// Keep all three boxes inside the same body's bounds so the surrounding flow,
+// discrete grid and physical time are identical. Compare moments at one origin.
+export async function verifyLiveRegions(){
+  const call=(name,params={})=>frameAI.call(name,params),math=frameEngine.pluginMath;
+  await call('scene.new');
+  const sphere=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':10}});
+  await call('transform.apply',{ids:[sphere.hash],position:[0,100,0],coordinates:'world'});
+  const boxes=[];
+  for(const [depth,z] of [[72,0],[36,-18],[36,18]]){
+    const {hash:id}=await call('scene.create',{type:'cfd',params:{Speed:.018}});
+    await call('transform.apply',{ids:[id],size:[74,70,depth],position:[0,0,0],coordinates:'world'});
+    const center=()=>math.point(frameEngine.pluginWorld(id),[0,500,0]),base=center(),target=[0,100,z];
+    await call('transform.apply',{ids:[id],position:target.map((v,a)=>v-base[a]),coordinates:'world'});
+    const world=frameEngine.pluginWorld(id),corners=[[-500,0,-500],[500,1000,500]].map(p=>math.point(world,p));
+    const extent=corners[1].map((v,a)=>v-corners[0][a]);
+    if(Math.hypot(...center().map((v,a)=>v-target[a]))>.01||Math.hypot(...extent.map((v,a)=>v-[74,70,depth][a]))>.02)
+      throw Error('Incorrect native regional box placement: '+JSON.stringify({center:center(),extent,target,base}));
+    boxes.push({id,corners,pivot:math.point(world,frameEngine.pluginPivot(id).slice(12,15)).map(x=>.001*x)});
+  }
+  const regions=[];
+  for(const {id,corners,pivot} of boxes){
+    const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+    await op('solve-frame',{fidelityBudget:'preview'});
+    try{
+      let r;const until=performance.now()+120000;
+      do{
+        const state=await op('results');
+        if(state.state==='failed'||state.state==='stale')throw Error(JSON.stringify(state));
+        if(performance.now()>until)throw Error('Missing regional load');
+        r=state.result;if(r?.steps>=4)break;
+        await new Promise(resolve=>setTimeout(resolve,16));
+      }while(true);
+      if(!r.validity.partiallyContained||r.validity.loadScope!=='inside-cfd-box'||r.occurrences!==1)throw Error('Unexpected region: '+JSON.stringify(r));
+      const triangles=r.surfaceFields.occurrences[0].triangles,probes=[];
+      for(let j=0;j<36;j++){
+        try{probes.push(await op('probe',{occurrence:0,triangle:Math.floor((j+.5)*triangles/36)}));}
+        catch(error){if(error.code!=='STALE_CFD_RESULT')throw error;j--;}
+      }
+      const shift=math.cross(pivot,r.forceWorld);
+      regions.push({corners,pivot,cells:r.cells,steps:r.steps,time:r.physicalTimeS,
+        force:r.forceWorld,torqueAtPivot:r.torque,momentAtOrigin:r.torque.map((v,i)=>v+shift[i]),
+        divergence:r.validity.maxDivergencePerS,probes});
+    }finally{await op('stop');}
+  }
+  const [full,lo,hi]=regions;
+  const error=key=>Math.hypot(...full[key].map((x,i)=>x-lo[key][i]-hi[key][i]))/Math.max(1e-30,Math.hypot(...full[key]));
+  const forceError=error('force'),momentError=error('momentAtOrigin');
+  let maxAreaError=0,outside=[0,0],inside=[0,0],invalid=0;
+  for(let i=0;i<full.probes.length;i++){
+    const a=full.probes[i],b=lo.probes[i],c=hi.probes[i];
+    maxAreaError=Math.max(maxAreaError,Math.abs(a.areaM2-b.areaM2-c.areaM2));
+    for(const [j,v] of [b,c].entries()){
+      if(v.areaM2>0){inside[j]++;continue;}
+      outside[j]++;if(v.pressurePa!==null||v.Cp!==null||v.gammaRev!==null||v.lossDensity!==null||v.attributedPowerW!==0)invalid++;
+    }
+  }
+  return {regions,forceError,momentError,maxAreaError,outside,inside,invalid,
+    pass:regions.every(r=>r.steps===full.steps&&Math.abs(r.time-full.time)<1e-8&&r.cells===full.cells&&r.divergence<1e-6)&&
+      full.force[0]>0&&forceError<.002&&momentError<.002&&maxAreaError<5e-10&&Math.min(...outside,...inside)>0&&invalid===0};
+}
