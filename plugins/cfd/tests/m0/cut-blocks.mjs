@@ -28,6 +28,8 @@ export async function cutPressureBlocks(gpu,f,faces,coeff){
   const byteBudget=Math.min(gpu.device.limits.maxBufferSize,Math.max(16*1024**2,16*f.dims.reduce((a,b)=>a*b)));
   if(count*16384>byteBudget)return null;
   const selected=new Uint32Array((await gpu.read(list,stage,count+1)).buffer).subarray(1);
+  const colour=id=>(id%tiles[0]+Math.floor(id/tiles[0])%tiles[1]+Math.floor(id/(tiles[0]*tiles[1])))%2;
+  const sets=f.cutBlockSmoother?[selected.filter(b=>colour(b)===0),selected.filter(b=>colour(b)===1)]:[selected];
   const pack=await gpu.kernel('CFD boundary brick pressure matrices',head+`
     @group(0) @binding(0) var<storage,read> bricks:array<u32>;
     @group(0) @binding(1) var<storage,read> c:array<vec4f>;
@@ -53,8 +55,8 @@ export async function cutPressureBlocks(gpu,f,faces,coeff){
   const rows=gpu.buffer('CFD temporary cut-brick rows',batch*1024),read=gpu.staging('CFD boundary stencil readback',rows.size);
   const worker=new Worker(new URL('./cut-block-factor.mjs',import.meta.url),{type:'module'}),parts=[];
   try{
-    for(let j=0;j<count;j+=batch){
-      const take=Math.min(count-j,batch),indices=gpu.buffer('CFD cut-brick origins',selected.subarray(j,j+take));
+    for(const set of sets)for(let j=0;j<set.length;j+=batch){
+      const take=Math.min(set.length-j,batch),indices=gpu.buffer('CFD cut-brick origins',set.subarray(j,j+take));
       gpu.run(pack,[indices,coeff,rows],[take]);const data=await gpu.read(rows,read,take*256);
       const inverse=await new Promise((ok,no)=>{
         worker.onmessage=({data})=>data.error?no(Error(data.error)):ok(new Float32Array(data));
@@ -63,7 +65,29 @@ export async function cutPressureBlocks(gpu,f,faces,coeff){
       parts.push({indices,weights:gpu.buffer('CFD factored cut-brick inverse',inverse),take});
     }
   }finally{worker.terminate();}
-  return {count,binding(r,z){
+  // Neighbouring bricks have opposite colours on the face stencil. In each
+  // active brick all lanes gather the actual residual before pressure changes.
+  // The next colour then sees the published Dirichlet boundary pressures.
+  async function smoother(rhs,pressure){
+    const relax=await gpu.kernel('CFD exact coloured cut-brick relaxation',head+`
+      @group(0) @binding(0) var<storage,read> bricks:array<u32>;
+      @group(0) @binding(1) var<storage,read> inverse:array<f32>;
+      @group(0) @binding(2) var<storage,read> c:array<vec4f>;
+      @group(0) @binding(3) var<storage,read> b:array<f32>;
+      @group(0) @binding(4) var<storage,read_write> p:array<f32>;
+      var<workgroup> residual:array<f32,64>;
+      @compute @workgroup_size(64) fn main(@builtin(workgroup_id) g:vec3u,@builtin(local_invocation_index) k:u32){
+        let x=brickBase(bricks[g.x])+offset(k);let i=index(x);let pi=p[i];var diagonal=c[i].w;var ap=diagonal*pi;
+        for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){var y=x;y[a]+=side;if(!inside(y)){continue;}
+          let j=index(y);let w=c[select(j,i,side>0)][a];diagonal+=w;ap+=w*(pi-p[j]);}}
+        var scale=0.;if(diagonal>0.){scale=sqrt(6./diagonal);}residual[k]=scale*(b[i]-ap);
+        workgroupBarrier();storageBarrier();var v=0.;
+        for(var j=0u;j<64u;j++){v+=inverse[g.x*4096u+j*64u+k]*residual[j];}p[i]=pi+scale*v;
+      }`);
+    const bindings=parts.map(part=>[gpu.bind(relax,[part.indices,part.weights,coeff,rhs,pressure]),[part.take]]);
+    return e=>{for(const [group,grid] of bindings)gpu.dispatch(e,relax,group,grid);};
+  }
+  return {count,smoother:f.cutBlockSmoother?smoother:null,binding(r,z){
     const groups=parts.map(part=>[gpu.bind(apply,[part.indices,part.weights,r,z]),[part.take]]);
     return e=>{for(const [bind,grid] of groups)gpu.dispatch(e,apply,bind,grid);};
   }};

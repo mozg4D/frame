@@ -3,6 +3,7 @@ import {gpuBlocks} from './blocks.mjs';
 import {devicePressureCG} from './pressure-cg.mjs';
 import {cellWidth,metricBuffer,metricWGSL} from './rectilinear.mjs';
 import {separablePressure} from './separable-pressure.mjs';
+import {coarseSpectral} from './coarse-spectral.mjs';
 import {cutPressureBlocks} from './cut-blocks.mjs';
 
 function pressureBoundarySides(f){
@@ -115,8 +116,12 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     const op=await gpu.kernel('CFD local pressure defect relaxation',code);
     colours.push([op,gpu.bind(op,[fine.rhs,fine.p,fine.weight])]);
   }
+  let cutRelax=null;
   function polish(e){
-    for(let pair=0;pair<3;pair++)for(const [op,bindings] of colours)gpu.dispatch(e,op,bindings,fine.group);
+    for(let pair=0;pair<3;pair++){
+      if(pair===1&&cutRelax){cutRelax(e);continue;}
+      for(const [op,bindings] of colours)gpu.dispatch(e,op,bindings,fine.group);
+    }
   }
   let schwarz;
   if(!f.axes){
@@ -151,6 +156,7 @@ export async function pressureMultigrid(gpu,f,faceMobility){
   }
   async function globalCorrection(pair,z){
     const widths=f.dims.map((n,k)=>Array.from({length:n},(_,i)=>cellWidth(f,k,i)));
+    if(f.coarseSpectral)return (await coarseSpectral(gpu,widths,pressureBoundarySides(f))).binding(pair,z);
     const inverse=await separablePressure(gpu,f.dims,widths,pressureBoundarySides(f));
     const field=gpu.buffer('CFD global Krylov correction',fine.p.size),apply=inverse.binding(fine.scratch,field);
     const pairField='@group(0) @binding(0) var<storage,read> pair:array<vec2f>;';
@@ -169,13 +175,14 @@ export async function pressureMultigrid(gpu,f,faceMobility){
   if(f.cutCells&&updateFine){
     const e=gpu.device.createCommandEncoder();updateFine(e);gpu.device.queue.submit([e.finish()]);
     cut=await cutPressureBlocks(gpu,f,faceMobility,fine.weight);
+    if(cut?.smoother)cutRelax=await cut.smoother(fine.rhs,fine.p);
   }
   const local=cut?{
     binding(r,z){return {regular:block.binding(r,z),cut:cut.binding(r,z)};},
     encode(e,b){block.encode(e,b.regular);b.cut(e);}
   }:block;
   const refine=await devicePressureCG(gpu,fine,local,gridWGSL(f)+openBoundaries(f)+row,pre);
-  return {p:fine.p,rhs:fine.rhs,refine,polish,cutBlocks:cut?.count??0,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
+  return {p:fine.p,rhs:fine.rhs,refine,polish,cutRelax,cutBlocks:cut?.count??0,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
     schwarz?.(e);cycle(e,0);
   }};
 }

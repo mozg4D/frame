@@ -92,7 +92,7 @@ export async function cutGroups(gpu,f,mobility,wall){
     var total=state[i];loop{total.uk+=state[j].uk;total.wt+=state[j].wt;total.padding+=state[j].padding;j=link[j].next;if(j==0xffffffffu){break;}}
     state[i]=total;`));
   const scatter=await gpu.kernel('CFD scatter stabilized cell state',stateDecl+main('let k=link[i].root;if(i!=k){state[i]=state[k];}'));
-  return {links,stats:{cutCells:u[0],mergedCells:u[1],minFluidFraction:buffer[2],smallRoots:u[4],groupsWithChildren:u[5],remainingCutRoots:u[6],
+  return {links,volumes,stats:{cutCells:u[0],mergedCells:u[1],minFluidFraction:buffer[2],smallRoots:u[4],groupsWithChildren:u[5],remainingCutRoots:u[6],
     fluidRootSearchSweeps:fluid?.waves,maxTransportRatePerS:maximumRate},
     stableStep:maximumRate>0?.65/maximumRate:Infinity,
     async courant(flux,tail,explicitOnly=false){

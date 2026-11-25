@@ -70,22 +70,29 @@ export async function outerTransport(gpu,f,dt,predictor,flux,tail){
       let s=rhs[i];rhs[i].uk=s.uk+(t.uk-t.outgoing*v.uk);
       rhs[i].wt.x=s.wt.x+(t.omega-t.outgoing*v.wt.x);
     }`);
-  const finishGroup=gpu.bind(finish,[predictor,work,flux,tail],metric),stats={steps:0,sweeps:0,maxRelativeDefect:0};
+  const finishGroup=gpu.bind(finish,[predictor,work,flux,tail],metric);
   const sweep={kind:'implicit outer transport sweep',encode:e=>{
     for(let k=0;k<2;k++)gpu.dispatch(e,kernels[k],bindings[k],grid);
   }};
   const norm={kind:'outer transport defect',encode:e=>{e.clearBuffer(peak);gpu.dispatch(e,check,checkGroup,grid);e.copyBufferToBuffer(peak,0,stage,0,4);}};
   const begin={kind:'initialize implicit outer transport',encode:e=>e.copyBufferToBuffer(predictor,0,work,0,work.size)};
   const end={kind:'integrate outer face impulses',encode:e=>gpu.dispatch(e,finish,finishGroup,grid)};
+  return residualControlledTransport(stage,begin,sweep,norm,end,64);
+}
+
+// Stop on the true equation defect, then integrate the shared final face
+// fluxes. Subdomains can provide different sweeps on the same scheduler.
+export function residualControlledTransport(stage,begin,sweep,norm,end,maxSweeps){
+  const stats={steps:0,sweeps:0,maxRelativeDefect:0};
   return {stats,async solve(scheduler,assertCurrent){
     let count=0,defect=Infinity;
     while(defect>2e-5){
-      if(count>=64)throw Error('Outer momentum transport did not converge: '+defect);
+      if(count>=maxSweeps)throw Error('Implicit momentum transport did not converge: '+defect);
       const batch=count?4:2;
       await scheduler.perform([...(count?[]:[begin]),...Array(batch).fill(sweep),norm],assertCurrent);
       await stage.mapAsync(GPUMapMode.READ);
       try{defect=new Float32Array(stage.getMappedRange())[0];}finally{stage.unmap();}
-      if(!Number.isFinite(defect))throw Error('Nonfinite outer momentum residual');
+      if(!Number.isFinite(defect))throw Error('Nonfinite implicit momentum residual');
       count+=batch;
     }
     await scheduler.perform([end],assertCurrent);

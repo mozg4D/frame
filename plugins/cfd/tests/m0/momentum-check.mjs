@@ -6,7 +6,7 @@ import {linearCutPressure} from './cut-pressure.mjs';
 import {cutGroups} from './cut-groups.mjs';
 
 const boxLo=[12.53,1.38,2.52],boxHi=[16.48,5.42,5.46];
-function cutBox(p){
+export function cutBox(p){
   const intervals=p.map((v,k)=>[Math.max(v-.5,boxLo[k]),Math.min(v+.5,boxHi[k])]);
   const overlap=intervals.map(([a,b])=>Math.max(0,b-a)),theta=1-overlap.reduce((a,b)=>a*b);
   const open=p.map((v,k)=>v+.5>boxLo[k]&&v+.5<boxHi[k]?1-overlap[(k+1)%3]*overlap[(k+2)%3]:1);
@@ -21,12 +21,12 @@ function cutBox(p){
 // The pressure reservoirs have equal pressure and the perturbation is supported
 // away from the outer boundary. Total Cartesian fluid impulse lost in the first
 // step must equal the reported body reaction, including tangential components.
-export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false,sstWall=false,faceReconstruction=false,mergeToFluid=false){
+export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false,sstWall=false,faceReconstruction=false,mergeToFluid=false,groupTransport=false){
   const gpu=gpuScope(device),dims=[32,8,8],count=dims.reduce((a,b)=>a*b);
   const h=.004,dt=.0004;
   const axes=graded?dims.map(d=>Float64Array.from({length:d+1},(_,i)=>h*i*(.7+.3*i/d))):undefined;
   const fixture={name:'momentum',dims,axes,h,origin:[0,0,0],maxSpeed:1,U:0,omega:0,cutCells,linearWallPressure,sstWall,faceReconstruction,mergeToFluid,
-    nu:1.5e-5,sphere:!wallModeled,wallModeled,rotor:false,pressureOpen:[true,true,true,true,true,true]};
+    nu:1.5e-5,sphere:!wallModeled,wallModeled,rotor:false,period:.01,groupTransport,faceHistory:groupTransport,pressureOpen:[true,true,true,true,true,true]};
   try{
     const material=new Float32Array(4*count),wall=new Float32Array(4*count),initial=new Float32Array(8*count);
     const centers=cutCells?new Float32Array(6*count):null;
@@ -56,7 +56,20 @@ export async function verifyMomentum(device,graded=false,wallModeled=false,cutCe
     const groups=cutCells?await cutGroups(gpu,fixture,apertures,wallBuffer):null;
     const solver=await cartesianSolver(gpu,fixture,dt,wallBuffer,force,apertures,groups,
       centers?gpu.buffer('CFD independently clipped square centroids',centers):null);
-    device.queue.writeBuffer(solver.state,0,initial);solver.step(0,false);
+    device.queue.writeBuffer(solver.state,0,initial);
+    if(groupTransport){
+      // A closed upstream circulation transports the non-uniform impulse.
+      const q=new Float32Array(8*count);
+      for(const [x,y,a,sign] of [[10,3,0,1],[11,3,1,1],[10,4,0,-1],[10,3,1,-1]]){
+        const i=x+32*(y+8*3),j=i+(a===0?1:32);
+        q[8*i+a]=q[8*j+4+a]=sign*.28;
+      }
+      device.queue.writeBuffer(solver.flux,0,q);
+      await solver.advance(0,false,{async perform(ops){
+        const e=device.createCommandEncoder();for(const op of ops)op.encode(e);device.queue.submit([e.finish()]);
+        await device.queue.onSubmittedWorkDone();
+      }});
+    }else solver.step(0,false);
     const stage=gpu.staging('CFD control volume readback',32*count);
     const after=await gpu.read(solver.state,stage,8*count),axial=await gpu.read(force,stage,count),other=await gpu.read(solver.loads,stage,4*count);
     const fluidChange=[0,0,0],reaction=[0,0,0];

@@ -156,8 +156,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
     const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega,
       rotor:!!motion,sphere:false,movingRoad:domain.road,laminar:!motion&&U*domain.scale/fluid.nu<200,period:motion?1/rps:domain.scale/maxSpeed,
       checkKinematics:assertCurrent,sweptDiameterM:diameter,implicitOuterSpin:!!motion&&graded&&(settings.implicitOuterSpin||settings.autoOuterSpin),pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
-      budgetMs,globalPressure,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
-      faceHistory:!!motion||settings.faceHistory,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
+      budgetMs,periodLimit:settings.periodLimit,globalPressure,coarseSpectral:settings.coarseSpectral,incrementalPressure:settings.incrementalPressure,cutBlockSmoother:settings.cutBlockSmoother,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
+      faceHistory:!!motion||settings.faceHistory,fluxEquilibration:settings.fluxEquilibration,groupTransport:settings.groupTransport,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
       faceReconstruction:settings.faceReconstruction,subcellSurface:settings.subcellSurface,apertureFlow:!!motion&&settings.apertureFlow,mergeToFluid:settings.mergeToFluid,wakeDistance:settings.wakeDistance,ddes:settings.ddes,
       surfacePressure:settings.surfacePressure,latticeSurfaceWall:settings.latticeSurfaceWall,normalization:motion?fluid.rho*rps**2*diameter**4:1,
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};

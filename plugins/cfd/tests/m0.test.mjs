@@ -17,6 +17,7 @@ import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
 import {gradedAxis,surfaceGradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
+import {pressureTransfers} from './m0/coarse-spectral.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh} from './m0/ahmed.mjs';
 import {cutBlockInverse} from './m0/cut-block-factor.mjs';
@@ -134,6 +135,17 @@ test('refining tangential SDF samples retains the physical extent and the coarse
   const n=band.dims.reduce((a,b)=>a*b),metric=metricSampler(band,new Float32Array(n).fill(.001));
   assert.ok(metric.sample([.2,0,0])>=.15999);
   assert.ok(Math.abs(metric.sample([0,0,0])-.001)<1e-8);
+});
+test('coarse spectral transfers are physical adjoints on unequally spaced mixed-boundary cells',()=>{
+  const widths=[.4,.6,.75,1.5,2.1,.9,.4,.3],t=pressureTransfers(widths,true,false);
+  const residual=widths.map((_,i)=>Math.sin(.4+i*.7)),pressure=t.width.map((_,i)=>Math.cos(i*.3));
+  const value=(row,x)=>row.reduce((s,[j,w])=>s+w*x[j],0);
+  const left=t.forward.reduce((s,row,i)=>s+residual[i]*value(row,pressure),0);
+  const right=t.transpose.reduce((s,row,i)=>s+pressure[i]*value(row,residual),0);
+  assert.ok(Math.abs(left-right)<1e-13);
+  assert.ok(Math.abs(t.forward[0][0][1]-.4)<1e-15);assert.equal(t.forward.at(-1)[0][1],1);
+  let x=0;const coarse=t.width.map(w=>{const c=x+.5*w;x+=w;return c;});x=0;
+  for(let i=0;i<widths.length-1;i++){assert.ok(Math.abs(value(t.forward[i],coarse)-(x+.5*widths[i]))<1e-14);x+=widths[i];}
 });
 test('whole-domain pressure modes satisfy the variable-width boundary stencil and mass normalization',()=>{
   const w=[.35,.5,.8,1,1.2,1.9,3,4];

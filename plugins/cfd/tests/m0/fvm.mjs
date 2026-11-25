@@ -9,6 +9,8 @@ import {cutFaceTransport} from './face-transport.mjs';
 import {rotatingLoads} from './rotating-loads.mjs';
 import {outerSpinWGSL,outerTransport} from './outer-transport.mjs';
 import {aperturePredictor} from './aperture-predictor.mjs';
+import {groupTransport} from './group-transport.mjs';
+import {fluxEquilibration} from './flux-equilibration.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -93,7 +95,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
             if(floorFace(axis,side)){b.uk=vec4f(vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u,k);b.wt=a.wt;}
             else if(!openFace(axis,side)||q<0.){b=far();}
           }
-          var up=select(b.uk,a.uk,q>=0.);
+          let donor=select(b.uk,a.uk,q>=0.);var up=donor;
           let behind=select(j+side*e,p-side*e,q>=0.);
           if(inside(j)&&inside(behind)${f.cutCells?'&&permeability[bounded(j)].w>0.&&permeability[bounded(behind)].w>0.&&permeability[bounded(min(behind,select(j,p,q>=0.)))][axis]>0.':''}){
             let upIndex=select(j[axis],p[axis],q>=0.);let backInv=axisMetric(axis,min(upIndex,behind[axis])).z;
@@ -101,7 +103,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
             up+=.5*axisMetric(axis,upIndex).y*select(vec4f(0),sign(back)*min(abs(back),abs(forward)),back*forward>vec4f(0));}
           ${f.faceReconstruction?'if(inside(j)){up=vec4f(select(b.uk.xyz,a.uk.xyz,q>=0.),up.w);}':''}
           let explicitRate=${f.implicitRadiusM?'select(q,0.,outerFace(p,j))':'q'};
-          adv+=explicitRate*up;advW+=explicitRate*select(b.wt.x,omega,q>=0.);
+          ${f.groupTransport?'adv+=explicitRate*(up-donor);':
+            'adv+=explicitRate*up;advW+=explicitRate*select(b.wt.x,omega,q>=0.);'}
           let change=b.uk-a.uk;let nut=0.5*(a.wt.y+b.wt.y);
           var lap=invD/(widths[axis]*groupRatio);var gradWeight=.5*dir*invD;${f.sstWall?'var coverage=.5;':''}
           ${f.wallModeled?`if(inside(j)){let k=index(j);let open=permeability[select(k,i,side>0)][axis];
@@ -278,7 +281,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   }
   const spin=f.rotatingFrame?await rotatingLoads(gpu,loads):null;
   if(spin)mergeState.push(phase('integrate fixed-frame transverse reaction',spin.encode));
-  const outer=f.implicitRadiusM?await outerTransport(gpu,f,dt,pred,flux,fluxTail):null;
+  const grouped=f.groupTransport?await groupTransport(gpu,f,dt,pred,flux,fluxTail,groups):null;
+  const outer=f.implicitRadiusM&&!grouped?await outerTransport(gpu,f,dt,pred,flux,fluxTail):null;
   const predictMomentum=phase('momentum',e=>gpu.dispatch(e,momentum,m,grid));
   let predictStored,prepareStored;
   if(f.faceHistory){
@@ -323,10 +327,13 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   }
   const forecast=[false,true].map(cold=>[
     ...(cold||(f.rotor&&!f.rotatingFrame)?[phase('geometry coarsening',mg.updateGeometry)]:[]),
-    ...outer?[]:[predictMomentum],...mergePred,
+    ...(outer||grouped?[]:[predictMomentum]),...(grouped?[]:mergePred),
     phase('flux imbalance',apertures?e=>{apertures.predict(e,cold);gpu.dispatch(e,imbalance,residualGroup,grid);}:
       !cold&&predictStored?predictStored:e=>gpu.dispatch(e,rhs,r,grid)),
-    ...projection(f.globalPressure?(cold?16:f.rotor?5:3):(cold?24:f.rotor?10:6)),
+    // For fixed geometry the previous physical pressure can act on the new
+    // face predictor first. The next solve sees the small imbalance of those
+    // actual stored flows, preserving its low bits on the existing flux tail.
+    ...(f.incrementalPressure&&!cold?[]:projection(f.globalPressure?(cold?16:f.rotor?5:3):(cold?24:f.rotor?10:6))),
     phase('pressure reaction',(!cold||apertures)&&prepareStored?e=>{prepareStored(e);gpu.dispatch(e,refineFlux,refineGroup,grid);}:
       e=>{gpu.dispatch(e,project,c,grid);e.clearBuffer(fluxTail);})
   ]);
@@ -341,6 +348,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const fixed=refinement(f.axes?18:24),first=refinement(f.globalPressure?8:12),extra=refinement(f.globalPressure?8:18);
   const krylovRestarts=[extra,refinement(24),refinement(48),refinement(96)];
   const local=refinement(0),target=7e-7*Math.min(1,f.period);
+  const equilibrium=f.fluxEquilibration?await fluxEquilibration(gpu,f,dt,mobility,flux,fluxTail):null;
   const stats={steps:0,additionalPasses:0,localPasses:0,maximumPasses:0,maxRelativeDivergence:0,maxDivergencePerS:0,
     missedSteps:0,initialDefectHistory:[],primaryChecks:0,acceptedPrimary:0,longRestarts:0};
   let checkPrimaryAt=1;
@@ -349,10 +357,14 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     try{return new Float32Array(stage.getMappedRange())[0]*f.period/dt;}finally{stage.unmap();}
   }
   stats.exactBoundaryBlocks=mg.cutBlocks;
-  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,mobility,fluxConvergence:stats,
+  stats.colouredBoundaryRelaxation=!!mg.cutRelax;
+  if(equilibrium)stats.flowReconstruction=equilibrium.stats;
+  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,transverseImpulse:spin?.sums,outerTransport:outer?.stats,
+    groupTransport:grouped?.stats,mobility,fluxConvergence:stats,
     async advance(i,sampling,scheduler,assertCurrent){
       spin?.angle(f.omega*(i+.5)*dt);
       if(outer){await scheduler.perform([predictMomentum],assertCurrent);await outer.solve(scheduler,assertCurrent);}
+      if(grouped){await scheduler.perform([predictMomentum,...mergePred],assertCurrent);await grouped.solve(scheduler,assertCurrent);}
       const checkPrimary=f.faceHistory&&i>=checkPrimaryAt;
       await scheduler.perform([...forecast[Number(i===0)],...checkPrimary?[]:first,check],assertCurrent);
       let maximum=await measure(),passes=checkPrimary?0:1;
@@ -362,8 +374,14 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         else checkPrimaryAt=i+64;
       }
       if(i===0)stats.initialDefectHistory.push(maximum);
-      let allowLocal=!!f.cutCells,restart=0;
+      let allowLocal=!!f.cutCells,restart=0,nextReconstruction=1;
       while(maximum>target&&passes<16){
+        if(equilibrium&&passes>=nextReconstruction){
+          if(await equilibrium.correct(scheduler,assertCurrent)){
+            await scheduler.perform([check],assertCurrent);maximum=await measure();nextReconstruction=Infinity;
+            if(maximum<=target)break;
+          }else nextReconstruction=passes+2;
+        }
         const useLocal=allowLocal&&passes>0&&(maximum<=256*target||passes===1);
         const before=maximum;
         const correction=useLocal?local:passes===0?first:krylovRestarts[restart];
@@ -385,7 +403,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(mergeState.length||sampling)await scheduler.perform([...mergeState,...sampling?[samplePlane]:[]],assertCurrent);
     },
     step(i,sampling){
-      if(outer)throw Error('Implicit outer transport requires the residual-controlled advance');
+      if(outer||grouped)throw Error('Implicit transport requires the residual-controlled advance');
       spin?.angle(f.omega*(i+.5)*dt);
       const e=gpu.device.createCommandEncoder();for(const op of forecast[Number(i===0)])op.encode(e);
       for(let k=0;k<(f.axes?2:1);k++)for(const op of fixed)op.encode(e);

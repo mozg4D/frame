@@ -186,6 +186,8 @@ export async function runCase(device,f,kind,progress,capture=null){
   f.sstWall=!!f.sstWall&&f.cutCells;
   f.faceReconstruction=!!f.faceReconstruction&&f.cutCells&&48*f.dims.reduce((a,b)=>a*b)<=device.limits.maxStorageBufferBindingSize;
   f.sheetLinks=!!f.sheetLinks&&f.cutCells&&!!(capture||f.rotor);
+  if(f.incrementalPressure&&!f.faceHistory)throw Error('Incremental pressure needs transported face flows in a fixed solver frame');
+  if(f.groupTransport&&(!f.cutCells||!f.axes||!f.faceHistory))throw Error('Implicit volume transport requires fixed graded cut volumes and transported face flows');
   if(f.apertureFlow&&!(f.cutCells&&f.faceHistory&&f.rotatingFrame))throw Error('Relative aperture flow requires rigid rotation and transported cut faces');
   if(f.implicitOuterSpin){
     if(!f.rotatingFrame||!f.axes||!f.cutCells||!(f.sweptDiameterM>0))throw Error('The implicit exterior needs a measured swept cylinder, graded grid and stabilized cut volumes');
@@ -196,7 +198,11 @@ export async function runCase(device,f,kind,progress,capture=null){
   const advectiveStep=f.implicitRadiusM?Infinity:f.rotatingFrame&&f.axes?rotorTransportStep(f):cfl*f.h/f.maxSpeed;
   const inverseWidth=(f.minPitch??[f.h,f.h,f.h]).map(w=>1/w),inverseNorm=Math.hypot(...inverseWidth);
   const combinedStep=.78/(f.maxSpeed*inverseNorm+2*f.nu*inverseNorm**2);
-  let dt=kind==='cartesian-fvm'?Math.min(advectiveStep,.145*f.h**2/f.nu,f.axes?combinedStep:Infinity):advectiveStep;
+  // A steady-frame trial still resolves the moving phase. Keep explicit
+  // diffusion and bounded high-order corrections; compare at equal times.
+  const transportStep=f.groupTransport?3:1;
+  let dt=kind==='cartesian-fvm'?Math.min(transportStep*advectiveStep,.145*f.h**2/f.nu,
+    f.axes?transportStep*combinedStep:Infinity,f.groupTransport?f.period/180:Infinity):advectiveStep;
   const windows=[];
   const budget=f.budgetMs??caseBudgetMs;
   f.profileViscousTorque=f.rotatingFrame&&f.sweptDiameterM>0;
@@ -212,15 +218,16 @@ export async function runCase(device,f,kind,progress,capture=null){
     }else geom=await geometryKernel(gpu,f,dt,finiteVolume);
     geom.update(0);
     const groups=f.cutCells?await cutGroups(gpu,f,geom.response,geom.wall):null;
-    if(groups&&dt>groups.stableStep){
+    const groupStep=groups?transportStep*groups.stableStep:Infinity;
+    if(dt>groupStep){
       if(f.rotatingFrame){
         const rescale=await gpu.kernel('CFD wall speed at the cut-volume timestep',`
           @group(0) @binding(0) var<storage,read_write> wall:array<vec4f>;
           @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;
-            if(i<arrayLength(&wall)){let w=wall[i];wall[i]=vec4f(w.x,w.yz*${groups.stableStep/dt},w.w);}}`);
+            if(i<arrayLength(&wall)){let w=wall[i];wall[i]=vec4f(w.x,w.yz*${groupStep/dt},w.w);}}`);
         gpu.run(rescale,[geom.wall],[Math.ceil(count/128)]);
       }
-      dt=groups.stableStep;
+      dt=groupStep;
     }
     const periodSteps=Math.round(f.period/dt);
     const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,geom.skin):await momentSolver(gpu,f,dt,geom.wall,force);
@@ -238,11 +245,13 @@ export async function runCase(device,f,kind,progress,capture=null){
     const latticeTick=batchedLattice?{kind:'packed lattice step',encode:geom.encode?e=>{geom.encode(e);solver.encode(e);}:solver.encode}:null;
     let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
-    for(let window=0;window<32;window++){
+    const limitSteps=f.periodLimit?Math.max(1,Math.round(f.periodLimit*f.period/dt)):Infinity;
+    for(let window=0;window<32&&step<limitSteps;window++){
       await f.checkKinematics?.();
       clear(force,solver.loads,solver.transverseImpulse,measureWake?solver.plane:null,geom.skin?.mean,solver.mass?.exchanges);
       // Round cumulative times; each measured rotor window spans one revolution.
-      const end=Math.round((window+1)*f.period/dt),first=step;
+      const periodEnd=Math.round((window+1)*f.period/dt),first=step;
+      const end=Math.min(periodEnd,limitSteps);
       while(step<end){
         if(performance.now()-start>=budget){budgetExhausted=true;break;}
         geom.assertCurrent?.();const n=Math.min(batch,end-step),since=performance.now();
@@ -260,7 +269,7 @@ export async function runCase(device,f,kind,progress,capture=null){
         batch=batchedLattice?Math.min(48,2*batch):Math.max(1,Math.min(12,Math.round(0.5*batch+0.5*n*5/Math.max(ms,0.1))));
       }
       if(step===first)break;
-      const complete=step===end;
+      const complete=step===periodEnd;
       const scale=f.rho*f.h**4/(dt**2*(step-first)),forceN=await reduce()*scale;
       const load=otherLoads?(await otherLoads()).map(v=>v*scale):null;
       const lateral=transverse?(await transverse()).map(v=>v*scale):null;
@@ -316,15 +325,17 @@ export async function runCase(device,f,kind,progress,capture=null){
     const qualified=!!references[f.id]&&stable&&(!ref.value||forcePassed)&&powerPassed!==false&&wakePassed!==false&&viewport.qualified&&massPassed!==false&&latticeMassPassed!==false;
     const totalMs=performance.now()-start;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
-      geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
+      geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.coarseSpectral?'coarse-separable-and-block':f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
       wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':f.latticeSurfaceWall?'Native triangle normal constraint and Spalding wall stress':'Volume penalization',
       cutGeometry:groups?.stats,implicitExterior:solver.outerTransport?{innerRadiusM:f.implicitRadiusM,...solver.outerTransport}:undefined,
+      implicitVolumeTransport:solver.groupTransport,
+      pressurePrediction:f.incrementalPressure?'previous pressure on the stored face predictor':undefined,
       exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
       turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.apertureFlow?'relative flow integrated on each open polygon':f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
-      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
+      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,periodLimit:f.periodLimit,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};
@@ -351,12 +362,13 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   await frameAI.call('diagnostics.frame',{frames:8});
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
-    const f={...flowFixture(name,tier,selection.measuredPlanform),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,interpolatedWall:selection.interpolatedWall,graphWallLayers:selection.graphWallLayers,graphTangentM:selection.graphTangentM,
+    const f={...flowFixture(name,tier,selection.measuredPlanform),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,coarseSpectral:selection.coarseSpectral,interpolatedWall:selection.interpolatedWall,graphWallLayers:selection.graphWallLayers,graphTangentM:selection.graphTangentM,
       cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction,mergeToFluid:selection.mergeToFluid,apertureFlow:selection.apertureFlow};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
       device.pushErrorScope('validation');
-      try{const grid=selection.graded&&kind==='cartesian-fvm'?gradedFixture(f,tier):f;
+      try{const settings={...f,periodLimit:selection.periodLimit,groupTransport:kind==='cartesian-fvm'&&!!selection.groupTransport,incrementalPressure:kind==='cartesian-fvm'&&!!selection.incrementalPressure,cutBlockSmoother:kind==='cartesian-fvm'&&!!selection.cutBlockSmoother};
+        const grid=selection.graded&&kind==='cartesian-fvm'?gradedFixture(settings,tier):settings;
         cases.push(kind==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress):await runCase(device,grid,kind,progress));}
       catch(error){cases.push({fixture:name,kind,error:error.message,timeToTargetMs:null});progress(name+' '+kind+' failed: '+error.message);}
       const validation=await device.popErrorScope();

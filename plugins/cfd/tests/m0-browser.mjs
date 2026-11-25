@@ -51,8 +51,12 @@ if(layerArg){
   selection.graphWallLayers=mm.map(v=>v*.001);
 }
 if(args.includes('--global-pressure')&&args.includes('--local-pressure'))throw Error('Choose a single pressure preconditioner');
-selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
+selection.coarseSpectral=args.includes('--coarse-spectral');
+if(selection.coarseSpectral&&(!selection.graded||args.includes('--local-pressure')))throw Error('The coarse spectral correction needs a graded Cartesian pressure operator');
+selection.globalPressure=selection.coarseSpectral||args.includes('--global-pressure')||Boolean(scenePath&&selection.graded&&!args.includes('--local-pressure'));
 selection.cutCells=args.includes('--cut-cells');
+selection.cutBlockSmoother=args.includes('--cut-block-smoother');
+if(selection.cutBlockSmoother&&!wallOnly&&(!selection.graded||!selection.cutCells))throw Error('Coloured cut-brick relaxation needs graded cut volumes');
 selection.mergeToFluid=args.includes('--merge-to-fluid');
 if(selection.mergeToFluid&&!selection.cutCells)throw Error('Finding connected full-fluid roots requires cut volumes');
 selection.subcellSurface=args.includes('--subcell-surface');
@@ -60,11 +64,19 @@ selection.surfacePressure=args.includes('--surface-pressure');
 if(selection.surfacePressure&&!wallOnly&&!(scenePath||nativeAhmed||nativeRotor))throw Error('Surface pressure needs evaluated native geometry');
 if(selection.subcellSurface&&(!selection.cutCells||!wallOnly&&!(nativeAhmed||nativeRotor||scenePath)))throw Error('Subcell integration requires captured cut-volume geometry');
 selection.implicitOuterSpin=args.includes('--implicit-outer-spin');
+selection.groupTransport=args.includes('--implicit-volume-transport');
 if(selection.implicitOuterSpin&&args.includes('--explicit-outer-spin'))throw Error('Choose a single exterior transport scheme');
 selection.autoOuterSpin=Boolean(scenePath&&selection.graded&&!args.includes('--explicit-outer-spin'));
 if(selection.implicitOuterSpin&&!wallOnly&&(!(nativeRotor||scenePath)||!selection.graded||(!scenePath&&!selection.cutCells)))
   throw Error('Implicit far-field rotation requires a captured rotor and a graded cut-volume domain');
 selection.faceHistory=args.includes('--transport-faces');
+selection.incrementalPressure=args.includes('--incremental-pressure');
+selection.fluxEquilibration=args.includes('--equilibrate-flux');
+if(selection.fluxEquilibration&&!wallOnly&&(!selection.cutCells||!selection.graded||!scenePath&&!selection.faceHistory))
+  throw Error('Conservative flux reconstruction requires graded cut volumes and transported face flow');
+if(selection.incrementalPressure&&!wallOnly&&!scenePath&&!selection.faceHistory)throw Error('Choose transported face flows for the incremental projection');
+if(selection.groupTransport&&!wallOnly&&(!selection.graded||!scenePath&&(!selection.cutCells||!selection.faceHistory)))
+  throw Error('Implicit merged transport needs graded cut volumes and transported discharges');
 selection.linearWallPressure=args.includes('--linear-wall-pressure');
 selection.wallSpacing=args.includes('--wall-spacing');
 if(selection.wallSpacing&&!selection.graded)throw Error('Surface-focused axis spacing requires a graded Cartesian domain');
@@ -83,6 +95,9 @@ if(selection.linearWallPressure&&!selection.cutCells)throw Error('Linear wall pr
 if(selection.cutCells&&selection.inertialRotor)throw Error('Cut-volume momentum groups require fixed geometry in the solver frame');
 if(selection.graded&&selection.inertialRotor)throw Error('Grading around fixed blades requires the rotating reference frame');
 const seconds=args.find(s=>s.startsWith('--budget-seconds='))?.slice(17);
+const periods=args.find(s=>s.startsWith('--periods='))?.slice(10);
+if(periods!==undefined){selection.periodLimit=Number(periods);
+  if(!(selection.periodLimit>0&&selection.periodLimit<=32))throw Error('Choose a physical duration greater than zero and at most 32 periods');}
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
 if(selection.fixture&&!['sphere','ahmed','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
 if(selection.solver&&!['cartesian-fvm','sdf-graph','mr-lbm'].includes(selection.solver))throw Error('Unknown CFD candidate');
@@ -138,6 +153,8 @@ try{
     if(fixtureGeometry&&!fixtureGeometry.pass)throw Error('Reference geometry mismatch: '+JSON.stringify(fixtureGeometry));
     const regularPressure=selection.globalPressure?await (await import('./plugins/cfd/tests/m0/separable-pressure.mjs')).verifySeparablePressure(device):null;
     if(regularPressure&&!regularPressure.pass)throw Error('Whole-domain regular inverse failed: '+JSON.stringify(regularPressure));
+    const coarsePressure=selection.coarseSpectral?await (await import('./plugins/cfd/tests/m0/coarse-spectral-check.mjs')).verifyCoarseSpectral(device):null;
+    if(coarsePressure&&!coarsePressure.pass)throw Error('Coarse spectral pressure missed the independent force-free pressure solution: '+JSON.stringify(coarsePressure));
     const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device,selection.graded,selection.globalPressure);
     if(!piston.pass)throw Error('Immersed pressure/force reference failed: '+JSON.stringify(piston.checks));
     await window.cfdProgress('Frame piston: buffer mesh and paged instance passed pressure, force, visibility and source revision checks');
@@ -167,6 +184,15 @@ try{
     const affineWall=selection.linearWallPressure?await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyLinearWallPressure(device,selection.graded):null;
     if(affineWall&&!affineWall.pass)throw Error('Manufactured cut-wall pressure load failed: '+JSON.stringify(affineWall));
     const outerTransport=selection.implicitOuterSpin?await (await import('./plugins/cfd/tests/m0/outer-transport-check.mjs')).verifyOuterTransport(device):null;
+    const groupTransport=selection.groupTransport?await (await import('./plugins/cfd/tests/m0/group-transport-check.mjs')).verifyGroupTransport(device):null;
+    if(groupTransport&&!groupTransport.pass)throw Error('Merged transport failed the independent finite-volume solve: '+JSON.stringify(groupTransport));
+    const incremental=selection.incrementalPressure||selection.fluxEquilibration?
+      await (await import('./plugins/cfd/tests/m0/incremental-check.mjs')).verifyIncrementalPressure(device,selection.fluxEquilibration):null;
+    const equilibrium=selection.fluxEquilibration?await (await import('./plugins/cfd/tests/m0/flux-equilibration-check.mjs')).verifyFluxEquilibration(device):null;
+    if(equilibrium&&!equilibrium.pass)throw Error('Flow reconstruction did not preserve the physical bounds or baffle: '+JSON.stringify(equilibrium));
+    const cutRelax=selection.cutBlockSmoother?await (await import('./plugins/cfd/tests/m0/cut-relax-check.mjs')).verifyCutRelaxation(device):null;
+    if(cutRelax&&!cutRelax.pass)throw Error('Coloured pressure corrections disagree with independent subdomain solves: '+JSON.stringify(cutRelax));
+    if(incremental&&!incremental.pass)throw Error('Incremental pressure changed the force, field or mass balance: '+JSON.stringify(incremental));
     if(outerTransport&&!outerTransport.pass)throw Error('Implicit momentum transport disagrees with the independent solution: '+JSON.stringify(outerTransport));
     const spinningLoad=nativeRotor||savedScene||wallOnly?await (await import('./plugins/cfd/tests/m0/rotating-loads.mjs')).verifyRotatingLoads(device):null;
     const apertureFlow=selection.apertureFlow?await (await import('./plugins/cfd/tests/m0/aperture-predictor-check.mjs')).verifyAperturePredictor(device):null;
@@ -197,17 +223,25 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
   if(fp32Only && (result.webnn||result.features.includes('shader-f16')))throw Error('Optional backends were enabled in the fallback trial');
   if(saveFixture){await mkdir(dirname(resolve(saveFixture)),{recursive:true});await writeFile(resolve(saveFixture),Buffer.from(fixture.base64,'base64'),{flag:'wx'});}
-  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&(c.kind==='mr-lbm'?
-      c.windows.length>0&&c.windows.every(w=>Number.isFinite(w.latticeMass?.relativeGlobalMassDefect)):Number.isFinite(c.field?.relativeDivergenceMax)));
+  if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&c.windows.length>0&&(c.kind==='mr-lbm'?
+      c.windows.every(w=>Number.isFinite(w.latticeMass?.relativeGlobalMassDefect)):Number.isFinite(c.field?.relativeDivergenceMax)));
     report.sceneStudyConverged=result.flow.cases.every(c=>c.stable&&(c.kind==='mr-lbm'?c.latticeMassPassed:c.massPassed));
-    if(!report.sceneStudyCompleted)throw Error('Saved scene study did not produce finite completed windows and a mass certificate');}
+    if(selection.periodLimit>0&&selection.periodLimit<1){
+      report.requestedPartialIntervalCompleted=result.flow.cases.every(c=>{
+        const w=c.partialWindow;
+        return w&&!c.budgetExhausted&&c.completedSteps===Math.max(1,Math.round(selection.periodLimit*w.sampleCount/w.periodFraction))&&
+          Number.isFinite(w.forceN)&&(!c.motion||Number.isFinite(w.shaftPowerToFluidW))&&
+          (c.kind==='mr-lbm'?Number.isFinite(w.latticeMass?.relativeGlobalMassDefect):Number.isFinite(c.field?.maxDivergencePerS));
+      });
+    }
+    if(!report.sceneStudyCompleted&&!report.requestedPartialIntervalCompleted)throw Error('Saved scene study did not finish the requested interval with finite loads and a flux certificate');}
   report.harnessCompleted=true;
   report.gatePassed=Boolean(result.pressure?.selected&&result.flow?.contests.qualified);
   if(result.pressure)console.log('Pressure:',JSON.stringify(result.pressure.selected));
@@ -220,4 +254,4 @@ finally{
   if(report.error)console.error(report.error);
   console.log(reportPath);
 }
-if(!wallOnly&&!pressureOnly&&!report.sceneStudyCompleted&&!report.gatePassed)process.exitCode=1;
+if(!wallOnly&&!pressureOnly&&!report.sceneStudyCompleted&&!report.requestedPartialIntervalCompleted&&!report.gatePassed)process.exitCode=1;
