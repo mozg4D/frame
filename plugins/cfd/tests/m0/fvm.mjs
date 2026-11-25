@@ -4,6 +4,8 @@ import {metricBuffer,metricWGSL} from './rectilinear.mjs';
 import {wallResistanceWGSL} from './wall-law.mjs';
 import {cutGroups} from './cut-groups.mjs';
 import {linearCutPressure} from './cut-pressure.mjs';
+import {mergedSstWall} from './sst-wall.mjs';
+import {cutFaceTransport} from './face-transport.mjs';
 
 export const immersedFaceWGSL=`
   fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
@@ -72,6 +74,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let groupRatio=${f.cutCells?'solid.w':'1.'};let share=${f.cutCells?'permeability[i].w/groupRatio':'1.'};
       ${f.wallModeled?'var cutArea=vec3f(0);var normalHint=vec3f(0);var sdfGradient=vec3f(0);':''}
       var adv=vec4f(0);var diff=vec3f(0);var grad:mat3x3f;var gk=vec3f(0);var gw=vec3f(0);
+      ${f.sstWall?'var gradientCoverage=vec3f(0);':''}
       var advW=0.;var dk=0.;var dw=0.;var edk=0.;var edw=0.;
       ${f.faceHistory?'var transportDiagonal=0.;':''}
       for(var axis=0u;axis<3u;axis++){var e=vec3i(0);e[axis]=1;
@@ -87,23 +90,27 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           }
           var up=select(b.uk,a.uk,q>=0.);
           let behind=select(j+side*e,p-side*e,q>=0.);
-          if(inside(j)&&inside(behind)${f.cutCells?'&&permeability[bounded(behind)].w>0.&&permeability[bounded(j)].w>0.':''}){
+          if(inside(j)&&inside(behind)${f.cutCells?'&&permeability[bounded(j)].w>0.&&permeability[bounded(behind)].w>0.&&permeability[bounded(min(behind,select(j,p,q>=0.)))][axis]>0.':''}){
             let upIndex=select(j[axis],p[axis],q>=0.);let backInv=axisMetric(axis,min(upIndex,behind[axis])).z;
             let back=(up-s[index(behind)].uk)*backInv;let forward=(select(a.uk,b.uk,q>=0.)-up)*invD;
             up+=.5*axisMetric(axis,upIndex).y*select(vec4f(0),sign(back)*min(abs(back),abs(forward)),back*forward>vec4f(0));}
+          ${f.faceReconstruction?'if(inside(j)){up=vec4f(select(b.uk.xyz,a.uk.xyz,q>=0.),up.w);}':''}
           adv+=q*up;advW+=q*select(b.wt.x,omega,q>=0.);
           let change=b.uk-a.uk;let nut=0.5*(a.wt.y+b.wt.y);
-          var lap=invD/(widths[axis]*groupRatio);let gradWeight=.5*dir*invD;
+          var lap=invD/(widths[axis]*groupRatio);var gradWeight=.5*dir*invD;${f.sstWall?'var coverage=.5;':''}
           ${f.wallModeled?`if(inside(j)){let k=index(j);let open=permeability[select(k,i,side>0)][axis];
             let blocked=(1.-open)*area[axis];cutArea[axis]+=blocked;normalHint[axis]-=dir*blocked;
             sdfGradient[axis]+=gradWeight*(wall[k].x-solid.x);lap*=open;
-          }else if(floorFace(axis,side)){lap=0.;}`:''}
+            ${f.sstWall?'coverage*=open;gradWeight*=open;':''}
+          }else if(floorFace(axis,side)){lap=0.;${f.sstWall?'coverage=0.;gradWeight=0.;':''}}`:''}
+          ${f.sstWall?'gradientCoverage[axis]+=coverage;':''}
           diff+=(NU+nut)*lap*change.xyz;grad[axis]+=gradWeight*change.xyz;
           ${f.faceHistory?'transportDiagonal+=max(q,0.)+(NU+nut)*lap;':''}
           gk[axis]+=gradWeight*change.w;gw[axis]+=gradWeight*(b.wt.x-omega);
           dk+=lap*change.w;dw+=lap*(b.wt.x-omega);edk+=nut*lap*change.w;edw+=nut*lap*(b.wt.x-omega);
         }
       }
+      ${f.sstWall?`for(var a=0u;a<3u;a++){let d=max(gradientCoverage[a],1e-20);grad[a]/=d;gk[a]/=d;gw[a]/=d;}`:''}
       var kn=share*K0;var wn=share*O0;var nut=0.;var strainLimit=0.;
       if(${!(f.sphere||f.laminar)}){
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
@@ -118,7 +125,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       wn=(share*omega-advW+NU*dw+mix(0.856,0.5,f1)*edw+share*(gamma*select(0.,prod/max(a.wt.y,1e-10),a.wt.y>0.)+
         (1.-f1)*2.*0.856*dot(gk,gw)/omega))/(1.+beta*omega);
       let damping=1.-exp(-${10*cref}*${f.cutCells?'(1.-smoothstep(-.7,.7,solid.x))':'solid.w'});
-      ${f.cutCells?'nut=share*damping;strainLimit=share*sqrt(ss)*f2;':`
+      ${f.cutCells?`nut=share*${f.sstWall?'(prod/(1.+.09*omega))':'damping'};strainLimit=share*sqrt(ss)*f2;`:`
       kn=mix(max(1e-12,kn),1e-12,damping);wn=mix(max(1e-8,wn),60.*NU/(0.075*0.25),damping);
       nut=0.31*kn/max(0.31*wn,sqrt(ss)*f2);`}}
       var tentative=share*u-adv.xyz+diff;
@@ -230,7 +237,14 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const normGroup=gpu.bind(norm,[flux,fluxTail,peak,...f.cutCells?[mobility]:[]],coords);
   const phase=(kind,encode)=>({kind,encode});
   const mergePred=groups?[phase('combine predicted cut-cell momentum',groups.merge(pred))]:[];
-  if(groups){
+  if(f.faceReconstruction){
+    const transport=await cutFaceTransport(gpu,f,dt,s0,pred,mobility,centers,wall,flux,fluxTail);
+    mergePred.unshift(phase('open velocity gradients',transport.reconstruct),phase('shared momentum transfer',transport.transfer),
+      phase('accumulate shared momentum',transport.apply));
+  }
+  if(f.sstWall){
+    mergePred.push(phase('merged SST wall function',await mergedSstWall(gpu,f,dt,groups,wall,mobility,s0,pred)));
+  }else if(groups){
     // Internal transport cancels only after the extensive partial increments
     // have been added. Clipping each sliver separately would create turbulent
     // energy even for a uniform field passing through a merged volume.

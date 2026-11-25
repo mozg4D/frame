@@ -12,3 +12,13 @@ export const wallResistanceWGSL=`
     let up=.5*(lo+hi);return speed/(up*up);
   }
   fn tangentialSlip(relative:vec3f,normal:vec3f)->vec3f{return relative-dot(relative,normal)*normal;}`;
+
+// Wall-adjacent SST condition with a continuous Spalding friction velocity.
+// Both wall limits of omega and the k production use the same physical y.
+export const sstWallWGSL=wallResistanceWGSL+`
+  fn sstWall(speed:f32,y:f32,nu:f32)->vec3f{
+    let resistance=wallResistance(speed,y,nu);let friction=sqrt(max(0.,speed*resistance));
+    let visc=6.*nu/(.075*y*y);let logOmega=friction/(.41*.3*y);
+    let viscousFraction=clamp(nu/(y*resistance),0.,1.);
+    return vec3f(length(vec2f(visc,logOmega)),(1.-viscousFraction)*friction*friction*friction/(.41*y),viscousFraction*nu/y);
+  }`;

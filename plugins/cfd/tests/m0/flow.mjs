@@ -177,6 +177,8 @@ export async function runCase(device,f,kind,progress,capture=null){
   f.cutCells=!!f.cutCells&&f.wallModeled;
   f.faceHistory=!!f.faceHistory&&f.wallModeled;
   f.linearWallPressure=!!f.linearWallPressure&&f.cutCells;
+  f.sstWall=!!f.sstWall&&f.cutCells;
+  f.faceReconstruction=!!f.faceReconstruction&&f.cutCells&&48*f.dims.reduce((a,b)=>a*b)<=device.limits.maxStorageBufferBindingSize;
   f.sheetLinks=!!f.sheetLinks&&f.cutCells&&!!(capture||f.rotor);
   const gpu=gpuScope(device),start=performance.now();
   const count=f.dims.reduce((a,b)=>a*b),cfl=kind==='cartesian-fvm'?(f.rotor?.12:.32):.065;
@@ -277,6 +279,8 @@ export async function runCase(device,f,kind,progress,capture=null){
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
       wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':undefined,
       cutGeometry:groups?.stats,exactSheetLinks:f.sheetLinks,wallSpacing:!!f.wallSpacing,wallPressure:f.linearWallPressure?'linear surface integral':'cell pressure',
+      turbulenceWall:f.sstWall?'Spalding friction velocity, blended wall omega and k production':undefined,
+      momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
       setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,mean,relativeError,stable,field,axialProfile,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
@@ -306,7 +310,7 @@ export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selec
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
     if(selection.fixture&&selection.fixture!==name)continue;
     const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs,trace:selection.trace,globalPressure:selection.globalPressure,
-      cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing};
+      cutCells:selection.cutCells,faceHistory:selection.faceHistory,linearWallPressure:selection.linearWallPressure,sheetLinks:selection.sheetLinks,wallSpacing:selection.wallSpacing,sstWall:selection.sstWall,faceReconstruction:selection.faceReconstruction};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
     for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
       device.pushErrorScope('validation');

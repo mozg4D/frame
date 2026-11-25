@@ -1,7 +1,7 @@
 import {gpuScope} from './gpu.mjs';
 import {cartesianSolver} from './fvm.mjs';
 import {cellCenter,cellWidth} from './rectilinear.mjs';
-import {wallResistanceWGSL} from './wall-law.mjs';
+import {sstWallWGSL} from './wall-law.mjs';
 import {linearCutPressure} from './cut-pressure.mjs';
 import {cutGroups} from './cut-groups.mjs';
 
@@ -21,11 +21,11 @@ function cutBox(p){
 // The pressure reservoirs have equal pressure and the perturbation is supported
 // away from the outer boundary. Total Cartesian fluid impulse lost in the first
 // step must equal the reported body reaction, including tangential components.
-export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false){
+export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false,sstWall=false,faceReconstruction=false){
   const gpu=gpuScope(device),dims=[32,8,8],count=dims.reduce((a,b)=>a*b);
   const h=.004,dt=.0004;
   const axes=graded?dims.map(d=>Float64Array.from({length:d+1},(_,i)=>h*i*(.7+.3*i/d))):undefined;
-  const fixture={name:'momentum',dims,axes,h,origin:[0,0,0],maxSpeed:1,U:0,omega:0,cutCells,linearWallPressure,
+  const fixture={name:'momentum',dims,axes,h,origin:[0,0,0],maxSpeed:1,U:0,omega:0,cutCells,linearWallPressure,sstWall,faceReconstruction,
     nu:1.5e-5,sphere:!wallModeled,wallModeled,rotor:false,pressureOpen:[true,true,true,true,true,true]};
   try{
     const material=new Float32Array(4*count),wall=new Float32Array(4*count),initial=new Float32Array(8*count);
@@ -104,24 +104,28 @@ export async function verifyMomentum(device,graded=false,wallModeled=false,cutCe
       }
       if(volumes[i]>0){maxRawImbalance=Math.max(maxRawImbalance,Math.abs(raw)/volumes[i]);maxCorrectedImbalance=Math.max(maxCorrectedImbalance,Math.abs(balance)/volumes[i]);}
     }
-    let wallLawError=null;
+    let wallLawError=null,sstWallError=null;
     if(wallModeled){
-      const nu=1.5e-5,y=.003,up=[.01,1,5,11,25],input=[],expected=[];
+      const nu=1.5e-5,y=.003,up=[.01,1,5,11,25],input=[],expected=[],wallValues=[];
       for(const u of up){const x=.41*u,yp=u+(Math.expm1(x)-x-.5*x*x-x*x*x/6)/9.8,friction=yp*nu/y;
-        input.push(u*friction);expected.push(friction**2);}
-      const speed=gpu.buffer('CFD wall reference speeds',Float32Array.from(input)),out=gpu.buffer('CFD calculated wall shear',4*up.length);
-      const pipe=await gpu.kernel('CFD oblique wall shear reference',wallResistanceWGSL+`
-        @group(0) @binding(0) var<storage,read> speed:array<f32>;@group(0) @binding(1) var<storage,read_write> shear:array<f32>;
+        input.push(u*friction);expected.push(friction**2);
+        wallValues.push([Math.hypot(6*nu/(.075*y*y),friction/(.3*.41*y)),(1-u/yp)*friction**3/(.41*y),u/yp*nu/y]);}
+      const speed=gpu.buffer('CFD wall reference speeds',Float32Array.from(input)),out=gpu.buffer('CFD calculated wall state',16*up.length);
+      const pipe=await gpu.kernel('CFD oblique wall shear reference',sstWallWGSL+`
+        @group(0) @binding(0) var<storage,read> speed:array<f32>;@group(0) @binding(1) var<storage,read_write> shear:array<vec4f>;
         @compute @workgroup_size(8) fn main(@builtin(global_invocation_id) g:vec3u){if(g.x>=arrayLength(&speed)){return;}
           let n=vec3f(.6,0.,.8);let t=vec3f(.8,0.,-.6);let v=speed[g.x]*(t+1.7*n);
-          let ut=tangentialSlip(v,n);shear[g.x]=dot(ut,t)*wallResistance(length(ut),${y},${nu});}`);
-      gpu.run(pipe,[speed,out],[1]);const shear=await gpu.read(out,stage,up.length);
-      wallLawError=expected.reduce((err,value,i)=>Math.max(err,Math.abs(shear[i]/value-1)),0);
+          let ut=tangentialSlip(v,n);shear[g.x]=vec4f(dot(ut,t)*wallResistance(length(ut),${y},${nu}),sstWall(length(ut),${y},${nu}));}`);
+      gpu.run(pipe,[speed,out],[1]);const shear=await gpu.read(out,stage,4*up.length);
+      wallLawError=expected.reduce((err,value,i)=>Math.max(err,Math.abs(shear[4*i]/value-1)),0);
+      sstWallError=wallValues.reduce((err,row,i)=>Math.max(err,...row.map((value,k)=>{
+        const scale=k===1?expected[i]**1.5/(.41*y):value;return Math.abs(shear[4*i+k+1]-value)/scale;
+      })),0);
     }
     return {fixture:'localized velocity beside a stationary immersed body',wallModeled,cutCells,linearWallPressure,wallLawError,initialMomentum:before,fluidMomentumLoss:fluidChange,bodyImpulse:reaction,relativeError,
-      maxRawImbalance,maxCorrectedImbalance,maxPairMismatch,groupCourant,
+      maxRawImbalance,maxCorrectedImbalance,maxPairMismatch,groupCourant,sstWallError,
       pass:relativeError.every(v=>v<2e-6)&&reaction.every(v=>Math.abs(v)>.001)&&maxPairMismatch===0&&maxCorrectedImbalance<1e-9&&
-        (!groupCourant||groupCourant.relativeError<2e-6)&&(!wallModeled||wallLawError<.0005)};
+        (!groupCourant||groupCourant.relativeError<2e-6)&&(!wallModeled||(wallLawError<.0005&&sstWallError<.0005))};
   }finally{gpu.close();}
 }
 

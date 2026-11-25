@@ -80,8 +80,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
     const {Speed:U,Medium,Altitude}=capture.params,fluid=mediumProperties(Medium,Altitude),maxSpeed=Math.max(U,fluid.nu/domain.h);
     const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega:0,
       rotor:false,sphere:false,movingRoad:domain.road,laminar:U*domain.scale/fluid.nu<200,period:domain.scale/maxSpeed,
-      budgetMs,globalPressure,cutCells:settings.cutCells,sheetLinks:settings.sheetLinks,faceHistory:settings.faceHistory,linearWallPressure:settings.linearWallPressure,wallSpacing:settings.wallSpacing,
-      normalization:1,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
+      budgetMs,globalPressure,cutCells:settings.cutCells,sheetLinks:settings.sheetLinks,faceHistory:settings.faceHistory,linearWallPressure:settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
+      faceReconstruction:settings.faceReconstruction,normalization:1,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);
     const windows=result.windows.slice(-2),axes=boxAxes(ctx.document.world(box.hash));
