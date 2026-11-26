@@ -8939,251 +8939,253 @@ function sceneWorker() {
     triangles[1]=powerSum;
     const lights=buildVoseAliasTable(emitters,powerSum);
 
-    // Build TLAS BVH2 first, then collapse to 80-byte CWBVH8
-    let tlasCount=Math.max(1,visible.length>1?visible.length-1:1);
-    const tlasBvh2=new Float32Array(tlasCount*16),tlasBvh2Bits=new Uint32Array(tlasBvh2.buffer);
-    let isolatedHugeId=EMPTY_SLOT,isolatedNormalRoot=-1,isolatedNormalCount=0;
-    if(visible.length===0){
-      tlasBvh2Bits[7]=EMPTY_SLOT;tlasBvh2Bits[15]=EMPTY_SLOT;
-    }else if(visible.length===1){
-      const id0=visible[0],b=meshStates[id0].bounds;
-      tlasBvh2[0]=b[0];tlasBvh2[1]=b[1];tlasBvh2[2]=b[2];tlasBvh2Bits[3]=id0;tlasBvh2[4]=b[3];tlasBvh2[5]=b[4];tlasBvh2[6]=b[5];tlasBvh2Bits[7]=1;
-      tlasBvh2Bits[15]=EMPTY_SLOT;
-    }else{
-      let next=0;
-      const boxOut=new Float32Array(tlasCount*6);
-      if(visible.length<=512){
-        const centers=[],orders=[],ranks=[],scratch=new Uint32Array(visible.length);
-        for(let axis=0;axis<3;axis++){
-          const c=new Float64Array(occurrences.length),r=new Uint32Array(occurrences.length);
-          for(const i of visible){const b=meshStates[i].bounds;c[i]=b[axis]+b[axis+3];}
-          const ord=Uint32Array.from(visible).sort((a,b)=>c[a]-c[b]||a-b);
-          for(let j=0;j<ord.length;j++)r[ord[j]]=j;
-          centers.push(c);orders.push(ord);ranks.push(r);
-        }
-        const prefixCost=new Float64Array(visible.length);
-        const emptyBounds=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
-        const leftBounds=new Float64Array(6),rightBounds=new Float64Array(6);
-        function extendArea(box,b){
-          for(let axis=0;axis<3;axis++){box[axis]=Math.min(box[axis],b[axis]);box[axis+3]=Math.max(box[axis+3],b[axis+3]);}
-          const x=box[3]-box[0],y=box[4]-box[1],z=box[5]-box[2];
-          return x*y+y*z+z*x;
-        }
-        function buildTlasSmall(first,end,depth=0){
-          const index=next++,at=index*16,bo=index*6;
-          let axis=0,longest=-1;
-          for(let k=0;k<3;k++){const ord=orders[k],span=centers[k][ord[end-1]]-centers[k][ord[first]];if(span>longest){longest=span;axis=k;}}
-          let middle=(first+end)>>1;
-          if(end-first>2&&depth+Math.ceil(Math.log2(end-first))<25){
-            let best=Infinity,balance=Infinity;
-            for(let k=0;k<3;k++){
-              const order=orders[k];leftBounds.set(emptyBounds);rightBounds.set(emptyBounds);
-              for(let j=first;j<end-1;j++)prefixCost[j]=extendArea(leftBounds,meshStates[order[j]].bounds)*(j-first+1);
-              for(let j=end-1;j>first;j--){
-                const cost=prefixCost[j-1]+extendArea(rightBounds,meshStates[order[j]].bounds)*(end-j);
-                const skew=Math.abs((j-first)-(end-j));
-                if(cost<best||cost===best&&skew<balance){best=cost;balance=skew;axis=k;middle=j;}
-              }
-            }
-          }
-          const rank=ranks[axis],cut=rank[orders[axis][middle]];
-          for(let k=0;k<3;k++)if(k!==axis){
-            const ord=orders[k];let l=first,r=middle;
-            for(let j=first;j<end;j++){const id=ord[j];if(rank[id]<cut)scratch[l++]=id;else scratch[r++]=id;}
-            ord.set(scratch.subarray(first,end),first);
-          }
-          if(middle-first===1){
-            const id=orders[0][first],b=meshStates[id].bounds;
-            tlasBvh2[at]=b[0];tlasBvh2[at+1]=b[1];tlasBvh2[at+2]=b[2];tlasBvh2Bits[at+3]=id;tlasBvh2[at+4]=b[3];tlasBvh2[at+5]=b[4];tlasBvh2[at+6]=b[5];tlasBvh2Bits[at+7]=1;
-          }else{
-            const child=buildTlasSmall(first,middle,depth+1),cb=child*6;
-            tlasBvh2[at]=boxOut[cb];tlasBvh2[at+1]=boxOut[cb+1];tlasBvh2[at+2]=boxOut[cb+2];tlasBvh2Bits[at+3]=child;
-            tlasBvh2[at+4]=boxOut[cb+3];tlasBvh2[at+5]=boxOut[cb+4];tlasBvh2[at+6]=boxOut[cb+5];tlasBvh2Bits[at+7]=0;
-          }
-          if(end-middle===1){
-            const id=orders[0][middle],b=meshStates[id].bounds;
-            tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
-          }else{
-            const child=buildTlasSmall(middle,end,depth+1),cb=child*6;
-            tlasBvh2[at+8]=boxOut[cb];tlasBvh2[at+9]=boxOut[cb+1];tlasBvh2[at+10]=boxOut[cb+2];tlasBvh2Bits[at+11]=child;
-            tlasBvh2[at+12]=boxOut[cb+3];tlasBvh2[at+13]=boxOut[cb+4];tlasBvh2[at+14]=boxOut[cb+5];tlasBvh2Bits[at+15]=0;
-          }
-          boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
-          boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
-          return index;
-        }
-        buildTlasSmall(0,visible.length);
+    function buildTlasCwbvh8(visible,boundsOf,totalCount){
+      let tlasCount=Math.max(1,visible.length>1?visible.length-1:1);
+      const tlasBvh2=new Float32Array(tlasCount*16),tlasBvh2Bits=new Uint32Array(tlasBvh2.buffer);
+      let isolatedHugeId=EMPTY_SLOT,isolatedNormalRoot=-1,isolatedNormalCount=0;
+      if(visible.length===0){
+        tlasBvh2Bits[7]=EMPTY_SLOT;tlasBvh2Bits[15]=EMPTY_SLOT;
+      }else if(visible.length===1){
+        const id0=visible[0],b=boundsOf(id0);
+        tlasBvh2[0]=b[0];tlasBvh2[1]=b[1];tlasBvh2[2]=b[2];tlasBvh2Bits[3]=id0;tlasBvh2[4]=b[3];tlasBvh2[5]=b[4];tlasBvh2[6]=b[5];tlasBvh2Bits[7]=1;
+        tlasBvh2Bits[15]=EMPTY_SLOT;
       }else{
-        const tlasOrder=Uint32Array.from(visible),TLAS_BINS=16;
-        const tbCnt=new Uint32Array(TLAS_BINS),tbLx=new Float64Array(TLAS_BINS),tbLy=new Float64Array(TLAS_BINS),tbLz=new Float64Array(TLAS_BINS);
-        const tbHx=new Float64Array(TLAS_BINS),tbHy=new Float64Array(TLAS_BINS),tbHz=new Float64Array(TLAS_BINS),tbLeft=new Float64Array(TLAS_BINS);
-        function buildTlasBinned(first,end,depth=0){
-          const index=next++,at=index*16,bo=index*6,count=end-first;
-          let cx0=Infinity,cy0=Infinity,cz0=Infinity,cx1=-Infinity,cy1=-Infinity,cz1=-Infinity;
-          for(let i=first;i<end;i++){
-            const b=meshStates[tlasOrder[i]].bounds,mx=b[0]+b[3],my=b[1]+b[4],mz=b[2]+b[5];
-            if(mx<cx0)cx0=mx;if(my<cy0)cy0=my;if(mz<cz0)cz0=mz;
-            if(mx>cx1)cx1=mx;if(my>cy1)cy1=my;if(mz>cz1)cz1=mz;
+        let next=0;
+        const boxOut=new Float32Array(tlasCount*6);
+        if(visible.length<=512){
+          const centers=[],orders=[],ranks=[],scratch=new Uint32Array(visible.length);
+          for(let axis=0;axis<3;axis++){
+            const c=new Float64Array(totalCount),r=new Uint32Array(totalCount);
+            for(const i of visible){const b=boundsOf(i);c[i]=b[axis]+b[axis+3];}
+            const ord=Uint32Array.from(visible).sort((a,b)=>c[a]-c[b]||a-b);
+            for(let j=0;j<ord.length;j++)r[ord[j]]=j;
+            centers.push(c);orders.push(ord);ranks.push(r);
           }
-          const dx=cx1-cx0,dy=cy1-cy0,dz=cz1-cz0;
-          const longest=dx>=dy&&dx>=dz?0:dy>=dz?1:2;
-          let middle=(first+end)>>1,bestAxis=-1,bestSplit2=0;
-          if(count>2&&depth+Math.ceil(Math.log2(count))<25){
-            let bestCost=Infinity,bestSkew=Infinity;
-            const allAxes=depth<10;
-            for(let k=0;k<3;k++){
-              if(!allAxes&&k!==longest)continue;
-              const lo2=k===0?cx0:k===1?cy0:cz0,span=k===0?dx:k===1?dy:dz;
-              if(span<1e-12)continue;
-              const invSpan=TLAS_BINS/span;
-              for(let j=0;j<TLAS_BINS;j++){tbCnt[j]=0;tbLx[j]=tbLy[j]=tbLz[j]=Infinity;tbHx[j]=tbHy[j]=tbHz[j]=-Infinity;}
-              for(let i=first;i<end;i++){
-                const b=meshStates[tlasOrder[i]].bounds,c2=k===0?b[0]+b[3]:k===1?b[1]+b[4]:b[2]+b[5];
-                let bin=((c2-lo2)*invSpan)|0;if(bin>=TLAS_BINS)bin=TLAS_BINS-1;else if(bin<0)bin=0;
-                tbCnt[bin]++;
-                if(b[0]<tbLx[bin])tbLx[bin]=b[0];if(b[1]<tbLy[bin])tbLy[bin]=b[1];if(b[2]<tbLz[bin])tbLz[bin]=b[2];
-                if(b[3]>tbHx[bin])tbHx[bin]=b[3];if(b[4]>tbHy[bin])tbHy[bin]=b[4];if(b[5]>tbHz[bin])tbHz[bin]=b[5];
-              }
-              let lx=Infinity,ly=Infinity,lz=Infinity,hx=-Infinity,hy=-Infinity,hz=-Infinity,n=0;
-              for(let j=0;j<TLAS_BINS-1;j++){
-                const c=tbCnt[j];
-                if(c){n+=c;if(tbLx[j]<lx)lx=tbLx[j];if(tbLy[j]<ly)ly=tbLy[j];if(tbLz[j]<lz)lz=tbLz[j];if(tbHx[j]>hx)hx=tbHx[j];if(tbHy[j]>hy)hy=tbHy[j];if(tbHz[j]>hz)hz=tbHz[j];}
-                tbLeft[j]=n?((hx-lx)*(hy-ly)+(hy-ly)*(hz-lz)+(hz-lz)*(hx-lx))*n:0;
-              }
-              lx=ly=lz=Infinity;hx=hy=hz=-Infinity;n=0;
-              for(let j=TLAS_BINS-1;j>0;j--){
-                const c=tbCnt[j];
-                if(c){n+=c;if(tbLx[j]<lx)lx=tbLx[j];if(tbLy[j]<ly)ly=tbLy[j];if(tbLz[j]<lz)lz=tbLz[j];if(tbHx[j]>hx)hx=tbHx[j];if(tbHy[j]>hy)hy=tbHy[j];if(tbHz[j]>hz)hz=tbHz[j];}
-                if(!n)continue;
-                const leftN=count-n;if(!leftN)continue;
-                const cost=tbLeft[j-1]+((hx-lx)*(hy-ly)+(hy-ly)*(hz-lz)+(hz-lz)*(hx-lx))*n;
-                const skew=Math.abs(leftN-n);
-                if(cost<bestCost||(cost===bestCost&&skew<bestSkew)){bestCost=cost;bestSkew=skew;bestAxis=k;bestSplit2=lo2+span*j/TLAS_BINS;}
+          const prefixCost=new Float64Array(visible.length);
+          const emptyBounds=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
+          const leftBounds=new Float64Array(6),rightBounds=new Float64Array(6);
+          function extendArea(box,b){
+            for(let axis=0;axis<3;axis++){box[axis]=Math.min(box[axis],b[axis]);box[axis+3]=Math.max(box[axis+3],b[axis+3]);}
+            const x=box[3]-box[0],y=box[4]-box[1],z=box[5]-box[2];
+            return x*y+y*z+z*x;
+          }
+          function buildTlasSmall(first,end,depth=0){
+            const index=next++,at=index*16,bo=index*6;
+            let axis=0,longest=-1;
+            for(let k=0;k<3;k++){const ord=orders[k],span=centers[k][ord[end-1]]-centers[k][ord[first]];if(span>longest){longest=span;axis=k;}}
+            let middle=(first+end)>>1;
+            if(end-first>2&&depth+Math.ceil(Math.log2(end-first))<25){
+              let best=Infinity,balance=Infinity;
+              for(let k=0;k<3;k++){
+                const order=orders[k];leftBounds.set(emptyBounds);rightBounds.set(emptyBounds);
+                for(let j=first;j<end-1;j++)prefixCost[j]=extendArea(leftBounds,boundsOf(order[j]))*(j-first+1);
+                for(let j=end-1;j>first;j--){
+                  const cost=prefixCost[j-1]+extendArea(rightBounds,boundsOf(order[j]))*(end-j);
+                  const skew=Math.abs((j-first)-(end-j));
+                  if(cost<best||cost===best&&skew<balance){best=cost;balance=skew;axis=k;middle=j;}
+                }
               }
             }
-          }
-          if(bestAxis>=0){
-            middle=first;
-            for(let i=first;i<end;i++){
-              const oi=tlasOrder[i],b=meshStates[oi].bounds,c2=bestAxis===0?b[0]+b[3]:bestAxis===1?b[1]+b[4]:b[2]+b[5];
-              if(c2<bestSplit2){if(i!==middle){tlasOrder[i]=tlasOrder[middle];tlasOrder[middle]=oi;}middle++;}
+            const rank=ranks[axis],cut=rank[orders[axis][middle]];
+            for(let k=0;k<3;k++)if(k!==axis){
+              const ord=orders[k];let l=first,r=middle;
+              for(let j=first;j<end;j++){const id=ord[j];if(rank[id]<cut)scratch[l++]=id;else scratch[r++]=id;}
+              ord.set(scratch.subarray(first,end),first);
             }
+            if(middle-first===1){
+              const id=orders[0][first],b=boundsOf(id);
+              tlasBvh2[at]=b[0];tlasBvh2[at+1]=b[1];tlasBvh2[at+2]=b[2];tlasBvh2Bits[at+3]=id;tlasBvh2[at+4]=b[3];tlasBvh2[at+5]=b[4];tlasBvh2[at+6]=b[5];tlasBvh2Bits[at+7]=1;
+            }else{
+              const child=buildTlasSmall(first,middle,depth+1),cb=child*6;
+              tlasBvh2[at]=boxOut[cb];tlasBvh2[at+1]=boxOut[cb+1];tlasBvh2[at+2]=boxOut[cb+2];tlasBvh2Bits[at+3]=child;
+              tlasBvh2[at+4]=boxOut[cb+3];tlasBvh2[at+5]=boxOut[cb+4];tlasBvh2[at+6]=boxOut[cb+5];tlasBvh2Bits[at+7]=0;
+            }
+            if(end-middle===1){
+              const id=orders[0][middle],b=boundsOf(id);
+              tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
+            }else{
+              const child=buildTlasSmall(middle,end,depth+1),cb=child*6;
+              tlasBvh2[at+8]=boxOut[cb];tlasBvh2[at+9]=boxOut[cb+1];tlasBvh2[at+10]=boxOut[cb+2];tlasBvh2Bits[at+11]=child;
+              tlasBvh2[at+12]=boxOut[cb+3];tlasBvh2[at+13]=boxOut[cb+4];tlasBvh2[at+14]=boxOut[cb+5];tlasBvh2Bits[at+15]=0;
+            }
+            boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
+            boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
+            return index;
           }
-          if(bestAxis<0||middle===first||middle===end){
-            tlasOrder.subarray(first,end).sort((a,b)=>{
-              const ba=meshStates[a].bounds,bb=meshStates[b].bounds;
-              return ((ba[longest]+ba[longest+3])-(bb[longest]+bb[longest+3]))||(a-b);
-            });
-            middle=(first+end)>>1;
-          }
-          if(middle-first===1){
-            const id=tlasOrder[first],b=meshStates[id].bounds;
-            tlasBvh2[at]=b[0];tlasBvh2[at+1]=b[1];tlasBvh2[at+2]=b[2];tlasBvh2Bits[at+3]=id;tlasBvh2[at+4]=b[3];tlasBvh2[at+5]=b[4];tlasBvh2[at+6]=b[5];tlasBvh2Bits[at+7]=1;
-          }else{
-            const child=buildTlasBinned(first,middle,depth+1),cb=child*6;
-            tlasBvh2[at]=boxOut[cb];tlasBvh2[at+1]=boxOut[cb+1];tlasBvh2[at+2]=boxOut[cb+2];tlasBvh2Bits[at+3]=child;
-            tlasBvh2[at+4]=boxOut[cb+3];tlasBvh2[at+5]=boxOut[cb+4];tlasBvh2[at+6]=boxOut[cb+5];tlasBvh2Bits[at+7]=0;
-          }
-          if(end-middle===1){
-            const id=tlasOrder[middle],b=meshStates[id].bounds;
-            tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
-          }else{
-            const child=buildTlasBinned(middle,end,depth+1),cb=child*6;
-            tlasBvh2[at+8]=boxOut[cb];tlasBvh2[at+9]=boxOut[cb+1];tlasBvh2[at+10]=boxOut[cb+2];tlasBvh2Bits[at+11]=child;
-            tlasBvh2[at+12]=boxOut[cb+3];tlasBvh2[at+13]=boxOut[cb+4];tlasBvh2[at+14]=boxOut[cb+5];tlasBvh2Bits[at+15]=0;
-          }
-          boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
-          boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
-          return index;
-        }
-        let rx0=Infinity,ry0=Infinity,rz0=Infinity,rx1=-Infinity,ry1=-Infinity,rz1=-Infinity;
-        for(let i=0;i<visible.length;i++){
-          const b=meshStates[visible[i]].bounds;
-          if(b[0]<rx0)rx0=b[0];if(b[1]<ry0)ry0=b[1];if(b[2]<rz0)rz0=b[2];
-          if(b[3]>rx1)rx1=b[3];if(b[4]>ry1)ry1=b[4];if(b[5]>rz1)rz1=b[5];
-        }
-        const rdx=rx1-rx0,rdy=ry1-ry0,rdz=rz1-rz0,rootArea=rdx*rdy+rdy*rdz+rdz*rdx;
-        const huge=[],normal=[];
-        if(rootArea>0){
-          for(let i=0;i<visible.length;i++){
-            const id=visible[i],b=meshStates[id].bounds,ax=b[3]-b[0],ay=b[4]-b[1],az=b[5]-b[2];
-            if(ax*ay+ay*az+az*ax>0.2*rootArea)huge.push(id);else normal.push(id);
-          }
-        }
-        if(huge.length>0&&huge.length<=16&&huge.length*4<visible.length&&normal.length>1){
-          const index=next++,at=index*16,bo=index*6;
-          for(let i=0;i<normal.length;i++)tlasOrder[i]=normal[i];
-          for(let i=0;i<huge.length;i++)tlasOrder[normal.length+i]=huge[i];
-          const lChild=buildTlasBinned(0,normal.length,1),lcb=lChild*6;
-          tlasBvh2[at]=boxOut[lcb];tlasBvh2[at+1]=boxOut[lcb+1];tlasBvh2[at+2]=boxOut[lcb+2];tlasBvh2Bits[at+3]=lChild;
-          tlasBvh2[at+4]=boxOut[lcb+3];tlasBvh2[at+5]=boxOut[lcb+4];tlasBvh2[at+6]=boxOut[lcb+5];tlasBvh2Bits[at+7]=0;
-          if(huge.length===1){
-            const id=huge[0],b=meshStates[id].bounds;
-            tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
-            isolatedHugeId=id;isolatedNormalRoot=lChild;isolatedNormalCount=normal.length;
-          }else{
-            const rChild=buildTlasBinned(normal.length,visible.length,1),rcb=rChild*6;
-            tlasBvh2[at+8]=boxOut[rcb];tlasBvh2[at+9]=boxOut[rcb+1];tlasBvh2[at+10]=boxOut[rcb+2];tlasBvh2Bits[at+11]=rChild;
-            tlasBvh2[at+12]=boxOut[rcb+3];tlasBvh2[at+13]=boxOut[rcb+4];tlasBvh2[at+14]=boxOut[rcb+5];tlasBvh2Bits[at+15]=0;
-          }
-          boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
-          boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
+          buildTlasSmall(0,visible.length);
         }else{
-          buildTlasBinned(0,visible.length);
+          const tlasOrder=Uint32Array.from(visible),TLAS_BINS=16;
+          const tbCnt=new Uint32Array(TLAS_BINS),tbLx=new Float64Array(TLAS_BINS),tbLy=new Float64Array(TLAS_BINS),tbLz=new Float64Array(TLAS_BINS);
+          const tbHx=new Float64Array(TLAS_BINS),tbHy=new Float64Array(TLAS_BINS),tbHz=new Float64Array(TLAS_BINS),tbLeft=new Float64Array(TLAS_BINS);
+          function buildTlasBinned(first,end,depth=0){
+            const index=next++,at=index*16,bo=index*6,count=end-first;
+            let cx0=Infinity,cy0=Infinity,cz0=Infinity,cx1=-Infinity,cy1=-Infinity,cz1=-Infinity;
+            for(let i=first;i<end;i++){
+              const b=boundsOf(tlasOrder[i]),mx=b[0]+b[3],my=b[1]+b[4],mz=b[2]+b[5];
+              if(mx<cx0)cx0=mx;if(my<cy0)cy0=my;if(mz<cz0)cz0=mz;
+              if(mx>cx1)cx1=mx;if(my>cy1)cy1=my;if(mz>cz1)cz1=mz;
+            }
+            const dx=cx1-cx0,dy=cy1-cy0,dz=cz1-cz0;
+            const longest=dx>=dy&&dx>=dz?0:dy>=dz?1:2;
+            let middle=(first+end)>>1,bestAxis=-1,bestSplit2=0;
+            if(count>2&&depth+Math.ceil(Math.log2(count))<25){
+              let bestCost=Infinity,bestSkew=Infinity;
+              const allAxes=depth<10;
+              for(let k=0;k<3;k++){
+                if(!allAxes&&k!==longest)continue;
+                const lo2=k===0?cx0:k===1?cy0:cz0,span=k===0?dx:k===1?dy:dz;
+                if(span<1e-12)continue;
+                const invSpan=TLAS_BINS/span;
+                for(let j=0;j<TLAS_BINS;j++){tbCnt[j]=0;tbLx[j]=tbLy[j]=tbLz[j]=Infinity;tbHx[j]=tbHy[j]=tbHz[j]=-Infinity;}
+                for(let i=first;i<end;i++){
+                  const b=boundsOf(tlasOrder[i]),c2=k===0?b[0]+b[3]:k===1?b[1]+b[4]:b[2]+b[5];
+                  let bin=((c2-lo2)*invSpan)|0;if(bin>=TLAS_BINS)bin=TLAS_BINS-1;else if(bin<0)bin=0;
+                  tbCnt[bin]++;
+                  if(b[0]<tbLx[bin])tbLx[bin]=b[0];if(b[1]<tbLy[bin])tbLy[bin]=b[1];if(b[2]<tbLz[bin])tbLz[bin]=b[2];
+                  if(b[3]>tbHx[bin])tbHx[bin]=b[3];if(b[4]>tbHy[bin])tbHy[bin]=b[4];if(b[5]>tbHz[bin])tbHz[bin]=b[5];
+                }
+                let lx=Infinity,ly=Infinity,lz=Infinity,hx=-Infinity,hy=-Infinity,hz=-Infinity,n=0;
+                for(let j=0;j<TLAS_BINS-1;j++){
+                  const c=tbCnt[j];
+                  if(c){n+=c;if(tbLx[j]<lx)lx=tbLx[j];if(tbLy[j]<ly)ly=tbLy[j];if(tbLz[j]<lz)lz=tbLz[j];if(tbHx[j]>hx)hx=tbHx[j];if(tbHy[j]>hy)hy=tbHy[j];if(tbHz[j]>hz)hz=tbHz[j];}
+                  tbLeft[j]=n?((hx-lx)*(hy-ly)+(hy-ly)*(hz-lz)+(hz-lz)*(hx-lx))*n:0;
+                }
+                lx=ly=lz=Infinity;hx=hy=hz=-Infinity;n=0;
+                for(let j=TLAS_BINS-1;j>0;j--){
+                  const c=tbCnt[j];
+                  if(c){n+=c;if(tbLx[j]<lx)lx=tbLx[j];if(tbLy[j]<ly)ly=tbLy[j];if(tbLz[j]<lz)lz=tbLz[j];if(tbHx[j]>hx)hx=tbHx[j];if(tbHy[j]>hy)hy=tbHy[j];if(tbHz[j]>hz)hz=tbHz[j];}
+                  if(!n)continue;
+                  const leftN=count-n;if(!leftN)continue;
+                  const cost=tbLeft[j-1]+((hx-lx)*(hy-ly)+(hy-ly)*(hz-lz)+(hz-lz)*(hx-lx))*n;
+                  const skew=Math.abs(leftN-n);
+                  if(cost<bestCost||(cost===bestCost&&skew<bestSkew)){bestCost=cost;bestSkew=skew;bestAxis=k;bestSplit2=lo2+span*j/TLAS_BINS;}
+                }
+              }
+            }
+            if(bestAxis>=0){
+              middle=first;
+              for(let i=first;i<end;i++){
+                const oi=tlasOrder[i],b=boundsOf(oi),c2=bestAxis===0?b[0]+b[3]:bestAxis===1?b[1]+b[4]:b[2]+b[5];
+                if(c2<bestSplit2){if(i!==middle){tlasOrder[i]=tlasOrder[middle];tlasOrder[middle]=oi;}middle++;}
+              }
+            }
+            if(bestAxis<0||middle===first||middle===end){
+              tlasOrder.subarray(first,end).sort((a,b)=>{
+                const ba=boundsOf(a),bb=boundsOf(b);
+                return ((ba[longest]+ba[longest+3])-(bb[longest]+bb[longest+3]))||(a-b);
+              });
+              middle=(first+end)>>1;
+            }
+            if(middle-first===1){
+              const id=tlasOrder[first],b=boundsOf(id);
+              tlasBvh2[at]=b[0];tlasBvh2[at+1]=b[1];tlasBvh2[at+2]=b[2];tlasBvh2Bits[at+3]=id;tlasBvh2[at+4]=b[3];tlasBvh2[at+5]=b[4];tlasBvh2[at+6]=b[5];tlasBvh2Bits[at+7]=1;
+            }else{
+              const child=buildTlasBinned(first,middle,depth+1),cb=child*6;
+              tlasBvh2[at]=boxOut[cb];tlasBvh2[at+1]=boxOut[cb+1];tlasBvh2[at+2]=boxOut[cb+2];tlasBvh2Bits[at+3]=child;
+              tlasBvh2[at+4]=boxOut[cb+3];tlasBvh2[at+5]=boxOut[cb+4];tlasBvh2[at+6]=boxOut[cb+5];tlasBvh2Bits[at+7]=0;
+            }
+            if(end-middle===1){
+              const id=tlasOrder[middle],b=boundsOf(id);
+              tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
+            }else{
+              const child=buildTlasBinned(middle,end,depth+1),cb=child*6;
+              tlasBvh2[at+8]=boxOut[cb];tlasBvh2[at+9]=boxOut[cb+1];tlasBvh2[at+10]=boxOut[cb+2];tlasBvh2Bits[at+11]=child;
+              tlasBvh2[at+12]=boxOut[cb+3];tlasBvh2[at+13]=boxOut[cb+4];tlasBvh2[at+14]=boxOut[cb+5];tlasBvh2Bits[at+15]=0;
+            }
+            boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
+            boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
+            return index;
+          }
+          let rx0=Infinity,ry0=Infinity,rz0=Infinity,rx1=-Infinity,ry1=-Infinity,rz1=-Infinity;
+          for(let i=0;i<visible.length;i++){
+            const b=boundsOf(visible[i]);
+            if(b[0]<rx0)rx0=b[0];if(b[1]<ry0)ry0=b[1];if(b[2]<rz0)rz0=b[2];
+            if(b[3]>rx1)rx1=b[3];if(b[4]>ry1)ry1=b[4];if(b[5]>rz1)rz1=b[5];
+          }
+          const rdx=rx1-rx0,rdy=ry1-ry0,rdz=rz1-rz0,rootArea=rdx*rdy+rdy*rdz+rdz*rdx;
+          const huge=[],normal=[];
+          if(rootArea>0){
+            for(let i=0;i<visible.length;i++){
+              const id=visible[i],b=boundsOf(id),ax=b[3]-b[0],ay=b[4]-b[1],az=b[5]-b[2];
+              if(ax*ay+ay*az+az*ax>0.2*rootArea)huge.push(id);else normal.push(id);
+            }
+          }
+          if(huge.length>0&&huge.length<=16&&huge.length*4<visible.length&&normal.length>1){
+            const index=next++,at=index*16,bo=index*6;
+            for(let i=0;i<normal.length;i++)tlasOrder[i]=normal[i];
+            for(let i=0;i<huge.length;i++)tlasOrder[normal.length+i]=huge[i];
+            const lChild=buildTlasBinned(0,normal.length,1),lcb=lChild*6;
+            tlasBvh2[at]=boxOut[lcb];tlasBvh2[at+1]=boxOut[lcb+1];tlasBvh2[at+2]=boxOut[lcb+2];tlasBvh2Bits[at+3]=lChild;
+            tlasBvh2[at+4]=boxOut[lcb+3];tlasBvh2[at+5]=boxOut[lcb+4];tlasBvh2[at+6]=boxOut[lcb+5];tlasBvh2Bits[at+7]=0;
+            if(huge.length===1){
+              const id=huge[0],b=boundsOf(id);
+              tlasBvh2[at+8]=b[0];tlasBvh2[at+9]=b[1];tlasBvh2[at+10]=b[2];tlasBvh2Bits[at+11]=id;tlasBvh2[at+12]=b[3];tlasBvh2[at+13]=b[4];tlasBvh2[at+14]=b[5];tlasBvh2Bits[at+15]=1;
+              isolatedHugeId=id;isolatedNormalRoot=lChild;isolatedNormalCount=normal.length;
+            }else{
+              const rChild=buildTlasBinned(normal.length,visible.length,1),rcb=rChild*6;
+              tlasBvh2[at+8]=boxOut[rcb];tlasBvh2[at+9]=boxOut[rcb+1];tlasBvh2[at+10]=boxOut[rcb+2];tlasBvh2Bits[at+11]=rChild;
+              tlasBvh2[at+12]=boxOut[rcb+3];tlasBvh2[at+13]=boxOut[rcb+4];tlasBvh2[at+14]=boxOut[rcb+5];tlasBvh2Bits[at+15]=0;
+            }
+            boxOut[bo]=tlasBvh2[at]<tlasBvh2[at+8]?tlasBvh2[at]:tlasBvh2[at+8];boxOut[bo+1]=tlasBvh2[at+1]<tlasBvh2[at+9]?tlasBvh2[at+1]:tlasBvh2[at+9];boxOut[bo+2]=tlasBvh2[at+2]<tlasBvh2[at+10]?tlasBvh2[at+2]:tlasBvh2[at+10];
+            boxOut[bo+3]=tlasBvh2[at+4]>tlasBvh2[at+12]?tlasBvh2[at+4]:tlasBvh2[at+12];boxOut[bo+4]=tlasBvh2[at+5]>tlasBvh2[at+13]?tlasBvh2[at+5]:tlasBvh2[at+13];boxOut[bo+5]=tlasBvh2[at+6]>tlasBvh2[at+14]?tlasBvh2[at+6]:tlasBvh2[at+14];
+          }else{
+            buildTlasBinned(0,visible.length);
+          }
         }
       }
-    }
-
-    const tlasInstIds=new Uint32Array(visible.length);
-    let tlasCwU32,tlasCwCount;
-    if(isolatedHugeId!==EMPTY_SLOT){
-      const cwNorm=collapseBvh2ToCwbvh8(tlasBvh2,tlasBvh2Bits,tlasCount,isolatedNormalRoot,isolatedNormalCount,id=>meshStates[id].bounds,ref=>ref,tlasInstIds.subarray(1));
-      tlasInstIds[0]=isolatedHugeId;
-      for(let i=0;i<cwNorm.nodeCount;i++){
-        const at=i*20;
-        if((cwNorm.bvh[at+3]>>>24)&0xff)cwNorm.bvh[at+4]+=1;
-        cwNorm.bvh[at+5]+=1;
+      const tlasInstIds=new Uint32Array(visible.length);
+      let tlasCwU32,tlasCwCount;
+      if(isolatedHugeId!==EMPTY_SLOT){
+        const cwNorm=collapseBvh2ToCwbvh8(tlasBvh2,tlasBvh2Bits,tlasCount,isolatedNormalRoot,isolatedNormalCount,id=>boundsOf(id),ref=>ref,tlasInstIds.subarray(1));
+        tlasInstIds[0]=isolatedHugeId;
+        for(let i=0;i<cwNorm.nodeCount;i++){
+          const at=i*20;
+          if((cwNorm.bvh[at+3]>>>24)&0xff)cwNorm.bvh[at+4]+=1;
+          cwNorm.bvh[at+5]+=1;
+        }
+        tlasCwCount=1+cwNorm.nodeCount;
+        tlasCwU32=new Uint32Array(tlasCwCount*20);
+        tlasCwU32.set(cwNorm.bvh,20);
+        const hb=boundsOf(isolatedHugeId),nbL=cwNorm.rootLo,nbH=cwNorm.rootHi;
+        const pLx=Math.min(nbL[0],hb[0]),pLy=Math.min(nbL[1],hb[1]),pLz=Math.min(nbL[2],hb[2]);
+        const pHx=Math.max(nbH[0],hb[3]),pHy=Math.max(nbH[1],hb[4]),pHz=Math.max(nbH[2],hb[5]);
+        const pLoX=Math.fround(pLx),pLoY=Math.fround(pLy),pLoZ=Math.fround(pLz);
+        const cExp=(lo,hi)=>{const sp=hi-lo;if(!(sp>0))return 0;let eb=Math.max(1,Math.min(254,Math.ceil(Math.log2(sp/255))+127));while(eb<254&&Math.fround(lo+255*Math.pow(2,eb-127))<hi)eb++;return eb;};
+        const ex=cExp(pLoX,pHx),ey=cExp(pLoY,pHy),ez=cExp(pLoZ,pHz);
+        const sx=ex?Math.pow(2,ex-127):0,sy=ey?Math.pow(2,ey-127):0,sz=ez?Math.pow(2,ez-127):0;
+        const pMx=(pLx+pHx)*.5,pMy=(pLy+pHy)*.5,pMz=(pLz+pHz)*.5;
+        const oct0=((nbL[0]+nbH[0])*.5>pMx?1:0)|((nbL[1]+nbH[1])*.5>pMy?2:0)|((nbL[2]+nbH[2])*.5>pMz?4:0);
+        let oct1=((hb[0]+hb[3])*.5>pMx?1:0)|((hb[1]+hb[4])*.5>pMy?2:0)|((hb[2]+hb[5])*.5>pMz?4:0);
+        if(oct1===oct0)oct1=oct0^7;
+        const rootF=new Float32Array(tlasCwU32.buffer,0,20);
+        rootF[0]=pLoX;rootF[1]=pLoY;rootF[2]=pLoZ;
+        tlasCwU32[3]=(ex|(ey<<8)|(ez<<16)|((1<<oct0)<<24))>>>0;
+        tlasCwU32[4]=1;tlasCwU32[5]=0;
+        const meta=new Uint8Array(8);meta[oct0]=0x20;meta[oct1]=(1<<5)|0;
+        tlasCwU32[6]=(meta[0]|(meta[1]<<8)|(meta[2]<<16)|(meta[3]<<24))>>>0;
+        tlasCwU32[7]=(meta[4]|(meta[5]<<8)|(meta[6]<<16)|(meta[7]<<24))>>>0;
+        const qb=(v,lo,sc,hi)=>{if(!(sc>0))return 0;let q=Math.max(0,Math.min(255,hi?Math.ceil((v-lo)/sc):Math.floor((v-lo)/sc)));if(hi){while(q<255&&Math.fround(lo+q*sc)<v)q++;}else{while(q>0&&Math.fround(lo+q*sc)>v)q--;}return q;};
+        const boxes=new Array(8).fill(null);boxes[oct0]=[nbL[0],nbL[1],nbL[2],nbH[0],nbH[1],nbH[2]];boxes[oct1]=hb;
+        for(let s=0;s<8;s++){
+          const ch=boxes[s],sh=(s&3)*8,wOff=s<4?0:1;
+          const lx=ch?qb(ch[0],pLoX,sx,false):255,hx=ch?qb(ch[3],pLoX,sx,true):0;
+          const ly=ch?qb(ch[1],pLoY,sy,false):255,hy=ch?qb(ch[4],pLoY,sy,true):0;
+          const lz=ch?qb(ch[2],pLoZ,sz,false):255,hz=ch?qb(ch[5],pLoZ,sz,true):0;
+          tlasCwU32[8+wOff]|=lx<<sh;tlasCwU32[10+wOff]|=ly<<sh;tlasCwU32[12+wOff]|=lz<<sh;
+          tlasCwU32[14+wOff]|=hx<<sh;tlasCwU32[16+wOff]|=hy<<sh;tlasCwU32[18+wOff]|=hz<<sh;
+        }
+      }else{
+        const cw=collapseBvh2ToCwbvh8(tlasBvh2,tlasBvh2Bits,tlasCount,0,visible.length,id=>boundsOf(id),ref=>ref,tlasInstIds);
+        tlasCwU32=cw.bvh;tlasCwCount=cw.nodeCount;
       }
-      tlasCwCount=1+cwNorm.nodeCount;
-      tlasCwU32=new Uint32Array(tlasCwCount*20);
-      tlasCwU32.set(cwNorm.bvh,20);
-      // Root CWBVH8 node 0: child 0 = normal subtree (node 1), child 1 = isolated huge instance (inst 0)
-      const hb=meshStates[isolatedHugeId].bounds,nbL=cwNorm.rootLo,nbH=cwNorm.rootHi;
-      const pLx=Math.min(nbL[0],hb[0]),pLy=Math.min(nbL[1],hb[1]),pLz=Math.min(nbL[2],hb[2]);
-      const pHx=Math.max(nbH[0],hb[3]),pHy=Math.max(nbH[1],hb[4]),pHz=Math.max(nbH[2],hb[5]);
-      const pLoX=Math.fround(pLx),pLoY=Math.fround(pLy),pLoZ=Math.fround(pLz);
-      const cExp=(lo,hi)=>{const sp=hi-lo;if(!(sp>0))return 0;let eb=Math.max(1,Math.min(254,Math.ceil(Math.log2(sp/255))+127));while(eb<254&&Math.fround(lo+255*Math.pow(2,eb-127))<hi)eb++;return eb;};
-      const ex=cExp(pLoX,pHx),ey=cExp(pLoY,pHy),ez=cExp(pLoZ,pHz);
-      const sx=ex?Math.pow(2,ex-127):0,sy=ey?Math.pow(2,ey-127):0,sz=ez?Math.pow(2,ez-127):0;
-      const pMx=(pLx+pHx)*.5,pMy=(pLy+pHy)*.5,pMz=(pLz+pHz)*.5;
-      const oct0=((nbL[0]+nbH[0])*.5>pMx?1:0)|((nbL[1]+nbH[1])*.5>pMy?2:0)|((nbL[2]+nbH[2])*.5>pMz?4:0);
-      let oct1=((hb[0]+hb[3])*.5>pMx?1:0)|((hb[1]+hb[4])*.5>pMy?2:0)|((hb[2]+hb[5])*.5>pMz?4:0);
-      if(oct1===oct0)oct1=oct0^7;
-      const rootF=new Float32Array(tlasCwU32.buffer,0,20);
-      rootF[0]=pLoX;rootF[1]=pLoY;rootF[2]=pLoZ;
-      tlasCwU32[3]=(ex|(ey<<8)|(ez<<16)|((1<<oct0)<<24))>>>0;
-      tlasCwU32[4]=1;tlasCwU32[5]=0;
-      const meta=new Uint8Array(8);meta[oct0]=0x20;meta[oct1]=(1<<5)|0;
-      tlasCwU32[6]=(meta[0]|(meta[1]<<8)|(meta[2]<<16)|(meta[3]<<24))>>>0;
-      tlasCwU32[7]=(meta[4]|(meta[5]<<8)|(meta[6]<<16)|(meta[7]<<24))>>>0;
-      const qb=(v,lo,sc,hi)=>{if(!(sc>0))return 0;let q=Math.max(0,Math.min(255,hi?Math.ceil((v-lo)/sc):Math.floor((v-lo)/sc)));if(hi){while(q<255&&Math.fround(lo+q*sc)<v)q++;}else{while(q>0&&Math.fround(lo+q*sc)>v)q--;}return q;};
-      const boxes=new Array(8).fill(null);boxes[oct0]=[nbL[0],nbL[1],nbL[2],nbH[0],nbH[1],nbH[2]];boxes[oct1]=hb;
-      for(let s=0;s<8;s++){
-        const ch=boxes[s],sh=(s&3)*8,wOff=s<4?0:1;
-        const lx=ch?qb(ch[0],pLoX,sx,false):255,hx=ch?qb(ch[3],pLoX,sx,true):0;
-        const ly=ch?qb(ch[1],pLoY,sy,false):255,hy=ch?qb(ch[4],pLoY,sy,true):0;
-        const lz=ch?qb(ch[2],pLoZ,sz,false):255,hz=ch?qb(ch[5],pLoZ,sz,true):0;
-        tlasCwU32[8+wOff]|=lx<<sh;tlasCwU32[10+wOff]|=ly<<sh;tlasCwU32[12+wOff]|=lz<<sh;
-        tlasCwU32[14+wOff]|=hx<<sh;tlasCwU32[16+wOff]|=hy<<sh;tlasCwU32[18+wOff]|=hz<<sh;
-      }
-      bits[9]=isolatedHugeId;bits[10]=1;
-    }else{
-      const cw=collapseBvh2ToCwbvh8(tlasBvh2,tlasBvh2Bits,tlasCount,0,visible.length,id=>meshStates[id].bounds,ref=>ref,tlasInstIds);
-      tlasCwU32=cw.bvh;tlasCwCount=cw.nodeCount;
+      return {tlasCwU32,tlasCwCount,tlasInstIds,isolatedHugeId};
     }
+    const {tlasCwU32,tlasCwCount,tlasInstIds,isolatedHugeId}=buildTlasCwbvh8(visible,id=>meshStates[id].bounds,occurrences.length);
+    if(isolatedHugeId!==EMPTY_SLOT){bits[9]=isolatedHugeId;bits[10]=1;}
     bits.set(tlasInstIds,tlasInstVec4Base*4);
 
-    let nodeCount=tlasCwCount;
+    const tlasCapacity=Math.max(tlasCwCount,Math.ceil(tlasCwCount*1.25)+16);
+    let nodeCount=tlasCapacity;
     for(const g of groups.values()){g.nodeOffset=nodeCount;nodeCount+=g.data.nodeCount;}
     const bvh=new Float32Array(nodeCount*20),bvhBits=new Uint32Array(bvh.buffer);
     bvhBits.set(tlasCwU32,0);
@@ -9197,10 +9199,102 @@ function sceneWorker() {
       }
     }
     for(let i=0;i<occurrences.length;i++)bits[(3+i*4)*4+14]=occurrences[i].geometry.nodeOffset;
+    cachedInstanced={
+      descriptorCount,center,scale,reciprocal,tlasCapacity,tlasInstVec4Base,
+      hasEmitters:emitters.length>0,
+      boundsScratch:new Float64Array(descriptorCount*6),
+      occurrences:occurrences.map(o=>({
+        first:o.first,materialBase:o.mesh.materialBase||0,background:!!o.mesh.background,
+        visible:!!o.mesh.visible,surfaceId:o.mesh.surfaceId||1,
+        triOffset:o.geometry.triOffset,count:o.geometry.count,nodeOffset:o.geometry.nodeOffset,
+        lo:o.geometry.lo,hi:o.geometry.hi,dataCenter:o.geometry.data.center,dataScale:o.geometry.data.scale
+      })),
+      buildTlasCwbvh8
+    };
     const lightSignature=frameValueKey(occurrences.filter(o=>!o.mesh.background&&o.mesh.groups.some(g=>emission[g.materialIndex]>0)).map(o=>[o.mesh.surfaceId,o.mesh.revision]));
-    return {triangles,bvh,lights,center,scale,naturalScale,normalizationRetained:!!keep,meshStates,drawRuns,cullBounds,lightSignature,triangleCount:virtualCount,visibleCount:virtualCount,nodeCount,lightCount:emitters.length,order:new Uint32Array(),faceLayout:new Uint32Array(),referenceCost:0,refitted:false,buildMs:performance.now()-started,packMs:0,bvhMs:0,reorderMs:0,instances:descriptorCount,uniqueGeometry:groups.size,storedTriangles:uniqueTriangles,triangleStorageBytes:triangles.byteLength,bvhStorageBytes:bvh.byteLength};
+    return {triangles,bvh,lights,center,scale,naturalScale,normalizationRetained:!!keep,meshStates,drawRuns,cullBounds,lightSignature,triangleCount:virtualCount,visibleCount:virtualCount,nodeCount,lightCount:emitters.length,order:new Uint32Array(),faceLayout:new Uint32Array(),referenceCost:0,refitted:false,buildMs:performance.now()-started,packMs:0,bvhMs:0,reorderMs:0,instances:descriptorCount,uniqueGeometry:groups.size,storedTriangles:uniqueTriangles,triangleStorageBytes:triangles.byteLength,bvhStorageBytes:bvh.byteLength,tlasInstVec4Base};
   }
-  self.onmessage=({data})=>{try{const result=buildInstances(data),xfer=[result.triangles.buffer,result.bvh.buffer,result.lights.buffer,result.order.buffer,result.faceLayout.buffer];if(result.cullBounds)xfer.push(result.cullBounds.buffer);if(result.bvh2)xfer.push(result.bvh2.buffer);self.postMessage(result,xfer);}catch(error){self.postMessage({error:error.message||String(error)});}};
+  function updateTransformsOnly(data){
+    const started=performance.now(),c=cachedInstanced,matrices=data.matrices;
+    if(!c||c.hasEmitters||!matrices||matrices.length!==c.descriptorCount*16)return {needsFullRebuild:true};
+    const {descriptorCount,center,scale,reciprocal,tlasCapacity,occurrences,boundsScratch}=c;
+    const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity],allLo=[Infinity,Infinity,Infinity],allHi=[-Infinity,-Infinity,-Infinity];
+    const world=new Float64Array(16),inv=new Float64Array(16);
+    const descF32=new Float32Array(descriptorCount*32),descU32=new Uint32Array(descF32.buffer);
+    const coldOff=descriptorCount*16,visible=[];
+    for(let i=0;i<descriptorCount;i++){
+      const o=occurrences[i],mb=i*16;
+      const m0=matrices[mb],m1=matrices[mb+1],m2=matrices[mb+2],m4=matrices[mb+4],m5=matrices[mb+5],m6=matrices[mb+6],m8=matrices[mb+8],m9=matrices[mb+9],m10=matrices[mb+10];
+      const ds=o.dataScale,dc0=o.dataCenter[0],dc1=o.dataCenter[1],dc2=o.dataCenter[2];
+      world[0]=m0*ds;world[1]=m1*ds;world[2]=m2*ds;world[4]=m4*ds;world[5]=m5*ds;world[6]=m6*ds;world[8]=m8*ds;world[9]=m9*ds;world[10]=m10*ds;
+      world[12]=m0*dc0+m4*dc1+m8*dc2+matrices[mb+12];
+      world[13]=m1*dc0+m5*dc1+m9*dc2+matrices[mb+13];
+      world[14]=m2*dc0+m6*dc1+m10*dc2+matrices[mb+14];
+      const bo=i*6;
+      for(let k=0;k<3;k++){
+        let low=0,high=0;
+        for(let j=0;j<3;j++){const v=world[j*4+k];low+=v*(v<0?o.hi[j]:o.lo[j]);high+=v*(v<0?o.lo[j]:o.hi[j]);}
+        low+=world[k+12];high+=world[k+12];boundsScratch[bo+k]=low;boundsScratch[bo+k+3]=high;
+        if(low<allLo[k])allLo[k]=low;if(high>allHi[k])allHi[k]=high;
+        if(!o.background){if(low<lo[k])lo[k]=low;if(high>hi[k])hi[k]=high;}
+      }
+      if(o.visible)visible.push(i);
+      for(let k=0;k<15;k++)world[k]*=reciprocal;for(let k=0;k<3;k++)world[12+k]-=center[k]*reciprocal;
+      const a=world[0],b=world[4],cc=world[8],d=world[1],e=world[5],f=world[9],g=world[2],h=world[6],ii=world[10],det=a*(e*ii-f*h)-b*(d*ii-f*g)+cc*(d*h-e*g);
+      if(!Number.isFinite(det)||Math.abs(det)<1e-30)return {needsFullRebuild:true};
+      const r=1/det;
+      inv[0]=(e*ii-f*h)*r;inv[1]=(f*g-d*ii)*r;inv[2]=(d*h-e*g)*r;
+      inv[4]=(cc*h-b*ii)*r;inv[5]=(a*ii-cc*g)*r;inv[6]=(b*g-a*h)*r;
+      inv[8]=(b*f-cc*e)*r;inv[9]=(cc*d-a*f)*r;inv[10]=(a*e-b*d)*r;
+      inv[12]=-(inv[0]*world[12]+inv[4]*world[13]+inv[8]*world[14]);
+      inv[13]=-(inv[1]*world[12]+inv[5]*world[13]+inv[9]*world[14]);
+      inv[14]=-(inv[2]*world[12]+inv[6]*world[13]+inv[10]*world[14]);
+      const at=i*16,sat=coldOff+i*16,bg=o.background?1:0;
+      descF32[at]=inv[0];descF32[at+1]=inv[4];descF32[at+2]=inv[8];descF32[at+3]=inv[12];
+      descF32[at+4]=inv[1];descF32[at+5]=inv[5];descF32[at+6]=inv[9];descF32[at+7]=inv[13];
+      descF32[at+8]=inv[2];descF32[at+9]=inv[6];descF32[at+10]=inv[10];descF32[at+11]=inv[14];
+      descU32[at+12]=o.first;descU32[at+13]=o.triOffset;descU32[at+14]=o.nodeOffset;descU32[at+15]=(o.materialBase&0x7fffffff)|(bg?0x80000000:0);
+      descF32[sat]=world[0];descF32[sat+1]=world[4];descF32[sat+2]=world[8];descF32[sat+3]=world[12];
+      descF32[sat+4]=world[1];descF32[sat+5]=world[5];descF32[sat+6]=world[9];descF32[sat+7]=world[13];
+      descF32[sat+8]=world[2];descF32[sat+9]=world[6];descF32[sat+10]=world[10];descF32[sat+11]=world[14];
+      descU32[sat+12]=o.count;descF32[sat+13]=o.surfaceId;descF32[sat+14]=bg;descF32[sat+15]=o.visible?1:0;
+    }
+    if(!Number.isFinite(lo[0])){lo[0]=allLo[0];lo[1]=allLo[1];lo[2]=allLo[2];hi[0]=allHi[0];hi[1]=allHi[1];hi[2]=allHi[2];}
+    const naturalScale=Math.max(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2],1e-8);
+    if(!(naturalScale>=scale*.25&&lo.every((v,k)=>(v-center[k])/scale>-.95&&(hi[k]-center[k])/scale<.95))){
+      return {needsFullRebuild:true};
+    }
+    for(let i=0;i<descriptorCount;i++){
+      const bo=i*6;
+      for(let k=0;k<3;k++){boundsScratch[bo+k]=(boundsScratch[bo+k]-center[k])*reciprocal;boundsScratch[bo+k+3]=(boundsScratch[bo+k+3]-center[k])*reciprocal;}
+    }
+    const viewBounds=new Array(descriptorCount);
+    for(let i=0;i<descriptorCount;i++)viewBounds[i]=boundsScratch.subarray(i*6,i*6+6);
+    const {tlasCwU32,tlasCwCount,tlasInstIds,isolatedHugeId}=c.buildTlasCwbvh8(visible,id=>viewBounds[id],descriptorCount);
+    if(tlasCwCount>tlasCapacity)return {needsFullRebuild:true};
+    const headerPatchU32=new Uint32Array([isolatedHugeId,isolatedHugeId!==EMPTY_SLOT?1:0]);
+    return {type:'transformsUpdated',tlasCwU32,descF32,tlasInstIds,headerPatchU32,buildMs:performance.now()-started};
+  }
+  let cachedInstanced=null;
+  self.onmessage=({data})=>{
+    const jobId=data.jobId;
+    try{
+      if(data.type==='updateTransforms'){
+        const res=updateTransformsOnly(data);
+        res.jobId=jobId;
+        const xfer=[];
+        if(res.tlasCwU32)xfer.push(res.tlasCwU32.buffer,res.descF32.buffer,res.tlasInstIds.buffer,res.headerPatchU32.buffer);
+        self.postMessage(res,xfer);return;
+      }
+      cachedInstanced=null;
+      const result=buildInstances(data);
+      result.jobId=jobId;
+      const xfer=[result.triangles.buffer,result.bvh.buffer,result.lights.buffer,result.order.buffer,result.faceLayout.buffer];
+      if(result.cullBounds)xfer.push(result.cullBounds.buffer);
+      if(result.bvh2)xfer.push(result.bvh2.buffer);
+      self.postMessage(result,xfer);
+    }catch(error){self.postMessage({jobId,error:error.message||String(error)});}
+  };
 }
 
 // Each 16x16 camera tile is dispatched as four 8x8 workgroups.
@@ -10482,9 +10576,11 @@ fn restirInitMain(@builtin(global_invocation_id) id:vec3u){
   }
   var W=select(0.,wSum/(f32(M)*winTarget),winTarget>0.);
   if(W>0.){
+    let interactive=(params.padM0&1u)!=0u;
     let offN=select(-s.geom,s.geom,dot(s.geom,winDir)>=0.);
-    let vis=traceShadowCWBVH(p+offN*max(EPS,hit.distance*1e-5),winDir,winDist,0.,false);
+    let vis=traceShadowCWBVH(p+offN*max(EPS,hit.distance*1e-5),winDir,winDist,0.,interactive);
     if(max3(vis)<=.001){W=0.;}
+    else if(min(vis.x,min(vis.y,vis.z))>=.999){winFlags|=4u;}
   }
   resOut[pidx]=Reservoir(vec4f(winRad,W),vec4u(pack2x16snorm(octEncode(winDir)),bitcast<u32>(winDist),M,winFlags));
 }
@@ -10570,7 +10666,7 @@ fn restirSpatialMain(@builtin(global_invocation_id) id:vec3u){
       if(w>0.){
         wSum+=w;
         if(wSum==w||random(&seed)<w/wSum){
-          winDir=nDir;winDist=bitcast<f32>(nr.dirDistM.y);winRad=nr.radW.xyz;winFlags=nr.dirDistM.w;winTarget=nTarget;
+          winDir=nDir;winDist=bitcast<f32>(nr.dirDistM.y);winRad=nr.radW.xyz;winFlags=nr.dirDistM.w&~4u;winTarget=nTarget;
         }
       }
     }
@@ -10580,29 +10676,8 @@ fn restirSpatialMain(@builtin(global_invocation_id) id:vec3u){
 }
 `;
 
-const shaderShade = `
-${wgslTypes}
-${wgslTransport}
-${wgslSceneBindings}
-${wgslSceneFeatures}
-${wgslCameraHelpers}
-${wgslRandom}
-${wgslEnv}
-${wgslEnvSample}
-${wgslTriangles}
-${wgslSampleEmitter}
-${wgslSurface}
-${wgslBSDF}
-${wgslIntersect}
-${wgslVisibility}
-${wgslHitUtils}
-@group(1) @binding(0) var<storage,read> primaryHits:array<vec4u>;
-@group(1) @binding(1) var<storage,read> resIn:array<Reservoir>;
-@group(1) @binding(2) var hdrOut:texture_storage_2d<rgba16float,write>;
-
-struct MediumEntry { ior:f32, sigma:vec3f };
-
-fn evalOneDirectLight(p:vec3f,dist:f32,s:Surface,v:vec3f,seed:ptr<function,Sampler>)->vec3f{
+const wgslEvalDirect = `
+fn evalOneDirectLight(p:vec3f,dist:f32,s:Surface,v:vec3f,seed:ptr<function,Sampler>,forceAvgFoliage:bool)->vec3f{
   let hasEmit=params.counts.z>0u;
   let hasEnv=params.counts.w>0u;
   let nDist=params.infiniteCount.x;
@@ -10623,18 +10698,272 @@ fn evalOneDirectLight(p:vec3f,dist:f32,s:Surface,v:vec3f,seed:ptr<function,Sampl
   let f=bsdf(s,v,ls.direction)*directCosine(s,ls.direction);
   if(max3(f)<=0.){return vec3f(0.);}
   let offN=select(-s.geom,s.geom,dot(s.geom,ls.direction)>=0.);
-  let vis=traceShadowCWBVH(p+offN*max(EPS,dist*1e-5),ls.direction,ls.distance,0.,false);
+  let vis=traceShadowCWBVH(p+offN*max(EPS,dist*1e-5),ls.direction,ls.distance,0.,forceAvgFoliage);
   return min(f*ls.color*vis/pdf,vec3f(16.));
 }
+`;
+
+const shaderIndirect = `
+${wgslTypes}
+${wgslTransport}
+${wgslSceneBindings}
+${wgslSceneFeatures}
+${wgslCameraHelpers}
+${wgslRandom}
+${wgslEnv}
+${wgslEnvSample}
+${wgslTriangles}
+${wgslSampleEmitter}
+${wgslSurface}
+${wgslBSDF}
+${wgslIntersect}
+${wgslVisibility}
+${wgslHitUtils}
+${wgslEvalDirect}
+@group(1) @binding(0) var<storage,read> primaryHits:array<vec4u>;
+@group(1) @binding(1) var indirectOut:texture_storage_2d<rgba16float,write>;
+
+@compute @workgroup_size(8,8)
+fn indirectMain(@builtin(global_invocation_id) id:vec3u){
+  let halfSize=(params.image.xy+1u)/2u;
+  if(any(id.xy>=halfSize)){return;}
+  let px=min(id.xy*2u,params.image.xy-1u);
+  let pidx=px.y*params.image.x+px.x;
+  let h=primaryHits[pidx];
+  if(h.x==EMPTY_SLOT){
+    textureStore(indirectOut,vec2i(id.xy),vec4f(0.));
+    return;
+  }
+  let ray=cameraRay(pidx,vec2f(.5));
+  let hit=decodePrimaryHit(h);
+  let t=renderTriangleAt(hit.triangle,hit.descriptor);
+  let p=renderHitPoint(t,hit);
+  let s=surface(t,hit,p,ray.direction);
+  if(s.transmission>=.001){
+    textureStore(indirectOut,vec2i(id.xy),vec4f(0.));
+    return;
+  }
+  let v=-ray.direction;
+  var seed=giPixelSampler(pidx,0x243f6a88u);
+  let sc=sampleOpaque(s,v,&seed);
+  var wi=sc.direction;
+  if(sc.subsurface){wi=hemisphere(s.normal,&seed);}
+  let pdf=bsdfPDF(s,v,wi);
+  var indirect=vec3f(0.);
+  if(pdf>1e-6){
+    let cCos=directCosine(s,wi);
+    let fAll=bsdf(s,v,wi)*cCos;
+    let fSpec=evalSpecBSDF(s,v,wi)*cCos;
+    if(max3(fAll)>0.){
+      let tpAll=min(fAll/pdf,vec3f(8.));
+      let tpSpec=min(fSpec/pdf,vec3f(8.));
+      let offN=select(-s.geom,s.geom,dot(s.geom,wi)>=0.);
+      var eo2=false;
+      let hit2=intersectGeometry(0u,p+offN*max(EPS,hit.distance*1e-5),wi,1e20,false,false,false,&eo2);
+      if(hit2.triangle==EMPTY_SLOT){
+        indirect=tpSpec*environment(wi);
+      }else{
+        let t2=renderTriangleAt(hit2.triangle,hit2.descriptor);
+        let p2=renderHitPoint(t2,hit2);
+        let s2=surface(t2,hit2,p2,wi);
+        indirect=tpAll*(s2.emission+evalOneDirectLight(p2,hit2.distance,s2,-wi,&seed,true));
+      }
+    }
+  }
+  textureStore(indirectOut,vec2i(id.xy),vec4f(max(vec3f(0.),indirect),1.));
+}
+`;
+
+const shaderShade = `
+${wgslTypes}
+${wgslTransport}
+${wgslSceneBindings}
+${wgslSceneFeatures}
+${wgslCameraHelpers}
+${wgslRandom}
+${wgslEnv}
+${wgslEnvSample}
+${wgslTriangles}
+${wgslSampleEmitter}
+${wgslSurface}
+${wgslBSDF}
+${wgslIntersect}
+${wgslVisibility}
+${wgslHitUtils}
+${wgslEvalDirect}
+struct TransBuffer { dispatchX:u32, dispatchY:u32, dispatchZ:u32, count:atomic<u32>, pixels:array<u32> };
+@group(1) @binding(0) var<storage,read> primaryHits:array<vec4u>;
+@group(1) @binding(1) var<storage,read> resIn:array<Reservoir>;
+@group(1) @binding(2) var hdrOut:texture_storage_2d<rgba16float,write>;
+@group(1) @binding(3) var indirectTex:texture_2d<f32>;
+@group(1) @binding(4) var<storage,read_write> transBuf:TransBuffer;
+
+fn upsampleIndirect(xy:vec2u,hitDist:f32,n:vec3f)->vec3f{
+  let halfSize=vec2i((params.image.xy+1u)/2u);
+  let fpos=vec2f(xy)*.5;
+  let base=vec2i(floor(fpos));
+  let fx=fpos.x-f32(base.x);let fy=fpos.y-f32(base.y);
+  var sum=vec3f(0.);var wSum=0.;
+  var fbSum=vec3f(0.);var fbCount=0.;
+  for(var dy=0;dy<=1;dy++){
+    for(var dx=0;dx<=1;dx++){
+      let hc=clamp(base+vec2i(dx,dy),vec2i(0),halfSize-1);
+      let ind=textureLoad(indirectTex,hc,0);
+      if(ind.a<.5){continue;}
+      let hp=min(vec2u(hc)*2u,params.image.xy-1u);
+      let hpidx=hp.y*params.image.x+hp.x;
+      let hh=primaryHits[hpidx];
+      if(hh.x==EMPTY_SLOT){continue;}
+      let hdist=bitcast<f32>(hh.w);
+      let nt=renderTriangleAt(hh.x,hh.y);
+      let nb=unpack2x16unorm(hh.z);
+      var nn=nt.na.xyz*(1.-nb.x-nb.y)+nt.nb.xyz*nb.x+nt.nc.xyz*nb.y;
+      let nGeomRaw=normalize(cross(nt.b.xyz-nt.a.xyz,nt.c.xyz-nt.a.xyz));
+      if(dot(nn,nn)>1e-20){nn=normalize(nn);}else{nn=nGeomRaw;}
+      let nray=cameraRay(hpidx,vec2f(.5));
+      let nGeom=select(nGeomRaw,-nGeomRaw,dot(nGeomRaw,nray.direction)>0.);
+      if(dot(nn,nGeom)<0.){nn=-nn;}
+      let bw=select(1.-fx,fx,dx==1)*select(1.-fy,fy,dy==1);
+      let depthOk=abs(hdist-hitDist)<=.1*max(hitDist,1e-4);
+      let normOk=dot(n,nn)>=.8;
+      if(depthOk&&normOk){
+        let w=max(.05,bw);
+        sum+=ind.rgb*w;wSum+=w;
+      }
+      fbSum+=ind.rgb;fbCount+=1.;
+    }
+  }
+  if(wSum>0.){return sum/wSum;}
+  if(fbCount>0.){return fbSum/fbCount;}
+  return vec3f(0.);
+}
+
+@compute @workgroup_size(8,8)
+fn shadeMain(@builtin(global_invocation_id) id:vec3u){
+  if(any(id.xy>=params.image.xy)){return;}
+  let xy=vec2i(id.xy);
+  let pidx=id.y*params.image.x+id.x;
+  let ray=cameraRay(pidx,vec2f(.5));
+  let h=primaryHits[pidx];
+  if(h.x==EMPTY_SLOT){
+    textureStore(hdrOut,xy,vec4f(max(vec3f(0.),cameraBackground(ray.direction)),1.));
+    return;
+  }
+  let hit=decodePrimaryHit(h);
+  let t=renderTriangleAt(hit.triangle,hit.descriptor);
+  let p=renderHitPoint(t,hit);
+  let s=surface(t,hit,p,ray.direction);
+  if(s.transmission>=.001){
+    let slot=atomicAdd(&transBuf.count,1u);
+    transBuf.pixels[slot]=pidx;
+    return;
+  }
+  let v=-ray.direction;
+  let raysPerPixel=max(1u,params.batch.x);
+  let indirectMode=params.batch.y;
+  let interactive=(params.padM0&1u)!=0u;
+  var color=s.emission;
+  let r=resIn[pidx];
+  if((r.dirDistM.w&1u)!=0u&&r.radW.w>0.){
+    let l=octDecode(unpack2x16snorm(r.dirDistM.x));
+    let dist=bitcast<f32>(r.dirDistM.y);
+    let isEnv=(r.dirDistM.w&2u)!=0u;
+    let f=select(bsdf(s,v,l),evalDiffuseBSDF(s,v,l),isEnv)*directCosine(s,l);
+    if(max3(f)>0.){
+      var vis=vec3f(1.);
+      if((r.dirDistM.w&4u)==0u){
+        let offN=select(-s.geom,s.geom,dot(s.geom,l)>=0.);
+        vis=traceShadowCWBVH(p+offN*max(EPS,hit.distance*1e-5),l,dist,0.,interactive);
+      }
+      color+=f*r.radW.xyz*vis*r.radW.w;
+    }
+  }
+  if(indirectMode==1u){
+    color+=upsampleIndirect(id.xy,hit.distance,s.normal);
+  }else if(indirectMode==2u){
+    if(params.counts.w>0u){
+      let nv=max(0.,dot(s.normal,v));
+      let specEnv=dfgApprox(nv,s.rough,surfaceF0(s))*environmentRough(reflect(-v,s.normal),s.rough);
+      let diffEnv=diffuseColor(s)*environmentRough(s.normal,1.)*.25;
+      color+=specEnv+diffEnv;
+    }
+  }else{
+    var indirect=vec3f(0.);
+    for(var ri=0u;ri<raysPerPixel;ri++){
+      var seed=giPixelSampler(pidx,0x243f6a88u^(ri*0x9e3779b9u));
+      let sc=sampleOpaque(s,v,&seed);
+      var wi=sc.direction;
+      if(sc.subsurface){wi=hemisphere(s.normal,&seed);}
+      let pdf=bsdfPDF(s,v,wi);
+      if(pdf<=1e-6){continue;}
+      let cCos=directCosine(s,wi);
+      let fAll=bsdf(s,v,wi)*cCos;
+      let fSpec=evalSpecBSDF(s,v,wi)*cCos;
+      if(max3(fAll)<=0.){continue;}
+      let tpAll=min(fAll/pdf,vec3f(8.));
+      let tpSpec=min(fSpec/pdf,vec3f(8.));
+      let offN=select(-s.geom,s.geom,dot(s.geom,wi)>=0.);
+      var eo2=false;
+      let hit2=intersectGeometry(0u,p+offN*max(EPS,hit.distance*1e-5),wi,1e20,false,false,false,&eo2);
+      if(hit2.triangle==EMPTY_SLOT){
+        indirect+=tpSpec*environment(wi);
+      }else{
+        let t2=renderTriangleAt(hit2.triangle,hit2.descriptor);
+        let p2=renderHitPoint(t2,hit2);
+        let s2=surface(t2,hit2,p2,wi);
+        indirect+=tpAll*(s2.emission+evalOneDirectLight(p2,hit2.distance,s2,-wi,&seed,true));
+      }
+    }
+    color+=indirect/f32(raysPerPixel);
+  }
+  textureStore(hdrOut,xy,vec4f(max(vec3f(0.),color),1.));
+}
+`;
+
+const shaderTransPrep = `
+struct TransPrepBuffer { dispatchX:u32, dispatchY:u32, dispatchZ:u32, count:u32 };
+@group(0) @binding(0) var<storage,read_write> transMeta:TransPrepBuffer;
+@compute @workgroup_size(1)
+fn transPrepMain(){
+  transMeta.dispatchX=(transMeta.count+63u)/64u;
+  transMeta.dispatchY=1u;
+  transMeta.dispatchZ=1u;
+}
+`;
+
+const shaderTransmissive = `
+${wgslTypes}
+${wgslTransport}
+${wgslSceneBindings}
+${wgslSceneFeatures}
+${wgslCameraHelpers}
+${wgslRandom}
+${wgslEnv}
+${wgslEnvSample}
+${wgslTriangles}
+${wgslSampleEmitter}
+${wgslSurface}
+${wgslBSDF}
+${wgslIntersect}
+${wgslVisibility}
+${wgslHitUtils}
+${wgslEvalDirect}
+struct TransReadBuffer { dispatchX:u32, dispatchY:u32, dispatchZ:u32, count:u32, pixels:array<u32> };
+@group(1) @binding(0) var<storage,read> primaryHits:array<vec4u>;
+@group(1) @binding(1) var<storage,read> transBuf:TransReadBuffer;
+@group(1) @binding(2) var hdrOut:texture_storage_2d<rgba16float,write>;
+
+struct MediumEntry { ior:f32, sigma:vec3f };
 
 fn traceTransmissive(p0:vec3f,hit0:Hit,t0:Triangle,s0:Surface,d0:vec3f,seed:ptr<function,Sampler>)->vec3f{
   var curP=p0;var curH=hit0;var curT=t0;var curS=s0;var curD=d0;
   var tp=vec3f(1.);var acc=vec3f(0.);var md=0u;
   var med=array<MediumEntry,4>(MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)));
   let maxBounces=max(2u,u32(params.tuning.y));
+  let interactive=(params.padM0&1u)!=0u;
   for(var b=0u;b<maxBounces;b++){
     if(curS.transmission<.001){
-      acc+=tp*(curS.emission+evalOneDirectLight(curP,curH.distance,curS,-curD,seed));
+      acc+=tp*(curS.emission+evalOneDirectLight(curP,curH.distance,curS,-curD,seed,interactive));
       break;
     }
     var o=curP;
@@ -10685,73 +11014,24 @@ fn traceTransmissive(p0:vec3f,hit0:Hit,t0:Triangle,s0:Surface,d0:vec3f,seed:ptr<
   return acc;
 }
 
-@compute @workgroup_size(8,8)
-fn shadeMain(@builtin(global_invocation_id) id:vec3u){
-  if(any(id.xy>=params.image.xy)){return;}
-  let xy=vec2i(id.xy);
-  let pidx=id.y*params.image.x+id.x;
+@compute @workgroup_size(64)
+fn transmissiveMain(@builtin(global_invocation_id) id:vec3u){
+  if(id.x>=transBuf.count){return;}
+  let pidx=transBuf.pixels[id.x];
+  let xy=vec2i(i32(pidx%params.image.x),i32(pidx/params.image.x));
   let ray=cameraRay(pidx,vec2f(.5));
-  let h=primaryHits[pidx];
-  if(h.x==EMPTY_SLOT){
-    textureStore(hdrOut,xy,vec4f(max(vec3f(0.),cameraBackground(ray.direction)),1.));
-    return;
-  }
-  let hit=decodePrimaryHit(h);
+  let hit=decodePrimaryHit(primaryHits[pidx]);
   let t=renderTriangleAt(hit.triangle,hit.descriptor);
   let p=renderHitPoint(t,hit);
   let s=surface(t,hit,p,ray.direction);
-  let v=-ray.direction;
   let raysPerPixel=max(1u,params.batch.x);
   var color=s.emission;
-  if(s.transmission>=.001){
-    var transAcc=vec3f(0.);
-    for(var ri=0u;ri<raysPerPixel;ri++){
-      var seed=giPixelSampler(pidx,0x85a308d3u^(ri*0x9e3779b9u));
-      transAcc+=traceTransmissive(p,hit,t,s,ray.direction,&seed);
-    }
-    color+=transAcc/f32(raysPerPixel);
-    textureStore(hdrOut,xy,vec4f(max(vec3f(0.),color),1.));
-    return;
-  }
-  let r=resIn[pidx];
-  if((r.dirDistM.w&1u)!=0u&&r.radW.w>0.){
-    let l=octDecode(unpack2x16snorm(r.dirDistM.x));
-    let dist=bitcast<f32>(r.dirDistM.y);
-    let isEnv=(r.dirDistM.w&2u)!=0u;
-    let f=select(bsdf(s,v,l),evalDiffuseBSDF(s,v,l),isEnv)*directCosine(s,l);
-    if(max3(f)>0.){
-      let offN=select(-s.geom,s.geom,dot(s.geom,l)>=0.);
-      let vis=traceShadowCWBVH(p+offN*max(EPS,hit.distance*1e-5),l,dist,0.,false);
-      color+=f*r.radW.xyz*vis*r.radW.w;
-    }
-  }
-  var indirect=vec3f(0.);
+  var transAcc=vec3f(0.);
   for(var ri=0u;ri<raysPerPixel;ri++){
-    var seed=giPixelSampler(pidx,0x243f6a88u^(ri*0x9e3779b9u));
-    let sc=sampleOpaque(s,v,&seed);
-    var wi=sc.direction;
-    if(sc.subsurface){wi=hemisphere(s.normal,&seed);}
-    let pdf=bsdfPDF(s,v,wi);
-    if(pdf<=1e-6){continue;}
-    let cCos=directCosine(s,wi);
-    let fAll=bsdf(s,v,wi)*cCos;
-    let fSpec=evalSpecBSDF(s,v,wi)*cCos;
-    if(max3(fAll)<=0.){continue;}
-    let tpAll=min(fAll/pdf,vec3f(8.));
-    let tpSpec=min(fSpec/pdf,vec3f(8.));
-    let offN=select(-s.geom,s.geom,dot(s.geom,wi)>=0.);
-    var eo2=false;
-    let hit2=intersectGeometry(0u,p+offN*max(EPS,hit.distance*1e-5),wi,1e20,false,false,false,&eo2);
-    if(hit2.triangle==EMPTY_SLOT){
-      indirect+=tpSpec*environment(wi);
-    }else{
-      let t2=renderTriangleAt(hit2.triangle,hit2.descriptor);
-      let p2=renderHitPoint(t2,hit2);
-      let s2=surface(t2,hit2,p2,wi);
-      indirect+=tpAll*(s2.emission+evalOneDirectLight(p2,hit2.distance,s2,-wi,&seed));
-    }
+    var seed=giPixelSampler(pidx,0x85a308d3u^(ri*0x9e3779b9u));
+    transAcc+=traceTransmissive(p,hit,t,s,ray.direction,&seed);
   }
-  color+=indirect/f32(raysPerPixel);
+  color+=transAcc/f32(raysPerPixel);
   textureStore(hdrOut,xy,vec4f(max(vec3f(0.),color),1.));
 }
 `;
@@ -10992,7 +11272,10 @@ function cameraPrograms(){
   const mPrimary=mod('FRAME primary CWBVH8',shaderPrimary),
     mRestirInit=mod('FRAME ReSTIR DI init',shaderRestirInit),
     mRestirSpatial=mod('FRAME ReSTIR DI spatial',shaderRestirSpatial),
+    mIndirect=mod('FRAME indirect CWBVH8',shaderIndirect),
     mShade=mod('FRAME CWBVH8 shade',shaderShade),
+    mTransPrep=mod('FRAME transmissive prep',shaderTransPrep),
+    mTransmissive=mod('FRAME transmissive CWBVH8',shaderTransmissive),
     mDisplay=mod('FRAME display',displayShader),
     mBlit=mod('FRAME preview presentation',previewBlitShader);
 
@@ -11008,18 +11291,27 @@ function cameraPrograms(){
   const primaryAuxLayout=device.createBindGroupLayout({entries:[st(0,false)]});
   const restirInitAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,false)]});
   const restirSpatialAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,true),st(2,false)]});
-  const shadeAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,true),stTex(2,'rgba16float')]});
+  const indirectAuxLayout=device.createBindGroupLayout({entries:[st(0,true),stTex(1,'rgba16float')]});
+  const shadeAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,true),stTex(2,'rgba16float'),tex2d(3),st(4,false)]});
+  const transPrepLayout=device.createBindGroupLayout({entries:[st(0,false)]});
+  const transAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,true),stTex(2,'rgba16float')]});
 
   const plPrimary=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,primaryAuxLayout]});
   const plRestirInit=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,restirInitAuxLayout]});
   const plRestirSpatial=device.createPipelineLayout({bindGroupLayouts:[spatialSceneLayout,restirSpatialAuxLayout]});
+  const plIndirect=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,indirectAuxLayout]});
   const plShade=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,shadeAuxLayout]});
+  const plTransPrep=device.createPipelineLayout({bindGroupLayouts:[transPrepLayout]});
+  const plTransmissive=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,transAuxLayout]});
 
   const specs={
     primary:{module:mPrimary,ep:'primaryMain',pl:plPrimary,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
     restirInit:{module:mRestirInit,ep:'restirInitMain',pl:plRestirInit,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
     restirSpatial:{module:mRestirSpatial,ep:'restirSpatialMain',pl:plRestirSpatial,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
+    indirect:{module:mIndirect,ep:'indirectMain',pl:plIndirect,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
     shade:{module:mShade,ep:'shadeMain',pl:plShade,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
+    transPrep:{module:mTransPrep,ep:'transPrepMain',pl:plTransPrep},
+    transmissive:{module:mTransmissive,ep:'transmissiveMain',pl:plTransmissive,constants:{sceneFeatures:0,variableSceneFeatures:allCameraFeatures}},
     display:{module:mDisplay,render:true},
     previewBlit:{module:mBlit,render:true},
   };
@@ -11050,7 +11342,7 @@ function cameraPrograms(){
 
   return shared.programs={
     contracts:giContracts,
-    sceneLayout,spatialSceneLayout,primaryAuxLayout,restirInitAuxLayout,restirSpatialAuxLayout,shadeAuxLayout,
+    sceneLayout,spatialSceneLayout,primaryAuxLayout,restirInitAuxLayout,restirSpatialAuxLayout,indirectAuxLayout,shadeAuxLayout,transPrepLayout,transAuxLayout,
     common,getMipPipelines,
     next(){return common.next(true);}
   };
@@ -11058,13 +11350,14 @@ function cameraPrograms(){
 
 class FrameRenderer {
   constructor(container,onChange=()=>{}){
-    this.container=container;this.onChange=onChange;this.epoch=0;this.running=false;this.completed=false;this.hasImage=false;this.sceneKey=null;this.environmentKey=null;
+    this.container=container;this.onChange=onChange;this.epoch=0;this.running=false;this.completed=false;this.hasImage=false;this.sceneKey=null;this.geometryKey=null;this.environmentKey=null;
     this.contracts=giContracts;
     this._paramF32=new Float32Array(cameraParameterWords);this._paramU32=new Uint32Array(this._paramF32.buffer);
     this.stats={backend:'WebGPU',phase:'idle',raysPerPixel:1,samples:0,dispatches:0,errors:[]};
     this.canvas=document.createElement('canvas');this.canvas.id='frame-render-canvas';this.canvas.setAttribute('aria-label','Rendered perspective');
     this.canvas.style.cssText='position:absolute;pointer-events:none;display:none;z-index:4;';container.appendChild(this.canvas);
-    this.onLost=()=>{};this.resources=[];this.sceneResources=[];this.imageResources=[];this.disposed=false;this.gpuLease=null;this.initResources=null;this.initAttempt=null;
+    this.onLost=()=>{};this.resources=[];this.sceneResources=[];this.imageResources=[];this.imageCache=new Map();this.disposed=false;this.gpuLease=null;this.initResources=null;this.initAttempt=null;
+    this._workerJobId=0;this._workerPending=new Map();
   }
   async init(){
     if(this.disposed)throw Error('Camera renderer disposed');
@@ -11113,15 +11406,23 @@ class FrameRenderer {
   _releaseCameraAttempt(attempt){
     if(!attempt)return;attempt.cancelled=true;
     const current=this.initAttempt===attempt;
-    const resources=current?[...attempt.resources,...this.resources,...this.sceneResources,...this.imageResources,this.lastImage?.texture,this.envTexture]:attempt.resources;
+    const cached=[];
+    if(current&&this.imageCache){
+      for(const e of this.imageCache.values())cached.push(e.primaryBuf,e.resA,e.resB,e.indirectTex,e.transBuf,e.hdrTex,e.output);
+      this.imageCache.clear();
+    }
+    const resources=current?[...attempt.resources,...this.resources,...this.sceneResources,...this.imageResources,...cached,this.lastImage?.texture,this.envTexture]:attempt.resources;
     for(const resource of new Set(resources))if(resource&&!attempt.freed.has(resource)){attempt.freed.add(resource);try{resource.destroy();}catch{}}
     if(attempt.errorListener)attempt.device?.removeEventListener('uncapturederror',attempt.errorListener);
     attempt.lease?.release();
     if(!current)return;
+    this.worker?.terminate();this.worker=null;
+    for(const p of this._workerPending?.values()||[])p.reject(new DOMException('Camera renderer disposed','AbortError'));
+    this._workerPending?.clear();
     attempt.context?.unconfigure?.();this.initAttempt=null;this.initializing=null;this.gpuLease=null;this.device=null;
     for(const key of ['programs','uniform','sampler','envSampler','previewSampler','emptyInstanceMeta','context','alphaCoverageTexture','alphaFallback'])this[key]=null;
     this.resources=[];this.sceneResources=[];this.imageResources=[];this.initResources=null;this.envTexture=null;
-    this.sceneKey=null;this.environmentKey=null;this.materialTexture=null;this.materialTextureCache=null;
+    this.sceneKey=null;this.geometryKey=null;this.environmentKey=null;this.materialTexture=null;this.materialTextureCache=null;
   }
   sceneFeatureBits(scene=this.scene){
     return (scene?.instances?cameraSceneFlags.instances:0)|
@@ -11140,10 +11441,37 @@ class FrameRenderer {
     const message=error?.message||String(error);
     if(!this.stats.errors.includes(message))this.stats.errors.push(message);
     if(this.stats.phase==='error'){this.onChange();return;}
-    this.stop(true);this.sceneKey=null;this.stats.phase='error';this.onChange();console.error('FRAME render:',error);
+    this.stop(true);this.sceneKey=null;this.geometryKey=null;this.stats.phase='error';this.onChange();console.error('FRAME render:',error);
+  }
+  _ensureWorker(){
+    if(this.worker)return this.worker;
+    const url=URL.createObjectURL(new Blob([FrameAffineSIMD.toString(),'\n',frameValueKey.toString(),`\n(${sceneWorker.toString()})()`],{type:'text/javascript'}));
+    const worker=new Worker(url);URL.revokeObjectURL(url);
+    worker.onerror=e=>{
+      const err=Error(e.message||'Scene worker error');
+      for(const p of this._workerPending.values())p.reject(err);
+      this._workerPending.clear();
+      if(this.worker===worker){worker.terminate();this.worker=null;}
+    };
+    worker.onmessage=({data})=>{
+      const p=this._workerPending.get(data.jobId);
+      if(!p)return;
+      this._workerPending.delete(data.jobId);
+      data.error?p.reject(Error(data.error)):p.resolve(data);
+    };
+    return this.worker=worker;
+  }
+  _workerCall(payload,transfers=[]){
+    const worker=this._ensureWorker(),jobId=++this._workerJobId;
+    payload.jobId=jobId;
+    return new Promise((resolve,reject)=>{
+      this._workerPending.set(jobId,{resolve,reject});
+      this.cancelBuild=()=>{if(this._workerPending.delete(jobId))reject(new DOMException('Render cancelled','AbortError'));};
+      worker.postMessage(payload,transfers);
+    });
   }
   stop(hide=false){
-    this.epoch++;this.running=false;this.worker?.terminate();this.worker=null;this.cancelBuild?.();this.cancelBuild=null;
+    this.epoch++;this.running=false;this.cancelBuild?.();this.cancelBuild=null;
     this.stats.phase=this.hasImage?'stopped':'idle';if(hide)this.canvas.style.display='none';this.onChange();
   }
   blitMipLayer(enc,pipe,srcView,dstView){
@@ -11298,7 +11626,6 @@ class FrameRenderer {
     if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');
     const texState=this.prepareMaterialTextures(input);
     const {materialTextureSize,pending}=texState;
-    const url=URL.createObjectURL(new Blob([FrameAffineSIMD.toString(),'\n',frameValueKey.toString(),`\n(${sceneWorker.toString()})()`],{type:'text/javascript'}));
     const decodedPromise=pending.length?Promise.all(pending.map(async item=>{
       try{
         const opts=(item.srcW===materialTextureSize&&item.srcH===materialTextureSize)?{colorSpaceConversion:'none'}:{resizeWidth:materialTextureSize,resizeHeight:materialTextureSize,colorSpaceConversion:'none'};
@@ -11308,22 +11635,16 @@ class FrameRenderer {
     const release=await frameComputeBudget.acquire('native');let result,decoded=null;
     try{
       if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');
-      const workerPromise=new Promise((resolve,reject)=>{
-        const worker=new Worker(url);URL.revokeObjectURL(url);this.worker=worker;this.cancelBuild=()=>reject(new DOMException('Render cancelled','AbortError'));
-        const finish=()=>{worker.terminate();if(this.worker===worker){this.worker=null;this.cancelBuild=null;}};
-        worker.onerror=e=>{finish();reject(Error(e.message));};
-        worker.onmessage=({data})=>{finish();data.error?reject(Error(data.error)):resolve(data);};
-        const transfers=new Set();for(const m of input.meshes)for(const k of ['positions','normals','indices','uv'])if(m[k])transfers.add(m[k].buffer);
-        worker.postMessage({meshes:input.meshes,materials:input.materials,reportLayout:false,normalization:this.scene?.triangleCount?{center:this.scene.center,scale:this.scene.scale}:null,previousBVH:null},[...transfers]);
-      });
+      const transfers=new Set();for(const m of input.meshes)for(const k of ['positions','normals','indices','uv'])if(m[k])transfers.add(m[k].buffer);
+      const workerPromise=this._workerCall({type:'build',meshes:input.meshes,materials:input.materials,reportLayout:false,normalization:this.scene?.triangleCount?{center:this.scene.center,scale:this.scene.scale}:null,previousBVH:null},[...transfers]);
       [result,decoded]=await Promise.all([workerPromise,decodedPromise]);
     }catch(error){
       decodedPromise?.then(list=>{for(const d of list||[])d.bitmap?.close?.();}).catch(()=>{});
       throw error;
-    }finally{URL.revokeObjectURL(url);release();}
+    }finally{release();}
     if(epoch!==this.epoch){for(const d of decoded||[])d.bitmap?.close?.();throw new DOMException('Render cancelled','AbortError');}
     if(decoded)this.finishPendingTextures(input,texState,decoded);
-    this.sceneKey=null;
+    this.sceneKey=null;this.geometryKey=null;
     result.appearanceRevision=input.appearanceRevision;
     this.scene=result;this.stats.triangles=result.triangleCount;this.stats.instances=result.instances||0;this.stats.uniqueGeometry=result.uniqueGeometry||input.meshes.length;this.stats.storedTriangles=result.storedTriangles??result.triangleCount;this.stats.triangleStorageBytes=result.triangleStorageBytes||result.triangles.byteLength;this.stats.bvhStorageBytes=result.bvhStorageBytes||result.bvh.byteLength;this.stats.emitters=result.lightCount;this.stats.buildMs=result.buildMs;this.stats.bvhMs=result.bvhMs;
     this.stats.normalization={centerMillimetres:result.center.slice(),scaleMillimetres:result.scale,extentMillimetres:result.naturalScale,retained:result.normalizationRetained,minLightCellMillimetres:result.scale/65536,rayEpsilonMillimetres:result.scale*0.000002};
@@ -11422,23 +11743,57 @@ class FrameRenderer {
     if(pixelCount*32>this.device.limits.maxStorageBufferBindingSize||pixelCount*32>this.device.limits.maxBufferSize){
       throw Error('Output resolution exceeds this GPU’s buffer limit. Choose a smaller image.');
     }
-    const deps=[this.nodes,this.triangles,this.materials,this.lights,this.instanceMeta,this.materialTexture,this.alphaCoverageTexture,this.envTexture];
-    if(this.width===width&&this.height===height&&this.primaryBuf){
-      if(!deps.every((x,i)=>x===this.imageDependencies?.[i]))this.bindImageScene();
-      return;
+    const key=width+'x'+height;
+    let entry=this.imageCache.get(key);
+    if(!entry){
+      const {programs}=this,halfW=Math.ceil(width/2),halfH=Math.ceil(height/2);
+      const usageB=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
+      const usageHDR=GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.COPY_SRC;
+      const primaryBuf=this.device.createBuffer({size:Math.max(16,pixelCount*16),usage:usageB});
+      const resA=this.device.createBuffer({size:Math.max(32,pixelCount*32),usage:usageB});
+      const resB=this.device.createBuffer({size:Math.max(32,pixelCount*32),usage:usageB});
+      const indirectTex=this.device.createTexture({size:[halfW,halfH],format:'rgba16float',usage:GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.TEXTURE_BINDING});
+      const transBuf=this.device.createBuffer({size:Math.max(32,16+pixelCount*4),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST});
+      const hdrTex=this.device.createTexture({size:[width,height],format:'rgba16float',usage:usageHDR});
+      const output=this.device.createTexture({size:[width,height],format:'rgba8unorm',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC|GPUTextureUsage.TEXTURE_BINDING});
+      const hdrView=hdrTex.createView(),indView=indirectTex.createView();
+      entry={
+        width,height,halfW,halfH,primaryBuf,resA,resB,indirectTex,transBuf,hdrTex,output,
+        previewGroup:this.device.createBindGroup({layout:this.previewBlit.getBindGroupLayout(0),entries:[{binding:0,resource:output.createView()},{binding:1,resource:this.previewSampler}]}),
+        primaryGroup:this.device.createBindGroup({layout:programs.primaryAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}}]}),
+        restirInitGroup:this.device.createBindGroup({layout:programs.restirInitAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}},{binding:1,resource:{buffer:resA}}]}),
+        restirSpatialGroup:this.device.createBindGroup({layout:programs.restirSpatialAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}},{binding:1,resource:{buffer:resA}},{binding:2,resource:{buffer:resB}}]}),
+        indirectGroup:this.device.createBindGroup({layout:programs.indirectAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}},{binding:1,resource:indView}]}),
+        shadeGroup:this.device.createBindGroup({layout:programs.shadeAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}},{binding:1,resource:{buffer:resB}},{binding:2,resource:hdrView},{binding:3,resource:indView},{binding:4,resource:{buffer:transBuf}}]}),
+        transPrepGroup:this.device.createBindGroup({layout:programs.transPrepLayout,entries:[{binding:0,resource:{buffer:transBuf}}]}),
+        transGroup:this.device.createBindGroup({layout:programs.transAuxLayout,entries:[{binding:0,resource:{buffer:primaryBuf}},{binding:1,resource:{buffer:transBuf}},{binding:2,resource:hdrView}]}),
+        displayGroup:this.device.createBindGroup({layout:this.display.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:hdrView}]}),
+      };
+      this.imageCache.set(key,entry);
+      if(this.imageCache.size>2){
+        for(const [oldKey,old]of this.imageCache){
+          if(oldKey===key)continue;
+          this.imageCache.delete(oldKey);
+          for(const r of [old.primaryBuf,old.resA,old.resB,old.indirectTex,old.transBuf,old.hdrTex,old.output]){
+            if(r!==this.lastImage?.texture)try{r.destroy();}catch{}
+          }
+          break;
+        }
+      }
+    }else{
+      this.imageCache.delete(key);
+      this.imageCache.set(key,entry);
     }
-    for(const resource of this.imageResources)if(resource!==this.lastImage?.texture)try{resource.destroy();}catch{}
-    this.width=width;this.height=height;
-    const usageB=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
-    const usageHDR=GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.COPY_SRC;
-    this.primaryBuf=this.device.createBuffer({size:Math.max(16,pixelCount*16),usage:usageB});
-    this.resA=this.device.createBuffer({size:Math.max(32,pixelCount*32),usage:usageB});
-    this.resB=this.device.createBuffer({size:Math.max(32,pixelCount*32),usage:usageB});
-    this.hdrTex=this.device.createTexture({size:[width,height],format:'rgba16float',usage:usageHDR});
-    this.output=this.device.createTexture({size:[width,height],format:'rgba8unorm',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC|GPUTextureUsage.TEXTURE_BINDING});
-    this.imageResources=[this.primaryBuf,this.resA,this.resB,this.hdrTex,this.output];
-    this.previewGroup=this.device.createBindGroup({layout:this.previewBlit.getBindGroupLayout(0),entries:[{binding:0,resource:this.output.createView()},{binding:1,resource:this.previewSampler}]});
-    this.bindImageScene();
+    this.width=width;this.height=height;this.halfWidth=entry.halfW;this.halfHeight=entry.halfH;
+    this.primaryBuf=entry.primaryBuf;this.resA=entry.resA;this.resB=entry.resB;
+    this.indirectTex=entry.indirectTex;this.transBuf=entry.transBuf;this.hdrTex=entry.hdrTex;this.output=entry.output;
+    this.previewGroup=entry.previewGroup;this.primaryGroup=entry.primaryGroup;
+    this.restirInitGroup=entry.restirInitGroup;this.restirSpatialGroup=entry.restirSpatialGroup;
+    this.indirectGroup=entry.indirectGroup;this.shadeGroup=entry.shadeGroup;
+    this.transPrepGroup=entry.transPrepGroup;this.transGroup=entry.transGroup;this.displayGroup=entry.displayGroup;
+    this.imageResources=[];
+    const deps=[this.nodes,this.triangles,this.materials,this.lights,this.instanceMeta,this.materialTexture,this.alphaCoverageTexture,this.envTexture];
+    if(!this.sceneBindGroup||!deps.every((x,i)=>x===this.imageDependencies?.[i]))this.bindImageScene();
   }
   bindImageScene(){
     const {programs}=this;
@@ -11470,14 +11825,9 @@ class FrameRenderer {
       {binding:6,resource:dataView},
       {binding:7,resource:covView},
     ]});
-    this.primaryGroup=this.device.createBindGroup({layout:programs.primaryAuxLayout,entries:[{binding:0,resource:{buffer:this.primaryBuf}}]});
-    this.restirInitGroup=this.device.createBindGroup({layout:programs.restirInitAuxLayout,entries:[{binding:0,resource:{buffer:this.primaryBuf}},{binding:1,resource:{buffer:this.resA}}]});
-    this.restirSpatialGroup=this.device.createBindGroup({layout:programs.restirSpatialAuxLayout,entries:[{binding:0,resource:{buffer:this.primaryBuf}},{binding:1,resource:{buffer:this.resA}},{binding:2,resource:{buffer:this.resB}}]});
-    this.shadeGroup=this.device.createBindGroup({layout:programs.shadeAuxLayout,entries:[{binding:0,resource:{buffer:this.primaryBuf}},{binding:1,resource:{buffer:this.resB}},{binding:2,resource:this.hdrTex.createView()}]});
-    this.displayGroup=this.device.createBindGroup({layout:this.display.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.uniform}},{binding:1,resource:this.hdrTex.createView()}]});
     this.imageDependencies=[this.nodes,this.triangles,this.materials,this.lights,this.instanceMeta,this.materialTexture,this.alphaCoverageTexture,this.envTexture];
   }
-  parameters(camera,environment,raysPerPixel){
+  parameters(camera,environment,raysPerPixel,indirectMode=0,interactive=false){
     const f=this._paramF32,u=this._paramU32,{center,scale}=this.scene;
     u.fill(0);
     f[0]=(camera.position[0]-center[0])/scale;f[1]=(camera.position[1]-center[1])/scale;f[2]=(camera.position[2]-center[2])/scale;
@@ -11489,8 +11839,9 @@ class FrameRenderer {
     u[20]=this.scene.triangleCount;u[21]=this.scene.nodeCount;u[22]=this.scene.lightCount;u[23]=environment.mode==='off'?0:1;
     f[24]=1;
     u[36]=Math.max(1,Math.min(256,Math.round(raysPerPixel||1)));
+    u[37]=indirectMode;
     u[39]=1;
-    f[40]=1;f[41]=6;
+    f[40]=1;f[41]=interactive?3:6;
     const direct=environment.infiniteLights||[];u[44]=Math.min(16,direct.length);
     for(let i=0;i<u[44];i++){
       const light=direct[i],d=light.direction,c=light.color,s=light.intensity*2,b=48+i*8;
@@ -11498,29 +11849,67 @@ class FrameRenderer {
       f[b+4]=c[0]*s;f[b+5]=c[1]*s;f[b+6]=c[2]*s;
     }
     f[198]=this.sceneFeatureBits();
-    u[228]=8;u[229]=8;u[230]=2;
+    u[225]=interactive?1:0;
+    u[228]=8;u[229]=interactive?4:8;u[230]=2;
     return f;
+  }
+  async updateTransforms(matrices,epoch){
+    if(epoch!==this.epoch||!this.scene?.instances||!this.worker)return false;
+    const release=await frameComputeBudget.acquire('native');
+    let res;
+    try{
+      if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');
+      res=await this._workerCall({type:'updateTransforms',matrices},[matrices.buffer]);
+    }finally{release();}
+    if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');
+    if(res.needsFullRebuild)return false;
+    this.device.queue.writeBuffer(this.nodes,0,res.tlasCwU32);
+    this.device.queue.writeBuffer(this.triangles,36,res.headerPatchU32);
+    this.device.queue.writeBuffer(this.triangles,48,res.descF32);
+    this.device.queue.writeBuffer(this.triangles,this.scene.tlasInstVec4Base*16,res.tlasInstIds);
+    this.scene.buildMs=res.buildMs;
+    this.stats.buildMs=res.buildMs;
+    return true;
   }
   async start(options){
     this.options=options;
     this.stop(false);const epoch=this.epoch;
     const raysPerPixel=Math.max(1,Math.min(256,Math.round(options.raysPerPixel||1)));
+    const interactive=!!options.interactive;
+    const indirectMode=interactive?2:(raysPerPixel===1?1:0);
     this.running=true;this.completed=false;this.stats.phase='preparing';this.stats.raysPerPixel=raysPerPixel;this.stats.samples=0;this.stats.dispatches=0;this.stats.errors=[];this.onChange();
     const started=performance.now();
     try{
       const sameScene=this.sceneKey===options.sceneKey;
-      const snapshot=!sameScene?Promise.resolve(options.getScene(()=>epoch!==this.epoch)).then(input=>{
+      const canUpdateTransforms=!sameScene&&options.geometryKey!==undefined&&this.geometryKey===options.geometryKey&&this.scene?.instances>0&&this.worker&&typeof options.getTransforms==='function';
+      const snapshot=!sameScene&&!canUpdateTransforms?Promise.resolve(options.getScene(()=>epoch!==this.epoch)).then(input=>{
         const coverageOpaque=input.materials.every(m=>m.opacityTexture<0&&(m.alphaModeCode===1||m.alphaMode==='OPAQUE'));
         const opaqueShadows=input.materials.length>0&&coverageOpaque&&input.materials.every(m=>Number.isFinite(m.transmission)&&Math.fround(m.transmission)<.001);
         return {input,features:{coverageOpaque,opaqueShadows,materialMaps:input.textures.length>0,subsurface:input.materials.some(m=>m.sss>0),glass:input.materials.some(m=>m.transmission>=.001)}};
       }):null;
       snapshot?.catch(()=>{});
       await this.init();if(epoch!==this.epoch)return;
-      if(snapshot){
+      if(canUpdateTransforms){
+        const updated=await this.updateTransforms(options.getTransforms(),epoch);
+        if(epoch!==this.epoch)return;
+        if(updated){
+          this.sceneKey=options.sceneKey;
+        }else{
+          const raw=await options.getScene(()=>epoch!==this.epoch);if(epoch!==this.epoch)return;
+          const coverageOpaque=raw.materials.every(m=>m.opacityTexture<0&&(m.alphaModeCode===1||m.alphaMode==='OPAQUE'));
+          const opaqueShadows=raw.materials.length>0&&coverageOpaque&&raw.materials.every(m=>Number.isFinite(m.transmission)&&Math.fround(m.transmission)<.001);
+          this.stats.snapshot=raw.snapshot;
+          await this.buildScene(raw,epoch,{coverageOpaque,opaqueShadows,materialMaps:raw.textures.length>0,subsurface:raw.materials.some(m=>m.sss>0),glass:raw.materials.some(m=>m.transmission>=.001)});
+          if(epoch!==this.epoch)return;
+          this.sceneKey=options.sceneKey;
+          this.geometryKey=options.geometryKey;
+        }
+      }else if(snapshot){
         const {input,features}=await snapshot;if(epoch!==this.epoch)return;
         this.stats.snapshot=input.snapshot;await this.buildScene(input,epoch,features);
         if(epoch!==this.epoch)return;
         this.sceneKey=options.sceneKey;
+        this.geometryKey=options.geometryKey??null;
       }
       await this.prepareEnvironment(options.environment,epoch);if(epoch!==this.epoch)return;
       if(this.lightTableDirty){this.rebuildLightTable();this.lightTableDirty=false;}
@@ -11534,13 +11923,19 @@ class FrameRenderer {
       const canvasHeight=options.previewPresentation?Math.max(8,Math.round(rect.h)):height;
       if(this.canvas.width!==canvasWidth)this.canvas.width=canvasWidth;
       if(this.canvas.height!==canvasHeight)this.canvas.height=canvasHeight;
-      this.device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,raysPerPixel));
+      this.device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,raysPerPixel,indirectMode,interactive));
       const gx=Math.ceil(width/8),gy=Math.ceil(height/8);
       const encoder=this.device.createCommandEncoder({label:'Fixed CWBVH8 + ReSTIR DI'});
+      encoder.clearBuffer(this.transBuf,0,16);
       const p1=encoder.beginComputePass({label:'Primary CWBVH8'});p1.setPipeline(this.primary);p1.setBindGroup(0,this.sceneBindGroup);p1.setBindGroup(1,this.primaryGroup);p1.dispatchWorkgroups(gx,gy);p1.end();
       const p2=encoder.beginComputePass({label:'ReSTIR DI Init'});p2.setPipeline(this.restirInit);p2.setBindGroup(0,this.sceneBindGroup);p2.setBindGroup(1,this.restirInitGroup);p2.dispatchWorkgroups(gx,gy);p2.end();
       const p3=encoder.beginComputePass({label:'ReSTIR DI Spatial'});p3.setPipeline(this.restirSpatial);p3.setBindGroup(0,this.spatialSceneBindGroup);p3.setBindGroup(1,this.restirSpatialGroup);p3.dispatchWorkgroups(gx,gy);p3.end();
+      if(indirectMode===1){
+        const pi=encoder.beginComputePass({label:'Indirect CWBVH8'});pi.setPipeline(this.indirect);pi.setBindGroup(0,this.sceneBindGroup);pi.setBindGroup(1,this.indirectGroup);pi.dispatchWorkgroups(Math.ceil(this.halfWidth/8),Math.ceil(this.halfHeight/8));pi.end();
+      }
       const p4=encoder.beginComputePass({label:'Shade CWBVH8'});p4.setPipeline(this.shade);p4.setBindGroup(0,this.sceneBindGroup);p4.setBindGroup(1,this.shadeGroup);p4.dispatchWorkgroups(gx,gy);p4.end();
+      const ptPrep=encoder.beginComputePass({label:'Transmissive Prep'});ptPrep.setPipeline(this.transPrep);ptPrep.setBindGroup(0,this.transPrepGroup);ptPrep.dispatchWorkgroups(1);ptPrep.end();
+      const pt=encoder.beginComputePass({label:'Transmissive CWBVH8'});pt.setPipeline(this.transmissive);pt.setBindGroup(0,this.sceneBindGroup);pt.setBindGroup(1,this.transGroup);pt.dispatchWorkgroupsIndirect(this.transBuf,0);pt.end();
       const disp=encoder.beginRenderPass({label:'Display',colorAttachments:[{view:this.output.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
       disp.setPipeline(this.display);disp.setBindGroup(0,this.displayGroup);disp.draw(3);disp.end();
       if(options.previewPresentation){
@@ -11553,7 +11948,12 @@ class FrameRenderer {
       this.device.queue.submit([encoder.finish()]);
       await this.device.queue.onSubmittedWorkDone();
       if(epoch!==this.epoch)return;
-      if(this.lastImage?.texture!==this.output)this.lastImage?.texture.destroy();
+      const oldLast=this.lastImage?.texture;
+      if(oldLast&&oldLast!==this.output){
+        let owned=false;
+        for(const e of this.imageCache.values())if(e.output===oldLast){owned=true;break;}
+        if(!owned)try{oldLast.destroy();}catch{}
+      }
       this.lastImage={texture:this.output,width,height,viewKey:options.viewKey,viewport:options.previewPresentation===true};
       this.hasImage=true;this.running=false;this.completed=true;
       this.canvas.style.display='block';
@@ -24157,8 +24557,14 @@ window.frameEngine=(()=>{
       return mesh.objectFrame;
     }
     function writePoseUniform(mesh,m){
-      mesh.frameWorld=new Float64Array(m);mesh.frameGenerated=!!mesh.splineGenerated;mesh.frameInverse=FM.inv(m);mesh.posed=!FM.equal(m,FM.I());const data=new ArrayBuffer(128),f=new Float32Array(data),u=new Uint32Array(data),v=mesh.frameInverse,sign=Math.sign(FM.determinant(m));f.set(m);
-      for(let j=0;j<3;j++)for(let i=0;i<3;i++)f[16+j*4+i]=v[i*4+j]*sign;u[28]=mesh.posed?1:0;u[29]=mesh.splineGenerated?1:0;u[31]=mesh.splineHighlightActive?1:0;mesh.frameWords=new Uint32Array(data);if(mesh.objectFrame)mesh.gpu.device.queue.writeBuffer(mesh.objectFrame,0,data);
+      if(mesh.frameWorld)mesh.frameWorld.set(m);else mesh.frameWorld=new Float64Array(m);
+      mesh.frameGenerated=!!mesh.splineGenerated;mesh.frameInverse=FM.inv(m);mesh.posed=!FM.equal(m,FM.I());
+      let u=mesh.frameWords,f=mesh.frameFloats;
+      if(!u){const data=new ArrayBuffer(128);f=mesh.frameFloats=new Float32Array(data);u=mesh.frameWords=new Uint32Array(data);}
+      const v=mesh.frameInverse,sign=Math.sign(FM.determinant(m));f.set(m);
+      for(let j=0;j<3;j++)for(let i=0;i<3;i++)f[16+j*4+i]=v[i*4+j]*sign;
+      u[28]=mesh.posed?1:0;u[29]=mesh.splineGenerated?1:0;u[31]=mesh.splineHighlightActive?1:0;
+      if(mesh.objectFrame)mesh.gpu.device.queue.writeBuffer(mesh.objectFrame,0,u);
     }
     function localMeshBox(mesh){return {min:mesh.localBoundsMin||mesh.boundsMin,max:mesh.localBoundsMax||mesh.boundsMax};}
     const animationSamples=new Map(),animationPending=new Map();let animationSerial=Promise.resolve();
@@ -24334,10 +24740,26 @@ window.frameEngine=(()=>{
       }
       if(!owners){const pluginFrames=renderer.pluginFrames??=new Map(),alivePlugins=new Set();for(const n of nodes.filter(pluginViewport)){const h=n.nativeHash,world=objectWorld(h);alivePlugins.add(h);if(!pluginFrames.has(h)||!FM.equal(world,pluginFrames.get(h))){pluginFrames.set(h,new Float64Array(world));geometryChanged=true;}}for(const h of pluginFrames.keys())if(!alivePlugins.has(h)){pluginFrames.delete(h);geometryChanged=true;}}
       if(oldBounds)updateMovedSceneBounds(meshes,oldBounds);else updateSceneBounds();
-      if(geometryChanged&&!replicaBuilding&&(movesSurfacePlacements(changedSources)||!independent&&scene.meshes.some(m=>{
-        for(let q=m.replicaSource;q;q=q.replicaSource)if(changedSources.has(q.hashId))return true;
-        return false;
-      })))syncReplicas();
+      if(geometryChanged&&!replicaBuilding){
+        let needReplicas=movesSurfacePlacements(changedSources);
+        if(!needReplicas&&!independent){
+          const relCache=new Map();
+          needReplicas=scene.meshes.some(m=>{
+            for(let q=m.replicaSource;q;q=q.replicaSource){
+              if(!changedSources.has(q.hashId))continue;
+              if(q===m.replicaSource&&m.replicaSourceRelative&&changedSources.has(m.hashId)){
+                const ck=q.hashId+':'+m.hashId;
+                let same=relCache.get(ck);
+                if(same===undefined){same=FM.equal(objectRelativeFrame(q.hashId,m.hashId),m.replicaSourceRelative);relCache.set(ck,same);}
+                if(same)continue;
+              }
+              return true;
+            }
+            return false;
+          });
+        }
+        if(needReplicas)syncReplicas();
+      }
       poseEpoch++;measurementCache=null;return geometryChanged;
     }
     function objectDescendants(h,objects=poseObjects()){let children=objects===poseRecordCache?.objects?poseRecordCache.children:null;if(!children){children=new Map();for(const o of objects){if(!children.has(o.parent))children.set(o.parent,[]);children.get(o.parent).push(o.hash);}if(objects===poseRecordCache?.objects)poseRecordCache.children=children;}const out=[h],seen=new Set(out);for(let i=0;i<out.length;i++)for(const hash of children.get(out[i])||[])if(!seen.has(hash)){seen.add(hash);out.push(hash);}return out;}
@@ -25724,8 +26146,8 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     }
 
     let pathtracer=null,renderTimer=0,renderManual=false,manualGeneration=0,renderSignature='',renderBlocked='',renderScene=null,renderConfigKey='';
-    let realtimeRequest=null,renderGeometryRevision=0,manualSceneKey=null,renderPose='',motionTimer=0,cameraMoving=false;
-    const renderGeometryState=[];
+    let realtimeRequest=null,renderGeometryRevision=0,renderTransformRevision=0,manualSceneKey=null,renderPose='',motionTimer=0,cameraMoving=false;
+    const renderGeometryState=[],renderTransformState=[];
     function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:!pathtracer.canvas.hidden&&pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
     function renderOverlayActive(){if(['off','wireframe','isoparms'].includes(viewShadings[0]))return false;const s=renderState();return s.running||s.visible||!!s.exportKind;}
     function cameraConfig(){if(frameNavigation)return frameNavigation.camera;if(navigationScene?.ready&&(drag||touchNavigation||wheelNavigation))return navigationScene.cameras.find(n=>n.enabled);return nodes.find(n=>n.type==='render'&&n.enabled);}
@@ -25988,27 +26410,43 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       input.snapshot={meshes:input.meshes.length,geometry:attributes.size,positions:canonical.size,uv:uvCache.size,masks:maskCache.size,materials:input.materials.length,bufferBatches,elapsedMs:performance.now()-started};return input;
     }
     function cameraSceneRevision(){
-      // Compare authored order, resource identity and affine values directly.
-      // Camera poses only carry the resulting scalar revision through the scheduler.
-      let at=0,changed=false;
-      function field(value){if(renderGeometryState[at]!==value){changed=true;renderGeometryState[at]=value;}at++;}
-      function matrix(values){for(const value of values)field(value);}
-      function geometry(mesh){field(mesh.hashId);field(mesh.positions);field(mesh.version);field(mesh.replicaSource?.version);field(mesh.vertexCount);field(mesh.triangleCount);}
-      field(appearanceRevision);
+      // Separate geometry/material/projection changes from pure affine transforms
+      // so moving an object can take the TLAS-only fast path, and camera orbit
+      // never triggers a rebuild when mesh.version changes harmlessly.
+      let gAt=0,gChanged=false,tAt=0,tChanged=false;
+      const gField=v=>{if(renderGeometryState[gAt]!==v){gChanged=true;renderGeometryState[gAt]=v;}gAt++;};
+      const tField=v=>{if(renderTransformState[tAt]!==v){tChanged=true;renderTransformState[tAt]=v;}tAt++;};
+      const gMatrix=values=>{for(const v of values)gField(v);};
+      const tMatrix=values=>{for(const v of values)tField(v);};
+      const geometry=mesh=>{
+        gField(mesh.hashId);gField(mesh.positions);gField(mesh.normals);gField(mesh.renderIndices);
+        gField(mesh.vertexCount);gField(mesh.triangleCount);
+        gField(mesh.geometryRevision||mesh.replicaVersion||0);
+        gField(mesh.replicaSource?.geometryRevision||0);
+        gField(mesh.animationEvaluated?mesh.version:0);
+        gField(mesh.appearanceKey??null);
+      };
+      gField(appearanceRevision);
       for(const mesh of scene.meshes){
         if(mesh.frameVisible===false)continue;
-        geometry(mesh);matrix(mesh.frameWorld||objectWorld(mesh.hashId));matrix(projectionMatrix(mesh));
+        geometry(mesh);
+        const uv=importedUV(mesh);
+        gField(uv?.resource??null);
+        if(!uv)gMatrix(projectionMatrix(mesh));
+        tMatrix(mesh.frameWorld||objectWorld(mesh.hashId));
       }
       for(const owner of cloudRows()){
         if(!helperShown(owner.nativeHash)||!lightShown(owner.nativeHash)||!frameSoloContains(owner))continue;
-        field(owner.nativeHash);matrix(objectWorld(owner.nativeHash));matrix(nativeValue(owner.nativeHash,'projection')||[]);
+        gField(owner.nativeHash);tMatrix(objectWorld(owner.nativeHash));gMatrix(nativeValue(owner.nativeHash,'projection')||[]);
         for(const row of owner.instanceCloud){
           const source=scene.meshes.find(m=>m.hashId===row.source&&!m.replicaMatrix);if(!source)continue;
-          geometry(source);field(owner.pluginRecords?.[row.field]?.value);
+          geometry(source);gField(owner.pluginRecords?.[row.field]?.value);
         }
       }
-      if(changed||at!==renderGeometryState.length)renderGeometryRevision++;
-      renderGeometryState.length=at;return renderGeometryRevision;
+      if(gChanged||gAt!==renderGeometryState.length)renderGeometryRevision++;
+      if(tChanged||tAt!==renderTransformState.length)renderTransformRevision++;
+      renderGeometryState.length=gAt;renderTransformState.length=tAt;
+      return renderGeometryRevision+':'+renderTransformRevision;
     }
     function stationaryCamera(){return !(cameraMoving||playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());}
     async function flushCameraGeometry(){
@@ -26022,15 +26460,17 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const config=cameraConfig(),configKey=cameraRenderConfigKey(config);
       if(configKey!==renderConfigKey){renderConfigKey=configKey;renderSignature=renderBlocked='';realtimeRequest=null;pathtracer?.stop(config?.params.realtime!=='on'||config.params.renderer==='Viewport');}
       const view=config&&renderView(),realtime=config?.params.realtime==='on';
-      if(renderScene!==scene||!config){pathtracer?.dispose();pathtracer=null;renderSignature='';realtimeRequest=null;renderGeometryState.length=0;cameraInstReg.clear();cameraNextStableId=1;renderScene=config?scene:null;}
+      if(renderScene!==scene||!config){pathtracer?.dispose();pathtracer=null;renderSignature='';realtimeRequest=null;renderGeometryState.length=0;renderTransformState.length=0;cameraInstReg.clear();cameraNextStableId=1;renderScene=config?scene:null;}
       if(!view||config.params.renderer==='Viewport'){realtimeRequest=null;renderSignature='';if(pathtracer?.running||pathtracer?.canvas.style.display==='block')pathtracer.stop(true);return;}
       if(!manual&&!realtime&&!pathtracer?.hasImage)return;
       // The owner of the in-flight render schedules a fresh read of the latest
       // camera after presentation. Drag events never queue intermediate poses.
       if(!manual&&realtimeRequest)return;
-      const sceneKey=cameraSceneRevision(),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
+      const sceneKey=cameraSceneRevision(),geometryKey=renderGeometryRevision;
+      const interactive=!manual&&!exporting&&!stationaryCamera();
+      const environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
       view.camera.fov=45;updateViewportEnvironment(renderer);environment.lobes=renderer.environment?.sources||[];if(environment.mode==='default')environment.infiniteLights=[];if(environment.mode==='image'&&!environment.image)throw Error('Set the Camera environment image URL');if(environment.infiniteLights.length>16)throw Error('Path tracing supports up to 16 enabled infinite lights');
-      const signature=frameValueKey([sceneKey,view,configKey,environment]);
+      const signature=frameValueKey([sceneKey,view,configKey,environment,interactive]);
       if(manual&&!exporting)manualSceneKey=sceneKey;
       if(!manual){
         if(renderBlocked===null)renderBlocked=signature;
@@ -26045,9 +26485,20 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       pathtracer??=createCameraRenderer(renderer,frameViewElement(0),renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
       const raysPerPixel=Math.max(1,Math.min(256,Math.round(config.params['rays per pixel']||1)));
-      const options={sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,
-        raysPerPixel,previewPresentation:!exporting,
-        outputSize:exporting?[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]:viewSize
+      const previewSize=interactive?[Math.max(8,Math.round(viewSize[0]*.5)),Math.max(8,Math.round(viewSize[1]*.5))]:viewSize;
+      const getTransforms=()=>{
+        const visible=nativeSurfaceOccurrences().filter(m=>m.frameVisible!==false);
+        let count=0;for(const m of visible)count+=m.parts?m.parts.length:1;
+        const out=new Float64Array(count*16);let off=0;
+        for(const m of visible){
+          const w=m.frameWorld||objectWorld(m.hashId),nParts=m.parts?m.parts.length:1;
+          for(let p=0;p<nParts;p++){out.set(w,off);off+=16;}
+        }
+        return out;
+      };
+      const options={sceneKey,geometryKey,viewKey:signature,getScene:renderSnapshot,getTransforms,environment,...view,
+        raysPerPixel,interactive,previewPresentation:!exporting,
+        outputSize:exporting?[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]:previewSize
       };
       const job=pathtracer.start(options);
       if(manual){
@@ -30992,16 +31443,22 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }
       if(cache.error)throw cache.error;
       if(!cache.samples||cache.world&&FM.equal(cache.world,world)&&FM.equal(cache.distributor,distributor))return cache.frames;
-      const samples=cache.samples,frames=[],inverse=FM.inv(world),toCloner=FM.inv(distributor);
-      for(let i=0;i<samples.length;i+=6){
-        const point=FM.point(world,samples.subarray(i,i+3)),normal=samples.subarray(i+3,i+6);
-        const y=FM.unit([0,4,8].map(j=>FM.dot(normal,inverse.subarray(j,j+3))));
-        const tangent=placementFrame([0,0,0],normal,true).subarray(0,3);
-        const z=FM.unit(FM.cross(FM.point(world,tangent,0),y)),frame=FM.I();
-        frame.set(FM.cross(y,z),0);frame.set(y,4);frame.set(z,8);frame.set(point,12);
-        frames.push(FM.mul(toCloner,frame));
+      const samples=cache.samples,toCloner=FM.inv(distributor);
+      if(!cache.world||!FM.equal(cache.world,world)||!cache.worldFrames){
+        const inverse=FM.inv(world),wf=[];
+        for(let i=0;i<samples.length;i+=6){
+          const point=FM.point(world,samples.subarray(i,i+3)),normal=samples.subarray(i+3,i+6);
+          const y=FM.unit([0,4,8].map(j=>FM.dot(normal,inverse.subarray(j,j+3))));
+          const tangent=placementFrame([0,0,0],normal,true).subarray(0,3);
+          const z=FM.unit(FM.cross(FM.point(world,tangent,0),y)),frame=FM.I();
+          frame.set(FM.cross(y,z),0);frame.set(y,4);frame.set(z,8);frame.set(point,12);
+          wf.push(frame);
+        }
+        cache.world=world.slice();cache.worldFrames=wf;
       }
-      cache.world=world.slice();cache.distributor=distributor.slice();cache.frames=frames;
+      const wf=cache.worldFrames,frames=new Array(wf.length);
+      for(let i=0;i<wf.length;i++)frames[i]=FM.mul(toCloner,wf[i]);
+      cache.distributor=distributor.slice();cache.frames=frames;
       return frames;
     }
     function frameClonerPathIndices(length,step,offset,closed){
@@ -31363,10 +31820,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           const lo=source.localBoundsMin||source.boundsMin,hi=source.localBoundsMax||source.boundsMax;
           const bounds=m.replicaBoundsRevision!==source.geometryRevision||lo.some((v,k)=>v!==m.localBoundsMin[k])||hi.some((v,k)=>v!==m.localBoundsMax[k]);
           if(reused){
+            m.replicaSourceRelative=relative;
             if(bounds||m.replicaVersion!==signature||m.version!==signature||m.normalCount!==source.normalCount||!FM.equal(m.replicaMatrix,local))
               updates.push({m,source,local,signature,box:bounds?prepareReplicaBox(m,source,lo,hi):null});
             built.push(m);
-          }else applyReplicaUpdate(m,source,local,signature,bounds?prepareReplicaBox(m,source,lo,hi):null);
+          }else{m.replicaSourceRelative=relative;applyReplicaUpdate(m,source,local,signature,bounds?prepareReplicaBox(m,source,lo,hi):null);}
           result.push(m);
         }
       }
