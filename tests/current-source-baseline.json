@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 27 nov 02:15",
+  "version": "2026 27 nov 03:00",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -536,11 +536,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "76dc1ee6d1b70e98c59dd8d0e880fd41fb224b3713610b9941dbd4ecbc3fd59c"
+      "sha256": "1d180bf6543e367f7a825c21ec6205d6eb02f9014cd47ef126f3edbf4a9b1af6"
     },
     "index.html": {
-      "bytes": 4109665,
-      "sha256": "1ab461be94e71e0433a13af0adb88c9c7ee52da078c0e87fd040b6ec20c14e75"
+      "bytes": 4120684,
+      "sha256": "c9d71274bff320f6c9d26f8ffdec5cb37a6a008c9857222c085421d716dada3c"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1107,8 +1107,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 98368,
-      "sha256": "86268a3cbf3a099c4e0294c280ab874b9f6d4bf8012fc9afd5cb3d4d2e9623fc"
+      "bytes": 98868,
+      "sha256": "92df0b553d930a6a6e7d1a2bf76c7cc1f28b91127dd768d883775dbe0306c322"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13518,
@@ -1295,16 +1295,16 @@
       "sha256": "33762812861e839147c5aa626852e5a2f0e9428883c96f04e7d096cee22ebda7"
     },
     "tests/camera-view-state.mjs": {
-      "bytes": 1929,
-      "sha256": "2a806f6435ea9fa02b9d116c7b01e04ea8649f99b1c3679c494197d50a5421d8"
+      "bytes": 2026,
+      "sha256": "3ea5594bc9befd23ba3dd9868cd9318b9454b9bf40a71fc0a3495463535b3b8b"
     },
     "tests/camera-view.mjs": {
-      "bytes": 5255,
-      "sha256": "f9319c400944230ab7fd8a329c58bed8bed09e285985fe75c0fce30740bdc12d"
+      "bytes": 5616,
+      "sha256": "e9de67caf4e79f6992785da774f9ee6b30548f660dbdc8f2727fd393ebbbc7b9"
     },
     "tests/camera-antialias.mjs": {
-      "bytes": 6664,
-      "sha256": "584a9be9e5cb9b7e6d37547d7b9d3e1f4fc137ef53d00e5ccdb6425f6058a723"
+      "bytes": 6663,
+      "sha256": "d4fd9914cfb39ab8ba59635858d93dc505317c1aeabe9df701ee0bf033f2cdc4"
     },
     "tools/build-unite.mjs": {
       "bytes": 1632,

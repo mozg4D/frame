@@ -23,8 +23,9 @@ export async function cameraViewChecks(page){
   const camera=await call('scene.create',{type:'render',params:{'resolution x':160,'resolution y':96}});
   await call('scene.select',{ids:[camera.hash]});await page.locator('#tabAttributes').click();
   const labels=await page.locator('#attrContent .attr-lab').allTextContents();
-  assert.equal(labels[labels.indexOf('resolution')+1]?.toLowerCase(),'quality');
+  assert.equal(labels[labels.indexOf('resolution')+1]?.toLowerCase(),'samples');
   assert.equal(await page.locator('#attrContent [data-field="denoiser"]').count(),0);
+  assert.equal(await page.locator('#attrContent [data-field="quality"]').count(),0);
   const rows=await page.locator('.ob-row[data-id]').count();assert.ok(rows>=2);
   await page.locator('.ob-row[data-id="'+camera.id+'"] .ob-name').click({button:'right'});
   assert.ok(await page.getByRole('menuitem',{name:'Group',exact:true}).isVisible());
@@ -33,14 +34,14 @@ export async function cameraViewChecks(page){
   const params=async()=>(await call('scene.inspect')).objects.find(n=>n.hash===camera.hash).params;
   assert.equal((await params()).renderer,'Path tracer');
   assert.equal((await call('render.inspect')).visible,true);
-  await call('scene.update',{id:camera.hash,params:{quality:71}});assert.equal((await params()).quality,71);
-  await call('edit.history',{action:'undo'});assert.equal((await params()).quality,50);
-  await call('edit.history',{action:'redo'});assert.equal((await params()).quality,71);
+  await call('scene.update',{id:camera.hash,params:{samples:512}});assert.equal((await params()).samples,512);
+  await call('edit.history',{action:'undo'});assert.equal((await params()).samples,64);
+  await call('edit.history',{action:'redo'});assert.equal((await params()).samples,512);
   const saved=await call('scene.export',{includeData:true});
   await call('scene.open',{name:'camera-output.hash',base64:saved.base64});
-  assert.equal((await params()).quality,71);
+  assert.equal((await params()).samples,512);
   await call('scene.select',{ids:[camera.hash]});await page.locator('#tabAttributes').click();
-  await call('scene.update',{id:camera.hash,params:{quality:10}});
+  await call('scene.update',{id:camera.hash,params:{samples:6}});
   const ptOut=await call('render.export',{kind:'image',download:false});
   assert.equal(ptOut.width,160);assert.equal(ptOut.height,96);assert.ok(ptOut.bytes>0);
   const ptPixels=await call('render.pixels',{points:[[.5,.5],[0,0]]});
@@ -48,6 +49,7 @@ export async function cameraViewChecks(page){
   const ptLinear=await call('render.pixels',{points:[[.5,.5],[0,0]],linear:true});
   assert.ok(ptLinear.colors.every(c=>c.length===4&&c.every(Number.isFinite)));
   await call('scene.update',{id:camera.hash,params:{renderer:'Viewport'}});
+  assert.equal(await page.locator('#frameRenderLabel').textContent(),'render');
   const output=await call('render.export',{kind:'image',download:false});
   assert.equal(output.width,160);assert.equal(output.height,96);assert.ok(output.bytes>0);
   const pixels=await call('render.pixels',{points:[[.5,.5],[0,0]]});
@@ -68,9 +70,11 @@ export async function cameraViewChecks(page){
   page.on('download',download);
   try{
     await page.locator('#frameRenderImage').click();
+    await page.waitForFunction(()=>/^\d+%$/.test(document.getElementById('frameRenderLabel')?.textContent||''));
     await page.getByRole('button',{name:'Stop image render',exact:true}).click();
   }finally{await page.evaluate(()=>releaseCameraReadback());}
   await page.waitForFunction(()=>!frameEngine.renderState().exportKind);page.off('download',download);
+  assert.equal(await page.locator('#frameRenderLabel').textContent(),'render');
   assert.ok((await call('render.start')).visible);assert.equal((await call('render.stop')).visible,false);
   await call('scene.new');assert.equal((await call('render.inspect')).hasImage,false);
   return {pass:true,width:output.width,height:output.height};

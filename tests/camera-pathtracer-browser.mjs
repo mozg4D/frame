@@ -135,7 +135,7 @@ export async function cameraPathTracerChecks(page){
     const neonMat=await call('material.create',{name:'NeonGreen',params:{h:120,s:100,l:50,emm:100,rough:100}});
     await call('material.assign',{id:centerBall.hash,material:neonMat.uid});
     await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:centerBall.hash});
-    await call('scene.create',{type:'render',params:{realtime:'on',quality:30,environment:'off','realtime during navigation':true}});
+    await call('scene.create',{type:'render',params:{realtime:'on',samples:24,environment:'off','realtime during navigation':true}});
     await call('scene.select',{ids:[]});
     await page.waitForFunction(()=>frameEngine.renderState().hasImage&&frameEngine.renderState().visible,{},{timeout:15000});
     // Start windowed, drag interactively, release to static accumulation, then read live Path tracer pixels via view export!
@@ -162,7 +162,7 @@ export async function cameraPathTracerChecks(page){
     const wallMat=await call('material.create',{name:'Matte white',params:{h:0,s:0,l:85,rough:90,metal:0}});
     await call('material.assign',{id:wall.hash,material:wallMat.uid});
     await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:wall.hash});
-    const cam=await call('scene.create',{type:'render',params:{realtime:'off',quality:12,environment:'off','resolution x':128,'resolution y':96}});
+    const cam=await call('scene.create',{type:'render',params:{realtime:'off',samples:8,environment:'off','resolution x':128,'resolution y':96}});
     await call('scene.select',{ids:[]});
 
     await call('render.export',{kind:'image',download:false});
@@ -200,13 +200,98 @@ export async function cameraPathTracerChecks(page){
     check('Dielectric glass refracts and transmits red emissive backing',glassLin[0]>0.35&&glassLin[0]>glassLin[1]*3,glassLin);
 
     // 5. HASH persistence restores active Path tracer Camera & auto-starts it
-    await call('scene.update',{id:cam.hash,params:{realtime:'on',environment:'default'}});
+    await call('scene.update',{id:cam.hash,params:{realtime:'on',environment:'default',samples:500}});
     const saved=await call('scene.export',{includeData:true});
     await call('scene.open',{name:'pt-roundtrip.hash',base64:saved.base64});
     await page.waitForFunction(()=>frameEngine.renderState().hasImage&&frameEngine.renderState().visible,{},{timeout:15000});
     const reopened=await call('render.inspect');
-    check('HASH reload restores active Path tracer Camera and auto-starts rendering',
-      reopened.renderer==='Path tracer'&&reopened.visible&&reopened.hasImage,reopened);
+    check('HASH reload restores active Path tracer Camera with unlimited samples and auto-starts rendering',
+      reopened.renderer==='Path tracer'&&reopened.visible&&reopened.hasImage&&reopened.targetSamples===500,reopened);
+
+    // 6. Unlimited samples + Attribute Editor progress replaces "render" during active render and restores "render" when complete
+    await call('scene.select',{ids:[cam.hash]});
+    await page.locator('#tabAttributes').click();
+    await call('scene.update',{id:cam.hash,params:{samples:2000}});
+    await page.waitForFunction(()=>{
+      const t=document.getElementById('frameRenderLabel')?.textContent||'';
+      return /^\d+%$/.test(t);
+    },{},{timeout:15000});
+    const progressLabel=await page.locator('#frameRenderLabel').textContent();
+    const highState=await call('render.inspect');
+    check('Unlimited samples (>256) accepted and Attribute Editor replaces render label with percentage progress',
+      highState.targetSamples===2000&&highState.running&&/^\d+%$/.test(progressLabel),{progressLabel,highState});
+    // Lower samples to current or small count -> completes and restores label to "render"
+    await call('scene.update',{id:cam.hash,params:{samples:4}});
+    await page.waitForFunction(()=>!frameEngine.renderState().running&&document.getElementById('frameRenderLabel')?.textContent==='render',{},{timeout:15000});
+    check('Attribute Editor restores render label once rendering completes',
+      (await page.locator('#frameRenderLabel').textContent())==='render',await call('render.inspect'));
+    // Increase samples mid-session -> seamlessly continues accumulating without resetting to 0
+    const beforeBoost=(await call('render.inspect')).samples;
+    await call('scene.update',{id:cam.hash,params:{samples:400}});
+    await page.waitForFunction(prev=>frameEngine.renderState().samples>prev&&/^\d+%$/.test(document.getElementById('frameRenderLabel')?.textContent||''),beforeBoost,{timeout:15000});
+    check('Increasing samples resumes progressive accumulation and progress display',
+      (await call('render.inspect')).samples>beforeBoost&&/^\d+%$/.test(await page.locator('#frameRenderLabel').textContent()),
+      {beforeBoost,after:await call('render.inspect'),label:await page.locator('#frameRenderLabel').textContent()});
+
+    // 7. Detached view render inheritance & isolation
+    // 7a. Detaching view 0 WHILE render IS running -> detached view ALSO runs Path tracer!
+    await call('scene.update',{id:cam.hash,params:{samples:16}});
+    await page.waitForFunction(()=>frameEngine.renderState().hasImage&&frameEngine.renderState().visible,{},{timeout:15000});
+    const beforeDetachBytes=(await call('view.windows')).resources.trackedGPUBytes;
+    const pop1=page.waitForEvent('popup');
+    await page.locator('[data-open-view="0"]').click();
+    const detachedRenderPage=await pop1;
+    await detachedRenderPage.waitForSelector('.view');
+    const detachedRenderIdx=await detachedRenderPage.locator('.view').getAttribute('data-view').then(Number);
+    await page.waitForFunction(idx=>{
+      const v=frameEngine.renderState().views?.find(x=>x.index===idx);
+      return !!v&&v.hasImage&&v.samples>=2;
+    },detachedRenderIdx,{timeout:15000});
+    const renderWinInfo=(await call('view.windows')).views.find(v=>v.index===detachedRenderIdx);
+    const detachedPx=await call('render.pixels',{points:[[.5,.5]],view:detachedRenderIdx,linear:true});
+    check('Detaching view 0 while rendering also runs Path tracer on the detached view',
+      !!renderWinInfo?.rendering&&detachedPx.colors[0].every(Number.isFinite)&&detachedPx.samples>=2,
+      {renderWinInfo,detachedPx});
+    await detachedRenderPage.close();
+    await page.waitForFunction(i=>!FrameViewWindows.detached(i),detachedRenderIdx);
+    await page.evaluate(async()=>{await frameEngine.draw(true);await frameEngine.renderer.device.queue.onSubmittedWorkDone();});
+    const afterCloseBytes=(await call('view.windows')).resources.trackedGPUBytes;
+    check('Closing detached rendering view releases its per-view Path tracer GPU targets',
+      afterCloseBytes<=beforeDetachBytes+2*1024*1024,{beforeDetachBytes,afterCloseBytes});
+
+    // 7b. Detaching view 0 when render is NOT running -> detached view does NOT run render, AND starting render does NOT start it there!
+    await call('scene.new');
+    await call('scene.create',{type:'cube',name:'PlainBox'});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid-isoparms'});
+    const pop2=page.waitForEvent('popup');
+    await page.locator('[data-open-view="0"]').click();
+    const detachedPlainPage=await pop2;
+    await detachedPlainPage.waitForSelector('.view');
+    const detachedPlainIdx=await detachedPlainPage.locator('.view').getAttribute('data-view').then(Number);
+    const plainBeforeWin=(await call('view.windows')).views.find(v=>v.index===detachedPlainIdx);
+    check('Detaching view 0 when render is off does not run render on detached view',
+      !plainBeforeWin?.rendering&&(await call('render.inspect')).views.every(v=>v.index!==detachedPlainIdx),
+      {plainBeforeWin,renderState:await call('render.inspect')});
+    // Now start render in main view by adding a Path tracer Camera!
+    await page.bringToFront();
+    await page.locator('#btnRender').click();
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().hasImage,{},{timeout:15000});
+    const afterStartState=await call('render.inspect');
+    const afterStartWindows=await call('view.windows');
+    const mainWinAfter=afterStartWindows.views.find(v=>v.index===0);
+    const plainAfterWin=afterStartWindows.views.find(v=>v.index===detachedPlainIdx);
+    check('Starting render starts on main view 0 only and NEVER starts on previously detached non-rendering view',
+      !!mainWinAfter?.rendering&&!plainAfterWin?.rendering&&
+      afterStartState.views.some(v=>v.index===0)&&!afterStartState.views.some(v=>v.index===detachedPlainIdx),
+      {mainWinAfter,plainAfterWin,views:afterStartState.views});
+    // Also verify calling render.start explicitly still keeps detached plain view non-rendering!
+    await call('render.start');
+    const afterExplicitStart=await call('view.windows');
+    check('Explicit render.start still does not start render on previously detached non-rendering view',
+      !afterExplicitStart.views.find(v=>v.index===detachedPlainIdx)?.rendering,
+      afterExplicitStart.views);
+    await detachedPlainPage.close();
+    await page.waitForFunction(i=>!FrameViewWindows.detached(i),detachedPlainIdx);
 
     await call('scene.new');
     const gpu=await page.evaluate(async()=>{

@@ -46,7 +46,7 @@ export async function cameraAntialiasChecks(page){
   assert.equal(adapter.fallback,false);
   const areas=coverageImage();
   await call('scene.new');await call('view.set',{index:0,single:true});
-  const camera=await call('scene.create',{type:'render',params:{renderer:'Viewport',realtime:'off',quality:1,environment:'off','resolution x':width,'resolution y':height}});
+  const camera=await call('scene.create',{type:'render',params:{renderer:'Viewport',realtime:'off',samples:1,environment:'off','resolution x':width,'resolution y':height}});
   const cam=(await call('scene.inspect')).view.frame,depth=140,scale=2*depth*Math.tan(45*Math.PI/360)/height;
   const vertices=shapes.flat().flatMap(([x,y])=>cam.position.map((v,k)=>v+depth*cam.forward[k]+scale*((x-width/2)*cam.right[k]+(height/2-y)*cam.up[k])));
   let offset=0;const indices=[];
@@ -74,7 +74,7 @@ export async function cameraAntialiasChecks(page){
   // The viewport material varies slightly with view angle across the flat face.
   assert.ok(viewport.coverageMAE<.12&&aligned<.10,JSON.stringify(viewport));
   // Also validate Path tracer linear QMC anti-aliasing coverage on the same exact reference polygons.
-  await call('scene.update',{id:camera.hash,params:{renderer:'Path tracer',quality:35}});
+  await call('scene.update',{id:camera.hash,params:{renderer:'Path tracer',samples:32}});
   const ptImg=await call('render.export',{kind:'image',download:false});assert.ok(ptImg.bytes>0&&ptImg.width===width&&ptImg.height===height);
   const ptVals=await page.evaluate(async({width,height})=>{
     const vals=[];for(let i=0;i<width*height;i+=64){
@@ -95,7 +95,7 @@ export async function cameraAntialiasChecks(page){
   assert.ok(pathTracer.coverageMAE<.08&&ptAligned<.08,JSON.stringify(pathTracer));
   const red=await call('material.create',{params:{h:0,s:100,l:50,emm:100}});
   await call('material.assign',{id:mesh.hash,material:red.uid});
-  await call('scene.update',{id:camera.hash,params:{'resolution x':240,'resolution y':160,quality:10}});
+  await call('scene.update',{id:camera.hash,params:{'resolution x':240,'resolution y':160,samples:8}});
   const video=await call('render.export',{kind:'video',start:0,end:1,download:false});
   assert.ok(video.frames===2&&video.width===240&&video.height===160&&video.bytes>0);
   const {colors:[rgba]}=await call('render.pixels',{points:[[150.5/width,108.5/height]]});
