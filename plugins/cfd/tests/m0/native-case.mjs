@@ -131,7 +131,9 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
     const U=translation?.relativeSpeedMPerS??Speed,boxInfo={hash:box.hash,name:box.name,parameters:capture.params};
     const scope=motion?'Constant native shaft kinematics at the saved frame':translation?'Common constant native wall translation at the saved frame':'Stationary evaluated geometry at the saved frame';
     const context={box:boxInfo,medium:fluid,scope,experimental:true,sourceSignature:capture.signature,...translation?{translation}:{}};
-    const domain=capturedDomain(ctx,box.hash,capture,tier,motion?.axisOriginM,undefined,translation?.basis);
+    const basis=translation?.basis??motion?.basis;
+    if(motion?.basis&&U>0)throw Error('A transverse inlet requires a phase-varying flow boundary in the shaft frame.');
+    const domain=capturedDomain(ctx,box.hash,capture,tier,motion?.axisOriginM,undefined,basis);
     if(motion&&domain.road)throw Error('A road cannot share an axial rotating reference frame');
     if(translation&&domain.road&&Math.abs(translation.velocityBoxMPerS[1])>1e-8)throw Error('A wall moving normal to the road changes the ground clearance during the solve.');
     if(!capture.meshes.length||!motion&&U===0){
@@ -152,27 +154,29 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,settings.solver??'cartesian-fvm',progress,capture);
-    const windows=result.windows.slice(-2),authoredAxes=boxAxes(ctx.document.world(box.hash)),axes=flowAxes(authoredAxes,translation?.basis);
+    const windows=result.windows.slice(-2),authoredAxes=boxAxes(ctx.document.world(box.hash)),axes=flowAxes(authoredAxes,basis);
     const average=key=>windows.reduce((sum,w)=>sum+w[key],0)/windows.length;
     function frameForces(w){
       const solver=[w.forceN,...w.transverseForcesInBoxN],world=vectorInWorld(solver,axes);
-      return {world,local:translation?vectorInWorld(solver,translation.basis):solver};
+      return {world,local:basis?vectorInWorld(solver,basis):solver};
     }
     const measured=windows.map(frameForces),meanForce=key=>windows.length?[0,1,2].map(a=>measured.reduce((sum,w)=>sum+w[key][a],0)/windows.length):null;
     const forceWorldN=meanForce('world'),forceLocalN=meanForce('local');
     function windowInBox({coefficient,...physical}){
-      if(!translation)return motion?{...physical,thrustCoefficient:coefficient}:physical;
+      if(!basis)return motion?{...physical,thrustCoefficient:coefficient}:physical;
       const {local,world}=frameForces(physical);
       const {axialPressureForceN,axialMomentumForceN,torqueXNm,...values}=physical;
+      if(motion)return {...values,thrustCoefficient:coefficient,shaftAxialForceN:physical.forceN,shaftPressureForceN:axialPressureForceN,
+        shaftMomentumForceN:axialMomentumForceN,shaftTorqueNm:torqueXNm,forceN:local[0],transverseForcesInBoxN:local.slice(1),forceWorldN:world};
       return {...values,relativeWindAxialForceN:physical.forceN,relativeWindPressureForceN:axialPressureForceN,
         relativeWindMomentumForceN:axialMomentumForceN,torqueAboutRelativeWindAxisNm:torqueXNm,
         forceN:local[0],transverseForcesInBoxN:local.slice(1),forceWorldN:world};
     }
     const {mean,relativeError,forcePassed,windows:trace,...study}=result;
     await assertCurrent();cases.push({...study,...context,windows:trace.map(windowInBox),meanAxialForceN:forceLocalN?.[0]??null,
-      ...(translation&&result.partialWindow?{partialWindow:windowInBox(result.partialWindow)}:{}),forceLocalN,forceWorldN,
+      ...(basis&&result.partialWindow?{partialWindow:windowInBox(result.partialWindow)}:{}),forceLocalN,forceWorldN,
       ...(motion?{motion,rotorMetrics:windows.length?{CT:mean,CP:average('powerCoefficient'),J:U/(rps*diameter),
-        axialTorqueNm:average('torqueXNm'),shaftPowerToFluidW:average('shaftPowerToFluidW')}:null}:{}),
+        shaftAxisWorld:axes[0],axialForceN:average('forceN'),axialTorqueNm:average('torqueXNm'),shaftPowerToFluidW:average('shaftPowerToFluidW')}:null}:{}),
     });
   }
   return cases;
