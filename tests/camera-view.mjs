@@ -31,7 +31,8 @@ export async function cameraViewChecks(page){
   assert.equal(await page.getByRole('menuitem',{name:/denoiser/i}).count(),0);
   await page.keyboard.press('Escape');
   const params=async()=>(await call('scene.inspect')).objects.find(n=>n.hash===camera.hash).params;
-  assert.equal((await params()).renderer,'Viewport');
+  assert.equal((await params()).renderer,'Path tracer');
+  assert.equal((await call('render.inspect')).visible,true);
   await call('scene.update',{id:camera.hash,params:{quality:71}});assert.equal((await params()).quality,71);
   await call('edit.history',{action:'undo'});assert.equal((await params()).quality,50);
   await call('edit.history',{action:'redo'});assert.equal((await params()).quality,71);
@@ -39,6 +40,14 @@ export async function cameraViewChecks(page){
   await call('scene.open',{name:'camera-output.hash',base64:saved.base64});
   assert.equal((await params()).quality,71);
   await call('scene.select',{ids:[camera.hash]});await page.locator('#tabAttributes').click();
+  await call('scene.update',{id:camera.hash,params:{quality:10}});
+  const ptOut=await call('render.export',{kind:'image',download:false});
+  assert.equal(ptOut.width,160);assert.equal(ptOut.height,96);assert.ok(ptOut.bytes>0);
+  const ptPixels=await call('render.pixels',{points:[[.5,.5],[0,0]]});
+  assert.ok(ptPixels.colors.every(c=>c.length===4&&c[3]===255));assert.notDeepEqual(ptPixels.colors[0],ptPixels.colors[1]);
+  const ptLinear=await call('render.pixels',{points:[[.5,.5],[0,0]],linear:true});
+  assert.ok(ptLinear.colors.every(c=>c.length===4&&c.every(Number.isFinite)));
+  await call('scene.update',{id:camera.hash,params:{renderer:'Viewport'}});
   const output=await call('render.export',{kind:'image',download:false});
   assert.equal(output.width,160);assert.equal(output.height,96);assert.ok(output.bytes>0);
   const pixels=await call('render.pixels',{points:[[.5,.5],[0,0]]});

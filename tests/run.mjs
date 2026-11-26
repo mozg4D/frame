@@ -77,6 +77,7 @@ import {morphInputSettlementChecks} from './morph-input-settlement.mjs';
 import {hashParentMembershipChecks} from './hash-parent-membership.mjs';
 import {cameraViewChecks} from './camera-view.mjs';
 import {cameraAntialiasChecks} from './camera-antialias.mjs';
+import {cameraPathTracerChecks} from './camera-pathtracer-browser.mjs';
 import {cameraViewStateChecks} from './camera-view-state.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
@@ -335,6 +336,7 @@ try{
   report.cameraView=await isolated('cameraView',cameraViewChecks);
   report.shaderCompileStatus=await isolated('shaderCompileStatus',shaderCompileStatusChecks);
   report.cameraAntialias=await isolated('cameraAntialias',cameraAntialiasChecks);
+  report.cameraPathTracer=await isolated('cameraPathTracer',cameraPathTracerChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);
   report.editorFinal=await isolated('editorFinal',editorFinalChecks);
