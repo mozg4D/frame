@@ -9,13 +9,13 @@ const reportPath=process.argv.find(x=>x.startsWith('--report='))?.slice(9);
 const channel=process.argv.find(x=>x.startsWith('--channel='))?.slice(10)||'chromium';
 const server=await serve();let browser;
 try{
-  browser=await chromium.launch({headless:true,channel,args:['--enable-unsafe-webgpu','--enable-features=WebMachineLearningNeuralNetwork']});
+  browser=await chromium.launch({headless:true,channel,executablePath:process.env.FRAME_BROWSER||undefined,args:['--enable-unsafe-webgpu','--enable-features=WebMachineLearningNeuralNetwork']});
   const page=await browser.newPage({viewport:{width:1024,height:740},deviceScaleFactor:1});
   await page.goto(server.url+'/index.html');await ready(page);
   const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
   await page.evaluate(()=>{if(frameEngine.renderer.device.adapterInfo.isFallbackAdapter)throw Error('Hardware required');
     const el=document.getElementById('frame-pathtracer');el.textContent=el.textContent.replace('return new FrameRenderer(container,changed);',
-      'window.rasterSource=cameraIntegrator+cameraPatchKey;return window.rasterTracer=new FrameRenderer(container,changed);');});
+      'window.rasterSource=cameraIntegrationCore+cameraPatchKey;return window.rasterTracer=new FrameRenderer(container,changed);');});
   for(const f of [sampleRasterViews,rasterLinks,applyRasterGraph])await page.addScriptTag({content:'window.'+f.name+'='+f.toString()});
   await call('scene.new');
   const mat=(name,h,s,l,emm=0)=>call('material.create',{name,params:{h,s,l,emm,ior:1,rough:100}});
@@ -55,7 +55,7 @@ try{
     assert.ok(run.wgsl.nrmse<1e-5&&run.links>0);return run;
   }
   const lit=await scenario('Unique geometry with a partially hidden donor',true,[3840,2160]);
-  assert.ok(lit.hidden>0&&lit.reference[0]>0&&lit.counts.raster>0&&lit.counts.worldHit>0);
+  assert.ok(lit.hidden>0&&lit.reference[0]>0&&lit.counts.raster>0&&lit.counts.secondaryHit>0);
   const wall=await plate('Intervening black wall',0,45,260,black);
   const blocked=await scenario('Complete occlusion',false,[640,360]);
   assert.ok(blocked.center.every(x=>x<.002));

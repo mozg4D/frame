@@ -9,7 +9,9 @@ export async function cameraLightingContracts(){
   assert.ok(definition);
   const tuple=Function('return ['+definition[1]+']')();
   const fields=tuple[0],options=tuple[1].quality;
-  assert.deepEqual(fields.renderer,['Interactive GI','Path tracer','Viewport']);assert.equal(fields.quality,50);
+  assert.deepEqual(fields.renderer,['Path tracer','Viewport']);assert.deepEqual(fields.denoiser,['on','off']);assert.equal(fields.quality,50);
+  const cameraSource=html.split('<script id="frame-pathtracer"')[1].split('</script>')[0];
+  assert.doesNotMatch(cameraSource,/buildTlas|CWBVH|intersectGeometry|previousBVH|useRayGBuffer/);
   for(const name of ['samples','rays per pixel','idle refinement'])assert.ok(!(name in fields));
   const policy=Function(html.slice(html.indexOf('function cameraQuality('),html.indexOf('function cameraProgramGroup('))+';return cameraQuality;')();
   let last;
@@ -33,7 +35,13 @@ export async function cameraLightingContracts(){
     {render:['Camera','camera',fields]},()=>({}),{validate(_,p){assert.ok(Number.isInteger(p.quality)&&p.quality>=1&&p.quality<=100);}});
   const reload=params=>codec.decode(codec.encode({type:'render',params}).slice());
   assert.deepEqual(reload({quality:67,environment:'off'}).params,{quality:67,environment:'off'});
-  assert.deepEqual(reload({samples:512,'rays per pixel':8,'gi trace scale':'1.0',renderer:'Cached GI'}).params,{renderer:'Interactive GI'});
+  for(const renderer of ['Cached GI','Interactive GI','Interactive PI','Path tracer']){
+    assert.deepEqual(reload({samples:512,'rays per pixel':8,'gi trace scale':'1.0',renderer}).params,{renderer:'Path tracer'});
+  }
+  assert.deepEqual(reload({denoiser:'off'}).params,{denoiser:'off'});
+  const resolveParameter=Function('definitions',/^function frameParameter\([^\n]+/m.exec(html)[0]+';return frameParameter;')({render:['Camera','camera',fields]});
+  const slots=resolveParameter({type:'render',params:{}},'param:renderer').spec;
+  assert.deepEqual(slots,['Path tracer','Path tracer','Viewport'],'Previously saved discrete camera keys retain their numeric slots');
   assert.throws(()=>reload({unrelated:1}),/Unknown spline parameter/);
   const residual=residualChecks();assert.ok(residual.rankLost&&residual.fineSteps>0&&residual.residual<1e-8);
   assert.deepEqual(residual.hdr,{unquantized:1,quantized:0});

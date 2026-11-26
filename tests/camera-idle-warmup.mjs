@@ -25,11 +25,11 @@ export async function cameraIdleWarmupChecks(page){
   assert.equal(await page.evaluate(()=>warmProbe.calls.filter(x=>x==='raster').length),1);
   await page.evaluate(()=>warmProbe.release());
   await page.waitForFunction(()=>frameEngine.renderState().phase==='complete',null,{timeout:90000});
-  const before=await page.evaluate(()=>warmProbe.calls.slice());assert.ok(before.includes('opaqueGather')&&before.includes('opaqueRefine'));
+  const before=await page.evaluate(()=>warmProbe.calls.slice());assert.ok(before.includes('opaqueGather')&&before.includes('resolve'));
   await call('scene.update',{id:camera.hash,params:{quality:5}});
   await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.phase==='complete'&&s.quality===5;},null,{timeout:30000});
   const calls=await page.evaluate(()=>warmProbe.calls.slice());
-  for(const entry of ['raster','opaqueGather','opaqueRefine'])assert.equal(calls.filter(k=>k===entry).length,1);
+  for(const entry of ['raster','opaqueGather','resolve','meter'])assert.equal(calls.filter(k=>k===entry).length,1);
   return {pass:true,calls};
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){

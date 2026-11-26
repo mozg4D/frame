@@ -47,8 +47,8 @@ export async function applyRasterGraph(graph,grid,enableML,liveStart){
     const diagnostics=(await composite.getCompilationInfo()).messages.filter(m=>m.type==='error');if(diagnostics.length)throw Error(diagnostics.map(m=>m.message).join('\n'));
     const emit=new Float32Array(n*4);nodes.forEach((o,i)=>emit.set(o.emission,i*4));
     const show=await dev.createComputePipelineAsync({layout:'auto',compute:{module:composite,entryPoint:'main'}});
-    const bg=t.group(show.getBindGroupLayout(0),[im.hitView,im.hdrViews[0],seen,tri,sum,target,upload(emit)]);
-    const presentation={...im,displayGroups:[t.group(t.display.getBindGroupLayout(0),[t.uniform,target])]};
+    const hits=im.hits[im.front],bg=t.group(show.getBindGroupLayout(0),[hits,im.hdr[im.front].createView(),seen,tri,sum,target,upload(emit)]);
+    const presentation={...im,displayGroups:[t.group(t.display.getBindGroupLayout(0),[t.uniform,target,im.meters[im.front].createView(),t.previewSampler,hits])]};
     const render=async()=>{const e=dev.createCommandEncoder();t.encodeCompute(e,show,'Raster graph native reconstruction',[bg],[im.width,im.height]);t.encodeDisplay(e,presentation,0,true);dev.queue.submit([e.finish()]);await dev.queue.onSubmittedWorkDone();};
     return {render,texture,im};
   }

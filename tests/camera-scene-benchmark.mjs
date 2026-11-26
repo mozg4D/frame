@@ -17,10 +17,12 @@ async function orbit(page,call,camera){
     await page.waitForTimeout(100);
   }
   await call('scene.update',{id:camera.hash,params:{realtime:'on','realtime during navigation':true}});
-  await page.waitForFunction(()=>{const t=benchmarkCamera;return t.canvas.style.display==='block'&&t.lastImage?.viewport&&t.lastImage.width===3840&&t.lastImage.height===2160&&!String(t.lastImage.viewKey).startsWith('benchmark-');},null,{timeout:120000});
+  await page.waitForFunction(()=>{const t=benchmarkCamera;return t.stats.phase==='complete'&&t.canvas.style.display==='block'&&t.lastImage?.viewport&&t.lastImage.width===3840&&t.lastImage.height===2160&&!String(t.lastImage.viewKey).startsWith('benchmark-');},null,{timeout:120000});
   await page.evaluate(()=>{
     const t=benchmarkCamera,requests=new WeakMap(),old=t.start,changed=t.onChange;
-    const events=[],frames=[],model=window.cameraOrbit={events,frames};let previous=t.stats.presentedFrames;
+    const events=[],frames=[],model=window.cameraOrbit={events,frames,hiddenFrames:0,observedFrames:0};let previous=t.stats.presentedFrames,raf=0;
+    const watch=()=>{if(events.length){model.observedFrames++;if(t.canvas.hidden||getComputedStyle(t.canvas).display==='none')model.hiddenFrames++;}raf=requestAnimationFrame(watch);};
+    raf=requestAnimationFrame(watch);
     const input=e=>{if(e.buttons&1)events.push(e.timeStamp);};
     window.addEventListener('pointermove',input,true);
     t.start=function(options){requests.set(options,events.at(-1));return old.call(this,options);};
@@ -32,7 +34,7 @@ async function orbit(page,call,camera){
       const at=performance.now(),row={at,input:event,inputToOverlayMs:at-event,eye:[...this.options.camera.position]};frames.push(row);
       requestAnimationFrame(()=>{row.rafMs=performance.now()-event;row.visibleAtRaf=t.canvas.style.display==='block'&&!t.canvas.hidden;});
     };
-    model.restore=()=>{window.removeEventListener('pointermove',input,true);t.start=old;t.onChange=changed;};
+    model.restore=()=>{cancelAnimationFrame(raf);window.removeEventListener('pointermove',input,true);t.start=old;t.onChange=changed;};
   });
   const rect=await canvas.boundingBox(),x=rect.x+rect.width*.6,y=rect.y+rect.height*.52;
   await page.mouse.move(x,y);await page.mouse.down();
@@ -47,13 +49,13 @@ async function orbit(page,call,camera){
     const times=events.length?frames.filter(f=>f.at>=events[0]&&f.at<=events.at(-1)):[];
     const percentile=(a,q)=>a.length?a.toSorted((a,b)=>a-b)[Math.ceil(q*a.length)-1]:null;
     const intervals=times.slice(1).map((f,i)=>f.at-times[i].at);
-    return {size:[benchmarkCamera.canvas.width,benchmarkCamera.canvas.height],inputEvents:events.length,framesDuringInput:times.length,
+    return {size:[benchmarkCamera.canvas.width,benchmarkCamera.canvas.height],inputEvents:events.length,framesDuringInput:times.length,hiddenFrames:cameraOrbit.hiddenFrames,observedFrames:cameraOrbit.observedFrames,
       inputStreamMs:events.at(-1)-events[0],inputToOverlayP95:percentile(times.map(f=>f.inputToOverlayMs),.95),
       overlayIntervalP50:percentile(intervals,.5),overlayIntervalP95:percentile(intervals,.95),
       inputToNextRafP95:percentile(times.filter(f=>f.visibleAtRaf).map(f=>f.rafMs),.95),
       longIntervals:intervals.filter(v=>v>1000/60+1).length,frames};
   });
-  await call('render.stop');assert.ok(observation.framesDuringInput>=2,JSON.stringify(observation));
+  await call('render.stop');assert.ok(observation.framesDuringInput>=2&&observation.observedFrames>2&&observation.hiddenFrames===0,JSON.stringify(observation));
   return observation;
 }
 for(const path of files){
@@ -71,20 +73,31 @@ for(const path of files){
     await call('scene.open',{name:run.scene,base64:(await readFile(path)).toString('base64')});
     const {objects}=await call('scene.inspect');run.objects=objects.length;
     let camera=objects.find(n=>n.type==='render'&&n.enabled)||objects.find(n=>n.type==='render');
-    const opts={realtime:'off',quality:50,renderer:'Interactive GI','resolution x':640,'resolution y':360};
+    const opts={realtime:'off',quality:50,renderer:'Path tracer','resolution x':640,'resolution y':360};
     if(camera){run.camera=camera.name;await call('scene.update',{id:camera.hash,enabled:true,params:opts});}
     else{run.camera='Camera created at the saved perspective';camera=await call('scene.create',{type:'render',params:{...opts,environment:'default'}});}
     await call('render.stop');
     const begin=performance.now();const exported=await call('render.export',{kind:'image',download:false});run.coldExportMs=performance.now()-begin;
     assert.equal(exported.width,640);assert.equal(exported.height,360);
-    run.triangles=(await call('render.inspect')).triangles;
+    const state=await call('render.inspect');run.triangles=state.triangles;
+    run.capture={secondary:state.secondaryVisibility,cubeSize:state.cubeSize,faces:state.cubeFaces,bvhBytes:state.bvhStorageBytes};
+    run.browser=await session.browser.version();
     console.log(run.scene,'opened',run.objects,'objects,',run.triangles,'triangles');
     if(images){
-      const png=await page.evaluate(async()=>{
+      const saveImage=async suffix=>{
+        const png=await page.evaluate(async()=>{
         const {width,height,rgba}=await benchmarkCamera.readImage(),c=document.createElement('canvas');
         c.width=width;c.height=height;c.getContext('2d').putImageData(new ImageData(rgba,width,height),0,0);return c.toDataURL('image/png').split(',')[1];
-      });
-      await writeFile(images+'/'+run.scene.replace(/\.hash$/i,'')+'.png',Buffer.from(png,'base64'));
+        });
+        await writeFile(images+'/'+run.scene.replace(/\.hash$/i,'')+suffix+'.png',Buffer.from(png,'base64'));
+      };
+      await saveImage('');
+      if(args.includes('--compare-denoiser')){
+        await call('scene.update',{id:camera.hash,params:{denoiser:'off'}});
+        await call('render.export',{kind:'image',download:false});await saveImage('-raw');
+        await call('scene.update',{id:camera.hash,params:{denoiser:'on'}});
+        await call('render.export',{kind:'image',download:false});
+      }
     }
     run.views=[];
     for(const size of [[1280,720],[3840,2160]]){
@@ -97,7 +110,7 @@ for(const path of files){
         };
         for(let i=0;i<=repeats;i++){
           const camera=cameraFor(i),o={...base,rect:{x:0,y:0,w:size[0],h:size[1]},outputSize:size,quality:50,camera,motion:true,
-            renderer:'Interactive GI',previewPresentation:true,finish:false,refine:false,current:undefined,viewKey:'benchmark-'+size+'-'+i};
+            renderer:'Path tracer',previewPresentation:true,finish:false,refine:false,current:undefined,viewKey:'benchmark-'+size+'-'+i};
           const at=performance.now();await t.start(o);const wall=performance.now()-at;
           if(t.stats.phase!=='preview')throw Error(JSON.stringify(t.stats));
           if(i)rows.push({wall,...t.stats.previewGpuMs,grid:t.stats.lightingGrid});

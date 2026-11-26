@@ -15,9 +15,9 @@ export async function cameraProgressiveChecks(page){
   await call('render.export',{kind:'image',download:false});await call('render.stop');
   const cases=await page.evaluate(async()=>{
     const t=progressCamera,base=t.options,points=Array.from({length:157*101},(_,i)=>[((i%157)+.5)/157,((i/157|0)+.5)/101]),results=[];
-    for(const renderer of ['Interactive GI','Path tracer']){
-      let key=renderer;
-      const settings={...base,quality:12,renderer,outputSize:[157,101],previewPresentation:false,current:undefined};
+    for(const denoiser of ['on','off']){
+      let key=denoiser;
+      const settings={...base,quality:12,denoiser,outputSize:[157,101],previewPresentation:false,current:undefined};
       await t.start({...settings,viewKey:key,finish:true});if(t.stats.phase!=='complete')throw Error(JSON.stringify(t.stats));
       const passes=t.stats.samples,reference=await t.readLinearPixels(points),display=await t.readImage();
       key+=' resumed';
@@ -31,7 +31,7 @@ export async function cameraProgressiveChecks(page){
       for(let i=0;i<actual.length;i++)for(let c=0;c<3;c++){
         const v=actual[i].color[c];maxError=Math.max(maxError,Math.abs(v-reference[i].color[c]));low=Math.min(low,v);high=Math.max(high,v);
       }
-      results.push({renderer,passes,maxError,range:high-low,identicalDisplay:next.rgba.every((v,i)=>v===display.rgba[i])});
+      results.push({denoiser,passes,maxError,range:high-low,identicalDisplay:next.rgba.every((v,i)=>v===display.rgba[i])});
     }return results;
   });
   for(const row of cases){assert.ok(row.passes>1&&row.range>.1&&row.maxError===0&&row.identicalDisplay,JSON.stringify(row));}

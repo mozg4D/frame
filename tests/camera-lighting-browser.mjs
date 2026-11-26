@@ -32,24 +32,39 @@ try{
   assert.ok(fields.includes('quality'));for(const field of ['samples','rays per pixel','idle refinement'])assert.ok(!fields.includes(field));
   await assert.rejects(()=>call('scene.update',{id:camera.hash,params:{quality:101}}),/range/i);
   await settled();
-  let s=await call('render.inspect');assert.equal(s.renderer,'Interactive GI');assert.equal(s.primaryVisibility,'raster');assert.equal(s.samples,4);
+  let s=await call('render.inspect');assert.equal(s.renderer,'Path tracer');assert.equal(s.primaryVisibility,'raster');assert.equal(s.samples,4);
+  assert.ok(fields.includes('denoiser'));assert.equal(s.denoiser,true);assert.equal(s.secondaryVisibility,'screen-space+cube');assert.equal(s.bvhStorageBytes,0);
   const events=await page.evaluate(()=>traceEvents);
-  assert.ok(events.some(e=>e.phase==='preview'&&e.n===0)&&events.some(e=>e.phase==='refining'&&e.n>0));
+  assert.ok(events.some(e=>e.phase==='refining'&&e.n===1)&&events.some(e=>e.phase==='complete'&&e.n===4));
   const lit=await samples();assert.ok(lit[0].slice(0,3).every(x=>Number.isFinite(x)&&x>.01));assert.equal(lit[0][3],s.targetSamples);
   console.log('Numeric quality, native visibility, automatic refinement and linear readback passed');
 
   const rect=await page.locator('#frame-engine-canvas').boundingBox(),x=rect.x+rect.width*.64,y=rect.y+rect.height*.53;
-  await page.evaluate(()=>traceEvents.length=0);
+  await page.evaluate(()=>{
+    traceEvents.length=0;window.overlayFrames=[];
+    const tick=()=>{overlayFrames.push(testCamera.canvas.hidden||getComputedStyle(testCamera.canvas).display==='none');window.overlayRaf=requestAnimationFrame(tick);};
+    window.overlayRaf=requestAnimationFrame(tick);
+  });
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+25,y+8,{steps:5});
   await page.waitForFunction(()=>traceEvents.at(-1)?.phase==='preview'&&frameEngine.renderState().visible);
   const eye=await page.evaluate(()=>traceEvents.at(-1).eye);
   await page.mouse.move(x+60,y+18,{steps:5});
   await page.waitForFunction(eye=>traceEvents.some(f=>f.eye.some((v,i)=>Math.abs(v-eye[i])>.001)),eye);
-  await page.waitForTimeout(240);
+  await page.waitForFunction(()=>traceEvents.at(-1)?.phase==='complete',null,{timeout:15000});
   const held=await page.evaluate(()=>traceEvents.slice());
-  assert.ok(held.length>=2&&held.every(f=>f.phase==='preview'&&f.n===0));
-  await page.mouse.up();await settled(held.at(-1).frame);
+  assert.ok(held.filter(f=>f.phase==='preview'&&f.n===1).length>=2);
+  assert.ok(held.some(f=>f.phase==='refining')&&held.at(-1).n===4);
+  await page.mouse.up();await settled(held.at(-1).frame-1);
   assert.deepEqual(await page.evaluate(()=>traceEvents.at(-1).eye),held.at(-1).eye);
+  const overlay=await page.evaluate(()=>{cancelAnimationFrame(overlayRaf);return overlayFrames;});
+  assert.ok(overlay.length>=3&&!overlay.some(Boolean),'The rendered canvas stays visible through the first drag and release');
+  const denoise=page.locator('button[data-field="denoiser"]');await denoise.click();
+  await page.waitForFunction(()=>frameEngine.renderState().phase==='complete'&&frameEngine.renderState().denoiser===false);
+  const changed=await call('render.inspect');await call('edit.history',{action:'undo'});await settled(changed.presentedFrames);assert.equal((await call('render.inspect')).denoiser,true);
+  await page.locator('.ob-row[data-type="render"] .ob-name').click({button:'right'});
+  await page.getByRole('menuitem',{name:'Turn denoiser off'}).click();
+  await page.waitForFunction(()=>frameEngine.renderState().phase==='complete'&&frameEngine.renderState().denoiser===false);
+  await denoise.click();await page.waitForFunction(()=>frameEngine.renderState().phase==='complete'&&frameEngine.renderState().denoiser===true);
   const toggle=page.locator('button[data-field="realtime during navigation"]');
   const last=(await call('render.inspect')).presentedFrames;await toggle.click();await settled(last);
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+35,y+9,{steps:6});
@@ -81,14 +96,15 @@ try{
   const restored=await call('render.inspect');await call('edit.history',{action:'redo'});await settled(restored.presentedFrames);assert.equal((await call('render.inspect')).triangles,0);
   console.log('Stop, deletion and Undo/Redo passed');
 
-  const old=await call('render.inspect');await call('scene.update',{id:camera.hash,params:{renderer:'Path tracer'}});
-  await settled(old.presentedFrames);assert.equal((await call('render.inspect')).primaryVisibility,'CWBVH8');
+  const old=await call('render.inspect');await call('scene.update',{id:camera.hash,params:{denoiser:'off'}});
+  await settled(old.presentedFrames);assert.equal((await call('render.inspect')).denoiser,false);
   const image=await call('render.export',{kind:'image',download:false});assert.equal(image.width,192);assert.equal(image.height,108);assert.ok(image.bytes>100);
   const video=await call('render.export',{kind:'video',start:0,end:1,download:false});
   assert.equal(video.frames,2);assert.equal(video.width,192);assert.equal(video.height,108);assert.ok(video.bytes>0);assert.equal(video.mime,'video/mp4');
   const saved=await call('scene.export',{format:'hash',includeData:true});
   assert.ok(saved.base64);await call('scene.open',{base64:saved.base64,name:'camera-quality.hash'});
   const reloaded=(await call('scene.inspect')).objects.find(n=>n.type==='render');assert.equal(reloaded.params.quality,1);assert.equal(reloaded.params.renderer,'Path tracer');
+  assert.equal(reloaded.params.denoiser,'off');
   await settled();await call('render.stop');
   // A superseded native snapshot may resolve after Stop.
   await page.evaluate(()=>{
@@ -104,7 +120,7 @@ try{
   const stoppedEpoch=(await call('render.inspect')).epoch;await page.evaluate(()=>releaseSnapshot());await page.waitForTimeout(250);
   const stale=await call('render.inspect');assert.equal(stale.epoch,stoppedEpoch);assert.ok(!stale.running);
   assert.equal(await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message||null),null);
-  assert.deepEqual(errors,[]);console.log('Reference tracing, image and video export, and native HASH round trip passed');
+  assert.deepEqual(errors,[]);console.log('Screen-space lighting, denoiser toggle, image and video export, and native HASH round trip passed');
   return {pass:true,orbitFrames:held.length,image,video};
 }catch(error){return {pass:false,error:error.stack,errors,state:await call('render.inspect').catch(()=>null)};}
 }

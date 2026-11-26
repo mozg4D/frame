@@ -12,7 +12,7 @@ const shapes=[
 ];
 
 // Clip the actual polygons to the pixel square. This reference has no noise,
-// subpixel grid or shared edge-detection code with either renderer.
+// subpixel grid or shared edge-detection code with the camera.
 function pixelArea(shape,x,y){
   let polygon=shape;
   for(const [axis,edge,sign] of [[0,x,1],[0,x+1,-1],[1,y,1],[1,y+1,-1]]){
@@ -66,23 +66,39 @@ export async function cameraAntialiasChecks(page){
   const mat=await call('material.create',{params:{h:0,s:0,l:100,emm:100,rough:100}});
   await call('material.assign',{id:mesh.hash,material:mat.uid});
   await call('render.export',{kind:'image',download:false});
-  for(const renderer of ['Interactive GI','Path tracer']){
+  for(const denoiser of ['on','off']){
     for(const quality of [1,100]){
-      await call('scene.update',{id:camera.hash,params:{renderer,quality}});
+      await call('scene.update',{id:camera.hash,params:{denoiser,quality}});
       await call('render.export',{kind:'image',download:false});
       const sample=await page.evaluate(async()=>{
         const t=aaTest.tracer,points=Array.from({length:t.width*t.height},(_,i)=>[((i%t.width)+.5)/t.width,((i/t.width|0)+.5)/t.height]);
         const pixels=await t.readLinearPixels(points),image=await t.readImage();
-        return {linear:pixels.map(p=>p.color[0]),bytes:Array.from({length:pixels.length},(_,i)=>image.rgba[i*4]),passes:t.stats.samples};
+        const im=t.cameraImage,read=t.device.createBuffer({size:9*256,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+        try{
+          const enc=t.device.createCommandEncoder();enc.copyTextureToBuffer({texture:im.meters[im.front]},{buffer:read,bytesPerRow:256},[16,9]);t.device.queue.submit([enc.finish()]);
+          await read.mapAsync(GPUMapMode.READ);const data=new DataView(read.getMappedRange());
+          const exposure=Array.from({length:144},(_,k)=>[0,2].map(c=>data.getFloat16((k>>4)*256+(k%16)*8+c,true)));
+          return {linear:pixels.map(p=>p.color[0]),bytes:Array.from({length:pixels.length},(_,i)=>image.rgba[i*4]),passes:t.stats.samples,exposure};
+        }finally{read.destroy();}
       });
       const white=sample.linear[108*width+150];assert.ok(white>=.99);
       let sum=0,aligned=0,count=0,displayError=0;
       for(let i=0;i<areas.length;i++){
         const delta=Math.abs(sample.linear[i]/white-areas[i]);
-        if(areas[i]>1e-5&&areas[i]<1-1e-5){sum+=delta;count++;displayError+=Math.abs(sample.bytes[i]-displayByte(areas[i]*white));}
+        if(areas[i]>1e-5&&areas[i]<1-1e-5){
+          sum+=delta;count++;
+          const u=(i%width+.5)*16/width-.5,v=((i/width|0)+.5)*9/height-.5,terms=[0,0];
+          for(let y=0;y<2;y++)for(let x=0;x<2;x++){
+            const tx=Math.max(0,Math.min(15,Math.floor(u)+x)),ty=Math.max(0,Math.min(8,Math.floor(v)+y));
+            const weight=(1-Math.abs(Math.floor(u)+x-u))*(1-Math.abs(Math.floor(v)+y-v));
+            sample.exposure[ty*16+tx].forEach((ev,k)=>terms[k]+=weight*ev);
+          }
+          const edges=[terms[0],terms[0]+terms[1]].map(ev=>displayByte(areas[i]*white*2**ev));
+          displayError+=Math.max(0,Math.min(...edges)-sample.bytes[i],sample.bytes[i]-Math.max(...edges));
+        }
         else if(Math.floor(i/width)>92)aligned=Math.max(aligned,delta);
       }
-      const row={renderer,quality,passes:sample.passes,coverageMAE:sum/count,aligned,edgePixels:count,displayMAE:displayError/count};rows.push(row);
+      const row={denoiser,quality,passes:sample.passes,coverageMAE:sum/count,aligned,edgePixels:count,displayMAE:displayError/count};rows.push(row);
       assert.ok(count>480&&aligned<.025,JSON.stringify(row));
       assert.ok(row.coverageMAE<(quality===1?.24:.055),JSON.stringify(row));
       if(quality===100)assert.ok(row.coverageMAE<rows.at(-2).coverageMAE*.6&&row.displayMAE<12,JSON.stringify(row));

@@ -66,7 +66,7 @@ async function physicalReplay({nx,ny,instances,repeats,withFrame,reflectance}){
   const nativeFrame=async()=>{
     const angle=.006*((frameIndex++%12)-6),c=Math.cos(angle),s=Math.sin(angle),f=original.forward,r=original.right;
     const camera={...original,aspect:16/9,forward:f.map((v,i)=>c*v+s*r[i]),right:r.map((v,i)=>c*v-s*f[i])};
-    await tracer.start({...base,camera,renderer:'Interactive GI',rect:{x:0,y:0,w:3840,h:2160},outputSize:[3840,2160],current:undefined,
+    await tracer.start({...base,camera,renderer:'Path tracer',rect:{x:0,y:0,w:3840,h:2160},outputSize:[3840,2160],current:undefined,
       viewKey:'transport-'+frameIndex,quality:50,finish:false,refine:false,motion:true,previewPresentation:true});
     if(tracer.stats.phase!=='preview')throw Error('Failed 4K render: '+tracer.stats.errors);
   };

@@ -1,5 +1,4 @@
-// Raster observations and supplemental hits use the same native visibility,
-// material decoding, lights and BVH as the shipped Camera.
+// Sample the Camera's visibility buffers, material decoding and lights.
 export async function sampleRasterViews({views,grid,base,size}){
   const t=window.rasterTracer,dev=t.device,resources=[];
   const nodesPerView=grid[0]*grid[1],slots=32,extra=2,words=20;
@@ -29,9 +28,9 @@ export async function sampleRasterViews({views,grid,base,size}){
       obs[offset]=empty;obs[offset+1u]=empty;obs[offset+2u]=empty;if(h.x==0u){return;}
       let r=atPixel(h,xy);let node=observation(r);obs[offset]=node;
       for(var k=0u;k<2u;k++){
-        let slot=(node.seed+k*17u)&31u;let d=localDirection(node.n,node.seed,slot);var early=false;
-        let world=intersectGeometry(0u,originFor(r,d),d,1e20,false,false,false,&early);
-        if(world.triangle!=EMPTY_SLOT){obs[offset+1u+k]=observation(receiver(world,d));}
+        let slot=(node.seed+k*17u)&31u;let d=localDirection(node.n,node.seed,slot);
+        let ray=rasterHit(originFor(r,d),d,1e20,r.hit.triangle);
+        if(ray.triangle!=EMPTY_SLOT){obs[offset+1u+k]=observation(receiver(ray,d));}
       }
     }`.replaceAll('GX',String(grid[0])).replaceAll('GY',String(grid[1]));
   const layout=dev.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]});
@@ -43,11 +42,11 @@ export async function sampleRasterViews({views,grid,base,size}){
     for(let i=0;i<views.length;i++){
       const at=performance.now(),camera=views[i],pixels=i===views.length-1?size:[320,200];
       await t.start({...base,camera,outputSize:pixels,rect:{x:0,y:0,w:pixels[0],h:pixels[1]},viewKey:'raster-graph-'+i,
-        finish:false,motion:true,refine:false,current:undefined,renderer:'Interactive GI',previewPresentation:i===views.length-1});
+        finish:false,motion:true,refine:false,current:undefined,renderer:'Path tracer',previewPresentation:i===views.length-1});
       if(t.stats.phase!=='preview')throw Error(t.stats.errors.join('\n'));
-      const rasterReady=performance.now(),bg=t.group(layout,[t.cameraImage.hitView,out]),f=t._paramF32;
+      const im=t.cameraImage,rasterReady=performance.now(),bg=t.group(layout,[im.hits[im.front],out]),f=t._paramF32;
       poses.push({p:Array.from(f.subarray(0,3)),right:camera.right,up:camera.up,forward:camera.forward,tanX:f[7],tanY:f[11]});
-      const enc=dev.createCommandEncoder();t.encodeCompute(enc,pipe,'Raster patches, source radiance and world supplements',[t.sceneBindGroup,bg],grid);
+      const enc=dev.createCommandEncoder();t.encodeCompute(enc,pipe,'Raster patches and secondary hits',[t.sceneBindGroup,bg],grid);
       enc.copyBufferToBuffer(out,0,copy,0,sizeBytes);dev.queue.submit([enc.finish()]);await copy.mapAsync(GPUMapMode.READ);
       records.push(copy.getMappedRange().slice(0));copy.unmap();
       costs.push({nativeCameraMs:rasterReady-at,captureAndReadbackMs:performance.now()-rasterReady});
@@ -108,13 +107,13 @@ export function rasterLinks({records,poses,grid,words,extra,slots}){
       }
     }return best;
   }
-  const counts={raster:0,worldHit:0,worldMiss:0,blocked:0,unknown:0},edges=[];
+  const counts={raster:0,secondaryHit:0,secondaryMiss:0,blocked:0,unknown:0},edges=[];
   for(let i=0;i<nodes.length;i++){
     const a=nodes[i],sum=new Map();
     for(let s=0;s<slots;s++){
       const slot=(s-(a.seed&31)+32)&31,exact=slot===0?0:slot===17?1:-1;
       let j;
-      if(exact>=0&&supplements[i]){j=supplements[i][exact];counts[j>=0?'worldHit':'worldMiss']++;}
+      if(exact>=0&&supplements[i]){j=supplements[i][exact];counts[j>=0?'secondaryHit':'secondaryMiss']++;}
       else{j=march(a,direction(a.n,a.seed,s));counts[j>=0?'raster':j===-2?'blocked':'unknown']++;}
       if(j>=0)sum.set(j,(sum.get(j)||0)+1/slots);
     }

@@ -43,10 +43,9 @@ export async function cameraMaterialOpticsChecks(page){
     const camera={position:[0,0,80],right:[1,0,0],up:[0,1,0],forward:[0,0,-1],fov:38,aspect:1.5};
     const points=Array.from({length:18},(_,i)=>[(i<9?.28:.72)+((i%3)-1)*.02,.5+(Math.floor(i%9/3)-1)*.03]);
     let serial=0;
-    async function frame(material,front=false,primary=null,ortho=0){
+    async function frame(material,front=false,ortho=0){
       const key='optics-'+(++serial);
       const environment={...base.environment,mode:'off',infiniteLights:[{direction:[0,0,front?1:-1],angle:0,intensity:1,color:[1,1,1]}]};
-      if(primary)t.useRayGBuffer=()=>primary==='bvh';
       await t.start({...base,camera:{...camera,ortho},environment,onSamples:()=>{},getScene:async cancelled=>{
         const s=await getScene(cancelled);const wax=s.materials.filter(m=>m.name==='Wax');
         if(wax.length!==2||wax.some(m=>m.ior!==1.417||m.sss!==.78||m.sssRadius!==8.5||m.translucency!==.14))throw Error('Native optical snapshot lost authored values');
@@ -59,32 +58,24 @@ export async function cameraMaterialOpticsChecks(page){
       const mean=p=>p.reduce((v,s)=>v+s.color[0],0)/p.length;
       return {slab:mean(pixels.slice(0,9)),sheet:mean(pixels.slice(9)),primary:t.stats.primaryVisibility};
     }
-    try{
-      const off=await frame({}),translucent=await frame({translucency:1});
-      const short=await frame({sss:1,sssRadius:.1}),long=await frame({sss:1,sssRadius:20});
-      const glass={color:[0,0,0],rough:.5};
-      const low=await frame({...glass,ior:1.1},true),high=await frame({...glass,ior:2.4},true);
-      const raster=await frame({translucency:1},false,'raster'),bvh=await frame({translucency:1},false,'bvh');
-      const coverage=[];
-      for(const factor of [.25,.75]){
-        const mat={translucency:1,alphaMode:'BLEND',alphaModeCode:3,coverageFactor:factor};
-        coverage.push({factor,raster:await frame(mat,false,'raster'),bvh:await frame(mat,false,'bvh')});
-      }
-      const orthoRaster=await frame({translucency:1},false,'raster',55),orthoBVH=await frame({translucency:1},false,'bvh',55);
-      return {off,translucent,short,long,low,high,raster,bvh,coverage,orthoRaster,orthoBVH};
-    }finally{delete t.useRayGBuffer;}
+    const off=await frame({}),translucent=await frame({translucency:1});
+    const short=await frame({sss:1,sssRadius:.1}),long=await frame({sss:1,sssRadius:20});
+    const glass={color:[0,0,0],rough:.5};
+    const low=await frame({...glass,ior:1.1},true),high=await frame({...glass,ior:2.4},true);
+    const coverage=[];
+    for(const factor of [.25,.75]){
+      const mat={translucency:1,alphaMode:'BLEND',alphaModeCode:3,coverageFactor:factor};
+      coverage.push({factor,raster:await frame(mat)});
+    }
+    const orthoRaster=await frame({translucency:1},false,55);
+    return {off,translucent,short,long,low,high,coverage,orthoRaster};
   });
-  const {off,translucent,short,long,low,high,raster,bvh,orthoRaster,orthoBVH}=measurements;
+  const {off,translucent,short,long,low,high,orthoRaster}=measurements;
   assert.ok(translucent.sheet>off.sheet+.1,JSON.stringify(measurements));
   assert.ok(long.slab>short.slab+.08&&long.slab>off.slab+.08,JSON.stringify(measurements));
   assert.ok(high.sheet>3*low.sheet&&high.sheet>.05,JSON.stringify(measurements));
-  for(const [r,b] of [[raster,bvh],[orthoRaster,orthoBVH]]){
-    assert.equal(b.primary,'CWBVH8');assert.equal(r.primary,'raster');
-    assert.ok(r.sheet>.1&&Math.abs(b.sheet-r.sheet)<.015&&Math.abs(b.slab-r.slab)<.015,JSON.stringify(measurements));
-  }
-  for(const {factor,raster:r,bvh:b} of measurements.coverage){
-    assert.equal(r.sheet>.1,factor>.5);assert.ok(Math.abs(r.sheet-b.sheet)<.015);
-  }
+  for(const r of [translucent,orthoRaster]){assert.equal(r.primary,'raster');assert.ok(r.sheet>.1,JSON.stringify(r));}
+  for(const {factor,raster:r} of measurements.coverage)assert.equal(r.sheet>.1,factor>.5);
   const large=await page.evaluate(async()=>{
     const t=window.opticsTracer,base=t.options;
     const getScene=async cancelled=>{
@@ -98,12 +89,11 @@ export async function cameraMaterialOpticsChecks(page){
     };
     await t.start({...base,getScene,sceneKey:'100k-copies',geometryKey:'100k-copies',viewKey:'100k-copies',finish:false,refine:false,motion:true,current:undefined});
     const s=t.stats;
-    const primary4K=t.useRayGBuffer.call({scene:{triangleCount:100632046}},3840,2160);
-    return {phase:s.phase,primary:s.primaryVisibility,primary4K,instances:s.instances,triangles:s.triangles,stored:s.storedTriangles,workerMs:s.buildMs,errors:s.errors};
+    return {phase:s.phase,primary:s.primaryVisibility,bvhBytes:s.bvhStorageBytes,secondary:s.secondaryVisibility,instances:s.instances,triangles:s.triangles,stored:s.storedTriangles,workerMs:s.buildMs,errors:s.errors};
   });
-  assert.equal(large.phase,'preview',JSON.stringify(large));assert.equal(large.primary,'CWBVH8');
+  assert.equal(large.phase,'preview',JSON.stringify(large));assert.equal(large.primary,'raster');assert.equal(large.secondary,'screen-space+cube');
   assert.equal(large.instances,100000);assert.equal(large.triangles,1200000);assert.equal(large.stored,12);
-  assert.equal(large.primary4K,true);assert.ok(Number.isFinite(large.workerMs));assert.deepEqual(large.errors,[]);
+  assert.equal(large.bvhBytes,0);assert.ok(Number.isFinite(large.workerMs));assert.deepEqual(large.errors,[]);
   const validation=await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message);
   assert.equal(validation,undefined);assert.deepEqual(errors,[]);
   return {pass:true,measurements,large};
