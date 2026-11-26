@@ -1909,7 +1909,7 @@ async function sstStencilTranspose(gpu,f,dt,base,state,flux,tail,wall,mu,mid){
         else if(!openFace(axis,side)||q<0.){ghost=3u;b=far(p);}
         else{ghost=4u;}
       }
-      let g=mid[i];let lap=open*invD/(widths[axis]*wall[i].w);let weight=.5*f32(side)*invD${f.sstWall?'*open':''};
+      let g=mid[i];let lap=open*invD/(widths[axis]*wall[i].w);let weight=.5*f32(side)*invD*open;
       let eddy=.5*(a.wt.y+b.wt.y);let deltaK=b.uk.w-a.uk.w;let deltaW=b.wt.x-omega;
       let barK=lap*(g.transport.z+eddy*g.diffusion.x)+weight*g.gradient[axis].w;
       let barW=lap*(g.transport.w+eddy*g.diffusion.y)+weight*g.omega[axis];
@@ -1937,8 +1937,8 @@ async function sstStencilTranspose(gpu,f,dt,base,state,flux,tail,wall,mu,mid){
       v.discharge=${f.groupTransport?'select(g.transport.x*upK,0.,outerFace(p,j))':'(g.transport.x*upK+g.transport.y*select(b.wt.x,omega,fromCentre))'}*f32(side)/divisor;
       let lapWork=(g.transport.z+eddy*g.diffusion.x)*deltaK+(g.transport.w+eddy*g.diffusion.y)*deltaW;
       let differences=vec4f(b.uk.xyz-a.uk.xyz,deltaK);
-      v.geometry.x=invD*lapWork/(widths[axis]*wall[i].w)${f.sstWall?`+
-        .5*(f32(side)*invD*(dot(g.gradient[axis],differences)+g.omega[axis]*deltaW)+g.coverage[axis])`:''};
+      v.geometry.x=invD*lapWork/(widths[axis]*wall[i].w)+
+        .5*(f32(side)*invD*(dot(g.gradient[axis],differences)+g.omega[axis]*deltaW)+g.coverage[axis]);
       v.geometry.y=-(amount*v.discharge+lapWork*lap)/wall[i].w;
       if(ghost!=0u&&ghost!=3u){
         var back=v.neighbour;
@@ -2067,6 +2067,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     fn wallIncrement(relative:vec3f,n:vec3f,d:f32,areaOverVolume:f32)->vec3f{
       let slip=tangentialSlip(relative,n);let rate=areaOverVolume*wallResistance(length(slip),d,NU);
       return (rate/(1.+rate))*slip;}`:'';
+  const openSstStencil=f.sstWall||f.cutCells&&f.wallModeled&&!f.laminar;
   const predictorShader=(dual,replay=false)=>base+(dual?sstSpatialDualWGSL+decl(5,'objective','vec4f')+decl(7,'permeability','vec4f'):
     replay?decl(7,'permeability','vec4f'):wallFunctions)+bulkSstWGSL(f.ddes,dual)+
     decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+(dual?decl(3,'dual','SstSpatialDual',true):decl(3,'out','Cell',true))+decl(4,'tail','Flux')+main(`
@@ -2076,7 +2077,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let groupRatio=${f.cutCells?'solid.w':'1.'};let share=${f.cutCells?'permeability[i].w/groupRatio':'1.'};
       ${f.wallModeled?'var cutArea=vec3f(0);var normalHint=vec3f(0);var sdfGradient=vec3f(0);':''}
       var adv=vec4f(0);var diff=vec3f(0);var grad:mat3x3f;var gk=vec3f(0);var gw=vec3f(0);
-      ${f.sstWall?'var gradientCoverage=vec3f(0);':''}
+      ${openSstStencil?'var gradientCoverage=vec3f(0);':''}
       var advW=0.;var dk=0.;var dw=0.;var edk=0.;var edw=0.;
       ${f.faceHistory?'var transportDiagonal=0.;':''}
       for(var axis=0u;axis<3u;axis++){var e=vec3i(0);e[axis]=1;
@@ -2103,20 +2104,20 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           ${f.groupTransport?'adv+=explicitRate*(up-donor);':
             'adv+=explicitRate*up;advW+=explicitRate*select(b.wt.x,omega,q>=0.);'}
           let change=b.uk-a.uk;let nut=0.5*(a.wt.y+b.wt.y);
-          var lap=invD/(widths[axis]*groupRatio);var gradWeight=.5*dir*invD;${f.sstWall?'var coverage=.5;':''}
+          var lap=invD/(widths[axis]*groupRatio);var gradWeight=.5*dir*invD;${openSstStencil?'var coverage=.5;':''}
           ${f.wallModeled?`if(inside(j)){let k=index(j);let open=permeability[select(k,i,side>0)][axis];
             let blocked=(1.-open)*area[axis];cutArea[axis]+=blocked;normalHint[axis]-=dir*blocked;
             sdfGradient[axis]+=gradWeight*(wall[k].x-solid.x);lap*=open;
-            ${f.sstWall?'coverage*=open;gradWeight*=open;':''}
-          }else if(domainWall(axis,side).w>0.){lap=0.;${f.sstWall?'coverage=0.;gradWeight=0.;':''}}`:''}
-          ${f.sstWall?'gradientCoverage[axis]+=coverage;':''}
+            ${openSstStencil?'coverage*=open;gradWeight*=open;':''}
+          }else if(domainWall(axis,side).w>0.){lap=0.;${openSstStencil?'coverage=0.;gradWeight=0.;':''}}`:''}
+          ${openSstStencil?'gradientCoverage[axis]+=coverage;':''}
           diff+=(NU+nut)*lap*change.xyz;grad[axis]+=gradWeight*change.xyz;
           ${f.faceHistory?'transportDiagonal+=max(q,0.)+(NU+nut)*lap;':''}
           gk[axis]+=gradWeight*change.w;gw[axis]+=gradWeight*(b.wt.x-omega);
           dk+=lap*change.w;dw+=lap*(b.wt.x-omega);edk+=nut*lap*change.w;edw+=nut*lap*(b.wt.x-omega);
         }
       }
-      ${f.sstWall?`for(var a=0u;a<3u;a++){let d=max(gradientCoverage[a],1e-20);grad[a]/=d;gk[a]/=d;gw[a]/=d;}`:''}
+      ${openSstStencil?`for(var a=0u;a<3u;a++){let d=max(gradientCoverage[a],1e-20);grad[a]/=d;gk[a]/=d;gw[a]/=d;}`:''}
       var kn=share*K0;var wn=share*O0;var nut=${frozenEddy?'a.wt.y':'0.'};var strainLimit=0.;
       if(${!f.laminar&&!frozenEddy}){
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
@@ -2133,10 +2134,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let extraDistance=z.z*share*damp.y;`:'let seeds=z;let extraShare=0.;let extraDistance=0.;'}
       let d=bulkSstReverse(inputs,seeds);var v:SstSpatialDual;
       for(var axis=0u;axis<3u;axis++){
-        let coverage=${f.sstWall?'max(gradientCoverage[axis],1e-20)':'1.'};
+        let coverage=${openSstStencil?'max(gradientCoverage[axis],1e-20)':'1.'};
         v.gradient[axis]=vec4f(4.*d.state.w*sym[axis]+2.*d.gradients.x*grad[axis],d.gradients.y*gw[axis])/coverage;
         v.omega[axis]=d.gradients.y*gk[axis]/coverage;
-        ${f.sstWall?'v.coverage[axis]=-dot(v.gradient[axis],vec4f(grad[axis],gk[axis]))-v.omega[axis]*gw[axis];':''}
+        ${openSstStencil?'v.coverage[axis]=-dot(v.gradient[axis],vec4f(grad[axis],gk[axis]))-v.omega[axis]*gw[axis];':''}
       }
       v.coverage.w=select(0.,d.gradients.z,distance==solid.x)+extraDistance;
       v.source=vec4f(d.state.xyz,d.flow.x);v.omega.w=d.flow.y+extraShare;v.transport=vec4f(d.flow.zw,d.transport.xy);

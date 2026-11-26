@@ -31,7 +31,7 @@ async function study(device,withWall,rotating=false){
       if(p[a]===0&&a===0){baseFlow[8*i+4]=.018;vFlow[8*i+4]=.004*Math.cos(.11*i);}
     }
   }
-  const rows=[];
+  const rows=[],sealed=[];
   for(const ddes of [false,true]){
     const gpu=gpuScope(device),f={dims,h,axes,U:1.2,maxSpeed:3,origin:[0,0,0],nu:1.53e-5,rho:1.2,period:.08,
       wallModeled:true,cutCells:true,sstWall:true,ddes,laminar:false,rotor:false,omega:0,mergeToFluid:false,
@@ -54,6 +54,23 @@ async function study(device,withWall,rotating=false){
         dispatch(jac.encode);
         const old=await read(jac.old),faces=await read(jac.face);
         if(!old.every(Number.isFinite)||!faces.every(Number.isFinite))throw Error('Nonfinite spatial SST transpose.');
+        if(boundaryOnly){
+          dispatch(jac.predict);const before=await read(solver.predicted);
+          const changed=state.map((v,k)=>{
+            const i=Math.floor(k/8),a=k%8;
+            return mu[4*i+3]===0&&a<6?v+(a<3?.125:a===3?.004:.03)*(1+.25*Math.sin(i+a)):v;
+          });
+          device.queue.writeBuffer(solver.state,0,changed);dispatch(jac.predict);
+          const after=await read(solver.predicted);let fluidChange=0,buriedAdjoint=0,buriedCells=0;
+          for(let i=0;i<n;i++){
+            if(mu[4*i+3]>0){
+              for(const a of [3,4,5,7])fluidChange=Math.max(fluidChange,Math.abs(after[8*i+a]-before[8*i+a]));
+            }else{
+              buriedCells++;for(let a=0;a<6;a++)buriedAdjoint=Math.max(buriedAdjoint,Math.abs(old[8*i+a]));
+            }
+          }
+          sealed.push({ddes,buriedCells,fluidChange,buriedAdjoint});
+        }
         for(const [mode,name] of ['velocity','k','omega','eddy viscosity','shared face discharge','one incidence'].entries()){
           const direction=state.map((_,k)=>{const a=k%8,i=Math.floor(k/8);
             if(!mu[4*i+3])return 0;
@@ -89,6 +106,7 @@ async function study(device,withWall,rotating=false){
       }
     }finally{gpu.close();}
   }
-  return {pass:rows.length===24&&rows.every(r=>r.mergedCells>0&&r.absoluteDirectionalContributions>1e-5&&
-    r.estimates.every(s=>s.normalizedError<.004)),operator:withWall?'merged wall and spatial SST prediction':'spatial SST prediction',rotating,dims,rows};
+  return {pass:sealed.length===2&&sealed.every(s=>s.buriedCells>0&&s.fluidChange===0&&s.buriedAdjoint===0)&&
+    rows.length===24&&rows.every(r=>r.mergedCells>0&&r.absoluteDirectionalContributions>1e-5&&
+    r.estimates.every(s=>s.normalizedError<.004)),operator:withWall?'merged wall and spatial SST prediction':'spatial SST prediction',rotating,dims,sealed,rows};
 }
