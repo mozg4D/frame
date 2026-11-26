@@ -29,19 +29,17 @@ async function checkCameraLayout(page,check,timings){
  const openCamera=async(target,touch)=>{
   const press=locator=>touch?locator.tap():locator.click(),start=performance.now();
   await press(target.getByRole('button',{name:'Add Camera',exact:true}));
-  const path=target.getByRole('button',{name:'Path tracer',exact:true});
-  await path.waitFor();
+  const viewport=target.getByRole('button',{name:'Viewport',exact:true});
+  await viewport.waitFor();
   const name='Add Camera with '+(touch?'touch':'mouse'),ms=performance.now()-start;
   timings.push({name,ms,budget:2500});check(name+' opens Attributes within 2500 ms',ms<2500,{ms});
   await press(target.locator('[data-field="realtime"][data-value="off"]'));
   await press(target.locator('[data-field="realtime during navigation"][data-value="false"]'));
-  await press(target.getByRole('button',{name:'Viewport',exact:true}));
-  check(name+' switches to Viewport',await path.getAttribute('aria-pressed')==='false');
-  await press(path);check(name+' switches back to Path tracer',await path.getAttribute('aria-pressed')==='true');
+  check(name+' shows the native Viewport',await viewport.getAttribute('aria-pressed')==='true');
  };
  await openCamera(page,false);
  const desktop=await page.evaluate(attributeButtonLayout);
- check('Desktop Camera buttons fit their rows',!desktop.issues.length&&desktop.buttons.some(b=>b.caption==='Path tracer'),desktop.issues);
+ check('Desktop Camera buttons fit their rows',!desktop.issues.length&&desktop.buttons.some(b=>b.caption==='Viewport'),desktop.issues);
  const mobile=await page.context().browser().newContext({isMobile:true,hasTouch:true,deviceScaleFactor:1,viewport:{width:390,height:844}});
  try{
   const phone=await mobile.newPage();await phone.goto(page.url());await ready(phone);
@@ -50,10 +48,9 @@ async function checkCameraLayout(page,check,timings){
   await openCamera(phone,true);
   for(const [width,height] of [[390,844],[844,390],[844,286],[320,568],[768,1024]]){
    await phone.setViewportSize({width,height});
-   const viewport=phone.getByRole('button',{name:'Viewport',exact:true}),path=phone.getByRole('button',{name:'Path tracer',exact:true});
-   await viewport.tap({timeout:2500});const selected=await viewport.getAttribute('aria-pressed');
-   await path.tap({timeout:2500});
-   check('Renderer buttons receive taps at '+width+'x'+height,selected==='true'&&await path.getAttribute('aria-pressed')==='true');
+   const realtime=phone.locator('[data-field="realtime"][data-value="on"]');
+   await realtime.tap({timeout:2500});check('Camera choice receives taps at '+width+'x'+height,await realtime.getAttribute('aria-pressed')==='true');
+   await phone.locator('[data-field="realtime"][data-value="off"]').tap();
    const layout=await phone.evaluate(attributeButtonLayout);
    const same=layout.buttons.length===desktop.buttons.length&&layout.buttons.every((button,i)=>{
     const reference=desktop.buttons[i];return button.caption===reference.caption&&button.box.every((v,k)=>Math.abs(v-reference.box[k])<1);
@@ -61,7 +58,7 @@ async function checkCameraLayout(page,check,timings){
    check('Camera captions and bounds match desktop at '+width+'x'+height,!layout.issues.length&&same,same?layout.issues:{desktop,layout});
   }
   // Give an existing choice group captions that genuinely exceed the available line.
-  await phone.locator('[data-field="renderer"]').evaluateAll(buttons=>{
+  await phone.locator('button[data-field="realtime"]').evaluateAll(buttons=>{
    buttons[0].textContent='First rendering method';buttons[1].textContent='Second rendering method';
   });
   const long=await phone.evaluate(attributeButtonLayout),choices=long.buttons.filter(b=>b.caption.endsWith('rendering method'));

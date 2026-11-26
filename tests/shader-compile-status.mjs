@@ -44,12 +44,6 @@ export async function shaderCompileStatusChecks(page){
     window.__scObs.observe(host,{childList:true,subtree:true,attributes:true});
   });
 
-  // 1. Trigger scene draw so background idle warmup runs to completion, and assert indicator stayed hidden during idle warmup.
-  await page.evaluate(()=>frameAI.call('scene.create',{type:'cube'}));
-  await page.waitForFunction(()=>frameEngine.renderer.cameraWarmup?.done,null,{timeout:60000});
-  const idleObs=await page.evaluate(()=>({observed:window.__scObserved.length,state:frameEngine.shaderCompileState()}));
-  check('Silent camera idle warmup never shows shader progress notice',idleObs.observed===0&&!idleObs.state.visible&&idleObs.state.active===0,idleObs);
-
   // 2. Fast compile (<100ms) never triggers notice.
   await page.evaluate(async()=>{
     const d=frameEngine.renderer.device;
@@ -81,24 +75,22 @@ export async function shaderCompileStatusChecks(page){
   });
   check('Notice shows Compiling shaders... at top-left after delay',shown.text==='Compiling shaders...'&&shown.left===8&&shown.top===8&&shown.zIndex===6&&elapsedMs>=320,shown);
 
-  // Overlap stacking with #frame-file-progress and z-index above #frame-render-canvas.
+  // Keep shader progress visible below a simultaneous file operation.
   const shifted=await page.evaluate(()=>{
     const host=document.getElementById('frame-engine-host');
     const fp=Object.assign(document.createElement('div'),{id:'frame-file-progress',textContent:'Saving HASH...'});
-    const rc=Object.assign(document.createElement('canvas'),{id:'frame-render-canvas'});
-    host.append(fp,rc);
+    host.append(fp);
     return new Promise(r=>requestAnimationFrame(()=>{
       const el=document.getElementById('frame-shader-progress');
       const er=el.getBoundingClientRect(),hr=host.getBoundingClientRect();
-      const sZ=Number(getComputedStyle(el).zIndex),rZ=Number(getComputedStyle(rc).zIndex)||0;
-      fp.remove();rc.remove();
+      fp.remove();
       requestAnimationFrame(()=>{
         const restored=Math.round(el.getBoundingClientRect().top-hr.top);
-        r({shiftedTop:Math.round(er.top-hr.top),restoredTop:restored,aboveCanvas:sZ>rZ,sZ,rZ});
+        r({shiftedTop:Math.round(er.top-hr.top),restoredTop:restored});
       });
     }));
   });
-  check('Notice shifts to 28px below other status row and renders above render canvas',shifted.shiftedTop===28&&shifted.restoredTop===8&&shifted.aboveCanvas,shifted);
+  check('Notice shifts to 28px below other status row',shifted.shiftedTop===28&&shifted.restoredTop===8,shifted);
 
   await page.evaluate(async()=>{window.__shaderStatusTest.pending.fgSlow.resolve();await window.__slowP;});
   const afterResolve=await page.evaluate(()=>frameEngine.shaderCompileState());

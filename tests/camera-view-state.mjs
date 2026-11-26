@@ -1,48 +1,26 @@
-import {standardCameraFilmValid} from './camera-view.mjs';
-// Execute the shipped View handler and manual-render lifetime without a GPU.
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
-import {readFile,writeFile,mkdir} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 
-function fixture(html){
- const camera={id:'camera',type:'render',enabled:true,params:{renderer:'Path tracer'}},button={},device={},actions=[];
- const e={frameNavigation:null,navigationScene:null,nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
-  current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
- e.scene={};e.manualGeneration=0;e.manualSceneKey=null;e.cameraSceneRevision=()=>1;e.flushCameraGeometry=async()=>{};e.scheduleRenderPreview=()=>{};e.label={};e.$=id=>id==='frameRenderToggle'?button:id==='frameRenderSamples'?e.label:null;
- vm.createContext(e);
- const names=['frameEnableCamera','toggleCameraRender','cameraRenderBusy','cameraConfig','renderState','renderStatus','renderStart'];
- for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);const firstEnd=html.indexOf('\n',start);const end=html[firstEnd-1]==='}'?firstEnd:html.indexOf('\n    }',firstEnd)+6;vm.runInContext(html.slice(start,end),e);}
- e.window.frameEngine={renderState:e.renderState,renderStop:()=>actions.push('stop'),renderStart:()=>{actions.push('start');return Promise.resolve();}};
- return e;
+export async function cameraViewStateChecks(){
+  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+  const definition=/^\s*render:\['Camera','camera',(.+?)\],$/m.exec(html);
+  const [fields,{quality}]=Function('return ['+definition[1]+']')();
+  assert.deepEqual(fields.renderer,['Viewport']);
+  assert.deepEqual(Object.keys(fields).slice(0,3),['resolution x','resolution y','quality']);
+  assert.equal(fields.quality,50);
+  assert.deepEqual([quality.minimum,quality.maximum,quality.integer],[1,100,true]);
+  assert.ok(!Object.hasOwn(fields,'denoiser'));
+  const codecCode=/^function createFrameSplineCodec\([\s\S]+?^\}/m.exec(html)[0];
+  const codec=Function('definitions','defaults','FrameParameters',codecCode+';return createFrameSplineCodec(["render"]);')(
+    {render:['Camera','camera',fields]},()=>({}),{validate(_,p){assert.ok(Number.isInteger(p.quality)&&p.quality>=1&&p.quality<=100);}});
+  const roundTrip=params=>codec.decode(codec.encode({type:'render',params}).slice()).params;
+  const retained={'resolution x':123,'resolution y':77,quality:67,renderer:'Viewport',environment:'image','environment image':'sky',realtime:'off','realtime during navigation':false};
+  for(const renderer of ['Path tracer','Interactive PI','Interactive GI','Cached GI','Viewport']){
+    const migrated=roundTrip({...retained,renderer,denoiser:'off',samples:16});
+    assert.deepEqual(migrated,retained);assert.deepEqual(roundTrip(migrated),retained);
+  }
+  assert.throws(()=>roundTrip({...retained,quality:101}));
+  return {pass:true};
 }
-
-export async function cameraViewStateChecks(html){
- html??=await readFile(new URL('../index.html',import.meta.url),'utf8');
- const checks=[],test=async(name,fn)=>{try{await fn();checks.push({name,pass:true});}catch(error){checks.push({name,pass:false,error:error.stack});}};
- await test('Automatic refinement and manual View offer Stop',()=>{for(const manual of [true,false]){const e=fixture(html);e.renderManual=manual;e.pathtracer.stats.phase='refining';e.renderStatus();assert.equal(e.button.textContent,'stop');assert.equal(e.label.textContent,'render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);}});
- await test('A visible completed film offers View and restores the render label',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.pathtracer.canvas.style.display='block';e.renderStatus();assert.equal(e.button.textContent,'view');assert.equal(e.label.textContent,'render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
- await test('View restarts a stopped hidden image',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
- await test('View enables the selected disabled camera and starts it',()=>{const e=fixture(html),selected={id:'other',type:'render',enabled:false,params:{renderer:'Path tracer'}};e.nodes.push(selected);e.toggleCameraRender(selected);assert.equal(e.camera.enabled,false);assert.equal(selected.enabled,true);assert.deepEqual(e.actions,['start']);});
- await test('Idle and Viewport diagnostics expose the native manual flag',()=>{const e=fixture(html);e.pathtracer=null;assert.equal(e.renderState().manual,false);e.renderManual=true;assert.equal(e.renderState().manual,true);e.camera.params.renderer='Viewport';assert.equal(e.renderState().manual,true);});
- await test('Native renderStart owns the complete awaited operation and releases on success',async()=>{const e=fixture(html);let started,finish;const rendering=new Promise(resolve=>started=resolve);e.renderTick=async manual=>{assert.equal(manual,true);assert.equal(e.renderManual,true);started();await new Promise(resolve=>finish=resolve);};const pending=e.renderStart();assert.equal(e.renderManual,true);await rendering;finish();await pending;assert.equal(e.renderManual,false);});
- await test('Native renderStart releases manual ownership on failure',async()=>{const e=fixture(html);e.renderTick=async()=>{throw Error('test render failure');};await assert.rejects(e.renderStart(),/test render failure/);assert.equal(e.renderManual,false);});
- await test('A superseded manual completion keeps the newer View protected',async()=>{
-   const e=fixture(html),jobs=[];let started;
-   e.renderTick=()=>new Promise(resolve=>{jobs.push(resolve);started();});
-   let rendering=new Promise(resolve=>started=resolve);const old=e.renderStart();await rendering;
-   rendering=new Promise(resolve=>started=resolve);const current=e.renderStart();await rendering;
-   jobs[0]();await old;assert.equal(e.renderManual,true);
-   jobs[1]();await current;assert.equal(e.renderManual,false);
- });
- const count=19,film=(foreground=[1.5,1.5,1.5,count],background=[.13,.13,.13,count])=>({width:744,height:760,colors:[foreground,background]});
- await test('Default studio and unit emissive foreground have resolved physical contrast',()=>assert.equal(standardCameraFilmValid(film(),count),true));
- await test('Black background cannot substitute for the enabled default environment',()=>assert.equal(standardCameraFilmValid(film(undefined,[0,0,0,count]),count),false));
- await test('Environment-only image cannot substitute for the emissive fixture',()=>assert.equal(standardCameraFilmValid(film([.13,.13,.13,count]),count),false));
- await test('Partial accumulation is rejected',()=>assert.equal(standardCameraFilmValid(film([1.5,1.5,1.5,count-1]),count),false));
- await test('Nonfinite, colored or malformed camera background is rejected',()=>{for(const p of [film(undefined,[NaN,.13,.13,count]),film(undefined,[.13,.14,.13,count]),{width:1,height:1,colors:[[1,1,1,count]]}])assert.equal(standardCameraFilmValid(p,count),false);});
- return {pass:checks.every(c=>c.pass),checks};
-}
-
-if(process.argv[1]===fileURLToPath(import.meta.url)){const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),report=await cameraViewStateChecks(html);report.indexSHA256=createHash('sha256').update(html).digest('hex');await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/camera-view-state.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));process.exitCode=report.pass?0:1;}
+if(process.argv[1]===fileURLToPath(import.meta.url)){await cameraViewStateChecks();console.log('Camera attributes and legacy HASH settings passed');}

@@ -79,7 +79,7 @@ export function buildZooScene({count=10000}={}){
   const type=curves[i%curves.length],params=type==='square'?{'side 1':40,'side 2':30}:type==='circle'?{diameter:40,'angle approximation':20}:type==='polyhedron'?{faces:3+i%9,diameter:40}:type==='text'?{text:'Frame '+i,'angle approximation':20}:type==='helix'?{'start diameter':25,'end diameter':15,pitch:8,turns:3,'angle approximation':20}:type==='gear'?{teeth:16,module:1.5,'bore diameter':5,'angle approximation':20}:type==='pulley'?{profile:'GT2',teeth:20,'bore diameter':5,'angle approximation':20}:{};
   const n=add(type,type+' '+i,sections[6],params,place(),type==='spline'?ringCage(18):undefined);tag(n,i*17);if(type==='spline')handles.freeSpline??=n.hash;
  }
- const camera=add('render','Zoo camera',sections[7],{renderer:'Viewport','resolution x':1280,'resolution y':900,samples:8},[0,300,0]);camera.enabled=false;handles.camera=camera.hash;
+ const camera=add('render','Zoo camera',sections[7],{renderer:'Viewport','resolution x':1280,'resolution y':900},[0,300,0]);camera.enabled=false;handles.camera=camera.hash;
  add('target','Camera target',camera,{object:handles.patch});const light=add('infinite','Zoo infinite light',sections[7],{intensity:100,'temperature K':6500,'angular size':30});handles.light=light.hash;
  for(const [type,params,scale]of [['car',{'color preset':'blue'},.018],['tree',{type:'oak'},.012],['human',{type:'man',pose:'stand'},.045]]){
   const n=add(type,'Stock '+type,sections[5],params,place());n.matrix[0]=n.matrix[4]=n.matrix[8]=scale;handles[type]=n.hash;

@@ -114,8 +114,7 @@
     "test:viewport-placement": "node tests/viewport-placement-browser.mjs",
     "test:boolean-patch": "node tests/boolean-patch-feedback.mjs",
     "test:patch-normals": "node tests/spline-patch-normals.mjs",
-    "test:gi:cpu": "node tests/camera-lighting-contracts.mjs && node tests/camera-view-state.mjs",
-    "test:gi": "npm run test:gi:cpu && node tests/camera-lighting-browser.mjs && node tests/camera-transport-lighting-browser.mjs"
+    "test:camera-output": "node tests/camera-view-state.mjs && node tests/camera-view.mjs && node tests/camera-antialias.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

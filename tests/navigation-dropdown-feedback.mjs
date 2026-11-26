@@ -20,9 +20,9 @@ try{
   await call('view.set',{index:0,single:false,focus:cube.hash,coordinates:'world'});
   const record=(await call('scene.inspect')).view.camera;record[0]=.37;record[1]=1.45;await call('view.set',{camera:record,index:0,single:false});
   let cameraNode;
-  if(camera){cameraNode=await call('scene.create',{type:'render',params:{realtime:'on',samples:1,environment:'default'}});await call('scene.select',{ids:[cameraNode.hash]});}
+  if(camera){cameraNode=await call('scene.create',{type:'render',params:{realtime:'on',environment:'default'}});await call('scene.select',{ids:[cameraNode.hash]});}
   else await call('scene.select',{ids:[]});
-  if(camera)await page.waitForFunction(()=>frameEngine.renderState().hasImage,{},{timeout:20000});
+  if(camera)await call('diagnostics.frame',{frames:1});
   await call('view.set',{camera:record,index:0,single:false});await frame();const initial=await page.evaluate(()=>frameEngine.viewCamera(0).camera);
   const box=await page.locator('#frame-engine-canvas').boundingBox(),x=box.x+box.width*.76,y=box.y+box.height*.45,samples=[];
   for(const [dx,dy]of [[0,0],[10,20],[25,40],[40,55]]){

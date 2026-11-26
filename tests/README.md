@@ -44,7 +44,7 @@ Live preview CPU regressions: the shared runner includes `live-preview-work.mjs`
 
 `node tests/hash-parent-membership.mjs` runs CPU-only native parent-reference correctness and completed-operation budgets, including 100000 owner IDs, a deterministic linear-access bound and a negative control that restores the former array scan. It does not qualify rendering, unknown-record preservation or the canonical-store architecture.
 
-Camera View: `node tests/camera-view-state.mjs` runs the shipped handler/manual-lifetime CPU checks and old-predicate negative control. `node tests/camera-view.mjs` covers native View clicks from single/quad/additional viewports, pixels, delete/Undo, New/HASH and frame budgets. `node tests/camera-view.mjs --realtime` creates the default Camera with the native toolbar, clicks View during initial automatic preparation and checks a complete image from that first click. Both browser modes use an isolated full headless Chromium with hardware WebGPU only. The CPU and both browser cases are included in standard/stress.
+Run `npm run test:camera-output` to check Camera settings, legacy HASH migration, View PNG dimensions, image coverage, display pixels and video export.
 
 ## Current source baseline after volume removal
 
@@ -106,7 +106,7 @@ Regenerate the unique-cell fixture through the public API with `node tests/scene
 
 New regressions: `next-interaction.mjs` checks Edge highlight pixels, component-footprint Connected picking and quick/slow double clicks; `fixture-transform.mjs` measures the first three object drags in the 100M-triangle HASH during test:all. Heavy live edits verify exactly four incident cells, including a return to the original point, unchanged-cell GPU hashes and equality with the full `spline.rebuild` oracle. STL tests assert one object, unchanged dimensions and no automatic enlargement of small geometry.
 
-`features-suite.js` covers all three polygon/cubic Boolean operations, independent volume checks, GPU disjoint assembly, empty/nested results, material provenance/HASH/baking, Outline + Undo + downstream Extrude, spatial Outline, imported-surface recognition with exact GPU Undo, independent helper/light switches, path tracer object pixels, shared-device ownership, realtime camera refresh and BVH reuse. `simd.mjs` checks exact STL/SIMD bits, table growth, terminal NaN/Inf and Float64/Float32 affine equivalence. All five lazy source blocks are syntax-checked in addition to the two executable scripts.
+`features-suite.js` covers all three polygon/cubic Boolean operations, independent volume checks, GPU disjoint assembly, empty/nested results, material provenance/HASH/baking, Outline + Undo + downstream Extrude, spatial Outline, imported-surface recognition with exact GPU Undo, independent helper/light switches, Camera viewport export pixels and shared-device ownership. `simd.mjs` checks exact STL/SIMD bits, table growth, terminal NaN/Inf and Float64/Float32 affine equivalence. The lazy JavaScript source blocks are syntax-checked in addition to the two executable scripts.
 
 WASM kernels are embedded, with portable JS fallback. To rebuild with a wasm-capable clang: set `CLANG` if needed and run `node tools/build-simd.mjs`. No generated WASM sidecar is needed at runtime. Native `opac` is the historical transparency percentage (0 means opaque).
 
@@ -135,7 +135,7 @@ When a Git-excluded heavy fixture is absent, the report lists that specific fixt
 `pivot-feedback.mjs` covers physical L in two layouts, repeated numeric arrows, SVG text plate bounds, doubled rotation bands, Object Browser name/tag space and horizontal pan, source/Instance pivots, local clone random transforms, exact batched GPU extents, stable surface distribution, Cloner-to-group conversion with Undo/Redo and copy-on-write edits, and distinct static/moving instance buffers. `npm run test:cloner-witch` loads the original local witch and measures Count changes (100 → 200 → 1000 → 50), verifies one surface preparation/readback, stable placement prefixes and source PSR/pivot semantics; report: `tests/results/object-cloner-witch.json`.
 
 
-`import-performance-feedback.mjs` runs in standard/stress and standalone (`node tests/import-performance-feedback.mjs`). It checks the supplied vase.obj, emission/metal-rough import, custom GLB chunks/materials/UV/scale round trip, UV tag routing and omission, actual UV/emissive path-traced pixels, viewport-to-browser reveal, continuous 1000-object movement, and delayed navigation release without a menu. Every operation records wall time and a latency budget. Local vase and the generated 1000-object fixture must be present.
+`import-performance-feedback.mjs` runs in standard/stress and standalone (`node tests/import-performance-feedback.mjs`). It checks the supplied vase.obj, emission/metal-rough import, custom GLB chunks/materials/UV/scale round trip, UV tag routing and omission, actual UV/emissive Camera output pixels, viewport-to-browser reveal, continuous 1000-object movement, and delayed navigation release without a menu. Every operation records wall time and a latency budget. Local vase and the generated 1000-object fixture must be present.
 
 `heavy-live.mjs` now runs in both profiles and verifies exactly four rebuilt cells/segments, untouched GPU geometry, a fresh full-build oracle, Undo/cancel, continuous pointer latency, and a global angle rebuild with hardwareConcurrency minus one CPU workers. Existing regular quad interiors remain on WebGPU. The 1000-object fixture is spread across XZ with 550 mm spacing by `scenes/spread-release.mjs --existing`, also called during `generate-release.mjs --stress`; geometry, object count and triangle count are preserved.
 
@@ -143,7 +143,7 @@ Solid+Isoparms colours only spline-marked edges in the surface's barycentric wir
 
 
 Material/editor regressions (included in standard and stress, isolated contexts):
-- `npm run test:materials`: 12 actual Khronos GLB imports, PBR editor values/slot placement, normal/AO/ORM/alpha, real texture drop, unit diagonal scrubbing, HASH/GLB round trips, realtime edits, near-opaque viewport pixels and zero-alpha linear-film reference, material Delete/Undo.
+- `npm run test:materials`: 12 actual Khronos GLB imports, PBR editor values/slot placement, normal/AO/ORM/alpha, real texture drop, unit diagonal scrubbing, HASH/GLB round trips, realtime edits, near-opaque viewport pixels and zero-alpha Camera output reference, material Delete/Undo.
 - `npm run test:editor`: multiple cameras, green point exclusivity, FOV projection, camera HASH/UI add, DIN names, two consecutive bolt vertex edits, tangent visibility, continuous axis snapping, tag/name room, MMB pan, Z and quad overlays.
 - `npm run test:pointer-lock`: actual Chromium screen-edge input, relative numeric/navigation movement, release and Escape; CDP window bounds are restored afterward.
 - `browser-scroll.mjs` runs in the real 1000-object fixture: continued scroll with a stationary outside pointer, distance-dependent speed and release cleanup. The same fixture must create a camera and complete a render within 60 seconds.
@@ -188,7 +188,7 @@ The October 24 geometry/editor modules run in both standard and stress profiles.
 
 `node tests/october24-stock.mjs` verifies all 15 native stock assets, exact geometry/material round trips, compact library references, all parametric library entries, edited paint materials, color-only updates and Make Editable Undo.
 
-`node tests/october24-latency.mjs` checks 20 exact Outline references and worker/Undo budgets, converted logical pivots and all three orthographic views with live axis/viewport gestures and ten-pixel snapping. `node tests/october24-render.mjs` checks complete cold/warm Camera renders of 350 object-cloned spheres under Car, bounded snapshots and native frame timings. Both run in standard/stress profiles. The stock module additionally checks independent slots and custom materials through Duplicate, Paste, Merge and compact HASH roundtrips.
+`node tests/october24-latency.mjs` checks 20 exact Outline references and worker/Undo budgets, converted logical pivots and all three orthographic views with live axis/viewport gestures and ten-pixel snapping. It runs in standard/stress profiles. The stock module additionally checks independent slots and custom materials through Duplicate, Paste, Merge and compact HASH roundtrips.
 
 Regenerate the ignored `scenes/release-1000-10m.hash` with `node tests/scenes/generate-release.mjs --stress` after native authoring format changes. The current fixture includes the independent 284-triangle curved finger alongside the Morph anatomy study, uses compact stock references and totals 1000 objects / 10020280 evaluated triangles. Old local generated files are not upgraded by the runtime.
 

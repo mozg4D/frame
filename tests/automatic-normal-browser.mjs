@@ -51,8 +51,8 @@ try{
   check('HASH regeneration preserves reviewed pixels',Math.max(...pixels.flatMap((p,i)=>p.map((v,c)=>Math.abs(v-fixture.normals[i][c]))))<=2);
   const glb=await call('scene.export',{format:'glb',includeData:true}),bytes=Buffer.from(glb.base64,'base64'),doc=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12))),exported=doc.materials.find(m=>m.name==='Automatic normal smoke');
   check('GLB exports generated normal texture with current strength',exported.normalTexture?.scale===2.5&&!!doc.images[doc.textures[exported.normalTexture.index].source]);
-  await call('scene.create',{type:'render',params:{realtime:'off',samples:1,'resolution x':96,'resolution y':96}});const rendered=await call('render.start');
-  check('Path tracer renders generated normal on the shared device',rendered.phase==='complete'&&rendered.hasImage&&rendered.sharedDevice&&!rendered.errors.length,rendered);await call('render.stop');
+  await call('scene.create',{type:'render',params:{realtime:'off','resolution x':96,'resolution y':96}});await call('render.export',{kind:'image',download:false});const rendered=await call('render.inspect');
+  check('Camera exports the generated normal on the shared device',rendered.phase==='complete'&&rendered.hasImage&&rendered.sharedDevice,rendered);await call('render.stop');
   const validation=await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message??null,uncaptured:normalErrors}));
   scopeOpen=false;
   check('No JavaScript or GPU validation errors',!errors.length&&!validation.validation&&!validation.uncaptured.length,{errors,...validation});

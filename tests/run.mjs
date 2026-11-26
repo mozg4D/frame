@@ -75,15 +75,9 @@ import {atomicDisplayBoundsChecks} from '../plugins/atomic/tests/display-bounds.
 import {livePreviewWorkChecks} from './live-preview-work.mjs';
 import {morphInputSettlementChecks} from './morph-input-settlement.mjs';
 import {hashParentMembershipChecks} from './hash-parent-membership.mjs';
-import {cameraViewChecks,cameraRealtimeChecks} from './camera-view.mjs';
-import {cameraRealtimeFrameChecks} from './camera-lighting-browser.mjs';
-import {cameraIdleWarmupChecks} from './camera-idle-warmup.mjs';
-import {cameraProgressiveChecks} from './camera-progressive.mjs';
+import {cameraViewChecks} from './camera-view.mjs';
 import {cameraAntialiasChecks} from './camera-antialias.mjs';
 import {cameraViewStateChecks} from './camera-view-state.mjs';
-import {cameraLightingContracts} from './camera-lighting-contracts.mjs';
-import {cameraTransportLightingChecks} from './camera-transport-lighting-browser.mjs';
-import {cameraMaterialOpticsChecks} from './camera-material-optics-browser.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
 import {creationSanityCPUChecks} from './creation-sanity.mjs';
@@ -118,7 +112,6 @@ import {splineModelingChecks} from './spline-modeling-workflows.mjs';
 import {componentFeedbackChecks} from './component-feedback.mjs';
 import {october24PrecisionChecks} from './october24-precision.mjs';
 import {october24LatencyChecks} from './october24-latency.mjs';
-import {october24RenderChecks} from './october24-render.mjs';
 import {october24StockChecks} from './october24-stock.mjs';
 import {october24LibraryChecks} from './october24-library.mjs';
 import {october24CurvesChecks} from './october24-curves.mjs';
@@ -237,7 +230,7 @@ try{
   report.animationTransactionCPU=await runStage('animationTransactionCPU',()=>animationTransactionChecks());
   report.booleanKernelCPU=await runStage('booleanKernelCPU',booleanKernelChecks);
   report.motionPathPerspectiveCPU=await runStage('motionPathPerspectiveCPU',()=>motionPathPerspectiveChecks());
-  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.giContractsCPU=await runStage('giContractsCPU',()=>cameraLightingContracts());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
+  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
     context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime requested: '+id);}});
     await context.route(/\/plugins\/([^/]+)\/plugin\.js(?:\?.*)?$/,route=>{const id=/\/plugins\/([^/]+)\/plugin\.js/.exec(route.request().url())[1];return pluginEnabled(id)?route.continue():route.abort('blockedbyclient');});
   };
@@ -339,16 +332,9 @@ try{
   report.october24Curves=await isolated('october24Curves',october24CurvesChecks);
   report.october24Stock=await isolated('october24Stock',october24StockChecks);
   report.october24Latency=await isolated('october24Latency',october24LatencyChecks);
-  report.october24Render=await isolated('october24Render',october24RenderChecks);
   report.cameraView=await isolated('cameraView',cameraViewChecks);
-  report.cameraRealtime=await isolated('cameraRealtime',cameraRealtimeChecks);
-  report.cameraRealtimeFrame=await isolated('cameraRealtimeFrame',cameraRealtimeFrameChecks);
-  report.cameraIdleWarmup=await isolated('cameraIdleWarmup',cameraIdleWarmupChecks);
   report.shaderCompileStatus=await isolated('shaderCompileStatus',shaderCompileStatusChecks);
-  report.cameraProgressive=await isolated('cameraProgressive',cameraProgressiveChecks);
   report.cameraAntialias=await isolated('cameraAntialias',cameraAntialiasChecks);
-  report.cameraTransportLighting=await isolated('cameraTransportLighting',cameraTransportLightingChecks);
-  report.cameraMaterialOptics=await isolated('cameraMaterialOptics',cameraMaterialOpticsChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);
   report.editorFinal=await isolated('editorFinal',editorFinalChecks);

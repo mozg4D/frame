@@ -48,26 +48,20 @@ export async function sceneInsertionChecks(page){
     const ms=performance.now()-start;timings.push({name:'Cold car insertion, shelf and first pointer move',ms,budgetMs:5000});check('Cold insertion and first move latency',ms<5000);
   }finally{await page.evaluate(()=>restoreInsertProbes.forEach(restore=>restore()));}
 
-  await call('scene.new');const camera=await call('scene.create',{type:'render',params:{realtime:'off',samples:2}});
+  await call('scene.new');const camera=await call('scene.create',{type:'render',params:{realtime:'off'}});
   await page.evaluate(()=>{
     const fetchModel=window.fetch,gate=new Promise(r=>window.releaseStock=r);window.restoreFetch=()=>{window.fetch=fetchModel;};
     window.fetch=async function(input,...args){if(String(input).includes('models/human-')){window.stockRequested=true;await gate;}return fetchModel.call(this,input,...args);};
   });
   try{
     await add('human');await page.waitForFunction(()=>window.stockRequested,null,{timeout:5000});
-    await page.evaluate(()=>{window.insertView=frameEngine.renderStart();releaseStock();});
+    await page.evaluate(()=>{window.insertView=frameEngine.renderExport('image',{download:false});releaseStock();});
     const film=await page.evaluate(()=>insertView);
-    check('Camera View started during stock loading includes the completed Human',film.phase==='complete'&&film.snapshot.meshes===1&&film.triangles>0);
+    check('Camera View started during stock loading includes the completed Human',film.bytes>0&&await page.evaluate(()=>frameEngine.scene.meshes.some(m=>m.triangleCount>0)));
   }finally{await page.evaluate(()=>{releaseStock();restoreFetch();});}
-  await call('scene.update',{id:camera.hash,params:{samples:12}});
-  await page.evaluate(()=>{window.insertView=frameEngine.renderStart();});
-  await page.waitForFunction(()=>frameEngine.renderState().running);
-  await add('tree');const changed=await page.evaluate(()=>insertView);
-  check('An in-flight Camera View finishes with the added Tree',changed.phase==='complete'&&changed.snapshot.meshes===2&&changed.triangles>0,changed);
-  await call('scene.update',{id:camera.hash,params:{realtime:'on'}});
-  await add('cube');
-  await page.waitForFunction(()=>{const r=frameEngine.renderState();return r.phase==='complete'&&r.snapshot?.meshes===3;},null,{timeout:60000});
-  check('Realtime Camera picks up a newly evaluated primitive',await page.evaluate(()=>frameEngine.renderState().triangles===frameEngine.scene.triangleCount));
+  await add('tree');await add('cube');
+  const updated=await call('render.export',{kind:'image',download:false});
+  check('Camera exports newly evaluated objects',updated.bytes>0&&await page.evaluate(()=>frameEngine.scene.meshes.length>=3));
 
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-40,0,60,-40,0,60,40,0,-60,40,0],indices:[0,1,2,0,2,3]});
   await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid-wire',focus:mesh.hash});

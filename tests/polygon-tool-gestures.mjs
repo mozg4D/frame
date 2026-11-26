@@ -1,3 +1,4 @@
+import {holdCameraReadback} from './camera-view.mjs';
 import assert from 'node:assert/strict';
 import {launch,ready} from '../tools/browser.mjs';
 
@@ -357,46 +358,43 @@ try{
     assert.deepEqual(await geometry(owner.hash),quad);assert.deepEqual(latest.view.frame,before.frame);
     await historyKey('Control+Shift+z');const edited=(await state()).objects.find(o=>o.id===n.id);assert.equal(edited.mesh.vertices,5);
   });
-  await test('live progressive render follows modeling and keeps the navigated Camera on Undo',async()=>{
+  await test('modeling and Undo keep the navigated Camera pose',async()=>{
     const n=await fixture(gap,'edge','auto',0);
-    const cam=await call('scene.create',{type:'render',params:{realtime:'on',samples:4096}});
-    const rendered=(triangles,last=-1)=>page.waitForFunction(([count,epoch])=>{
-      const r=frameEngine.renderState();return r.epoch>epoch&&r.running&&r.visible&&r.samples>0&&r.triangles===count;
-    },[triangles,last],{timeout:20000}).then(()=>call('render.inspect'));
+    const cam=await call('scene.create',{type:'render',params:{realtime:'on'}});
     try{
-      await call('scene.select',{ids:[n.hash],mode:'edge'});let film=await rendered(4);
+      await call('scene.select',{ids:[n.hash],mode:'edge'});await call('diagnostics.frame',{frames:1});
       const a=await project(n.hash,[-40,0,0]),b=await project(n.hash,[40,0,0]);await choose(a,'Bridge');await drag(a,b);
-      let edited=(await state()).objects.find(o=>o.id===n.id);assert.equal(edited.mesh.triangles,6);film=await rendered(6,film.epoch);
+      let edited=(await state()).objects.find(o=>o.id===n.id);assert.equal(edited.mesh.triangles,6);await call('diagnostics.frame',{frames:1});
       await call('view.set',{mode:'vertex'});await call('scene.select',{ids:[edited.hash],mode:'vertex',components:[]});
       const at=await project(edited.hash,[-82,-10,0]);await page.keyboard.down('Control');await page.mouse.click(...at);await page.keyboard.up('Control');
-      edited=(await state()).objects.find(o=>o.id===n.id);assert.equal(edited.mesh.triangles,8);film=await rendered(8,film.epoch);
+      edited=(await state()).objects.find(o=>o.id===n.id);assert.equal(edited.mesh.triangles,8);await call('diagnostics.frame',{frames:1});
       const added=(await geometry(edited.hash)).vertices.slice(-3);await call('scene.select',{ids:[edited.hash],mode:'vertex',components:[8]});await call('view.set',{snap:true});
       await drag(await project(edited.hash,added),await project(edited.hash,[-100,-40,0]));
-      const welded=(await state()).objects.find(o=>o.id===n.id),afterWeld=await geometry(welded.hash);assert.equal(afterWeld.indices.length/3,6);film=await rendered(6,film.epoch);
+      const welded=(await state()).objects.find(o=>o.id===n.id),afterWeld=await geometry(welded.hash);assert.equal(afterWeld.indices.length/3,6);await call('diagnostics.frame',{frames:1});
       await call('view.set',{mode:'polygon'});await call('scene.select',{ids:[welded.hash],mode:'polygon',components:[]});
       const A=await project(welded.hash,[-80,17,0]),B=await project(welded.hash,[-55,21,0]);await choose(A,'Line Cut');await page.mouse.click(...A);await page.mouse.click(...B);await state();await page.keyboard.press('Enter');
-      const cut=(await state()).objects.find(o=>o.id===n.id),afterCut=await geometry(cut.hash);assert.ok(afterCut.indices.length>afterWeld.indices.length);film=await rendered(afterCut.indices.length/3,film.epoch);
+      const cut=(await state()).objects.find(o=>o.id===n.id),afterCut=await geometry(cut.hash);assert.ok(afterCut.indices.length>afterWeld.indices.length);await call('diagnostics.frame',{frames:1});
       const rect=await page.locator('#frame-engine-canvas').boundingBox(),p=[rect.x+rect.width*.8,rect.y+rect.height*.3],before=(await state()).view.frame;
       await drag(p,[p[0]+42,p[1]+25]);await page.mouse.wheel(0,-80);await call('diagnostics.frame',{frames:3});
       const viewed=(await state()).view;assert.notDeepEqual(viewed.frame,before);
       for(const [key,hash,g]of [['Control+z',welded.hash,afterWeld],['Control+Shift+z',cut.hash,afterCut]]){
-        await historyKey(key);await state();assert.deepEqual(await geometry(hash),g);film=await rendered(g.indices.length/3,film.epoch);
+        await historyKey(key);await state();assert.deepEqual(await geometry(hash),g);await call('diagnostics.frame',{frames:1});
         const after=(await state()).view;assert.deepEqual(after.camera,viewed.camera);assert.deepEqual(after.frame,viewed.frame);
       }
     }finally{await call('scene.update',{id:cam.hash,params:{realtime:'off'}});await call('render.stop');}
   });
   for(const output of ['Image','Video'])await test('manual '+output+' render permits Ctrl Add Point and Undo at the displayed Camera',async()=>{
-    const n=await fixture(quad,'vertex','texture',0),cam=await call('scene.create',{type:'render',params:{realtime:'off',samples:4096,'resolution x':512,'resolution y':320}});
-    await call('scene.select',{ids:[cam.hash]});await page.locator('#tabAttributes').click();await page.locator('#frameRender'+output).click();
+    const n=await fixture(quad,'vertex','texture',0),cam=await call('scene.create',{type:'render',params:{realtime:'off','resolution x':512,'resolution y':320}});
+    await call('scene.select',{ids:[cam.hash]});await page.locator('#tabAttributes').click();await holdCameraReadback(page);await page.locator('#frameRender'+output).click();
     try{
-      await page.waitForFunction(kind=>{const r=frameEngine.renderState();return r.exportKind===kind&&r.running&&r.samples>0;},output.toLowerCase());
+      await page.waitForFunction(kind=>{const r=frameEngine.renderState();return r.exportKind===kind&&r.running;},output.toLowerCase());
       await call('scene.select',{ids:[n.hash],mode:'vertex',components:[]});const before=(await state()).view,at=await project(n.hash,[-24,17,0]);
       await page.keyboard.down('Control');await page.mouse.click(...at);await page.keyboard.up('Control');
       const owner=(await state()).objects.find(o=>o.id===n.id);assert.equal(owner.mesh.vertices,5);
       await historyKey('Control+z');const after=await state();assert.deepEqual(await geometry(n.hash),quad);
       assert.deepEqual(after.view.frame,before.frame);assert.deepEqual(after.view.camera,before.camera);
       const film=await call('render.inspect');assert.equal(film.exportKind,output.toLowerCase());assert.ok(film.running);
-    }finally{await call('render.stop');await page.waitForFunction(()=>!frameEngine.renderState().exportKind);}
+    }finally{await page.evaluate(()=>{frameEngine.renderStop();releaseCameraReadback();});await page.waitForFunction(()=>!frameEngine.renderState().exportKind);}
   });
   await test('rapid Undo and Redo still restore two authored Camera moves',async()=>{
     await fixture(quad,'vertex','auto',0);const cam=await call('scene.create',{type:'render',params:{realtime:'off'}});

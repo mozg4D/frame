@@ -12,14 +12,11 @@ export async function uiChecks(page){
     const transfer=await page.evaluateHandle(()=>{const data=new DataTransfer();data.items.add(new File(['v 0 0 0\nv 10 0 0\nv 0 10 0\nf 1 2 3\n'],'drop.obj',{type:'text/plain'}));return data;});await page.locator('#vp').dispatchEvent('drop',{dataTransfer:transfer});check('Nonempty scene drop offers Open and Merge',(await page.locator('#menu button').allTextContents()).join()==='Open,Merge');await page.locator('#menu').getByText('Open',{exact:true}).click();await page.waitForFunction(()=>frameEngine.idle&&frameEngine.scene.meshes.length===1&&frameEngine.scene.meshes[0].triangleCount===1,{},{timeout:30000});check('OBJ file drop reaches normal import flow',(await call('scene.inspect')).stats.triangles===1);await transfer.dispose();
     const camera=await call('scene.create',{type:'render',params:{quality:100,realtime:'off'}});
     await call('scene.create',{type:'render',params:{quality:1,realtime:'off'}});await call('scene.select',{ids:[camera.hash]});await page.locator('#tabAttributes').click();
-    const saveView=page.getByRole('button',{name:'Save viewport image'}),stopRender=page.getByRole('button',{name:'Stop render'});
-    let started=performance.now();await saveView.click();await stopRender.waitFor({state:'visible'});
-    await page.waitForFunction(()=>frameEngine.renderState().running);const renderMs=performance.now()-started;
-    timings.push({name:'Camera attributes View activation',ms:renderMs,limit:15000});
-    check('Camera View starts the selected inactive camera within budget',renderMs<15000&&(await call('scene.inspect')).objects.filter(n=>n.type==='render'&&n.enabled).map(n=>n.hash).join()===camera.hash);
-    const beforeStop=await call('render.inspect');started=performance.now();await stopRender.click();await saveView.waitFor({state:'visible'});const stopped=await call('render.inspect');
-    check('Stop cancels the active View and retains an already visible image',!stopped.running&&!stopped.manual&&(!beforeStop.visible||stopped.visible),{beforeStop,stopped});
-    const stopMs=performance.now()-started;timings.push({name:'Camera attributes Stop',ms:stopMs,limit:1500});check('Camera attributes Stop latency',stopMs<1500);
+    const capture=page.waitForEvent('download'),started=performance.now();
+    await page.getByRole('button',{name:'Save viewport image'}).click();
+    check('Camera View saves a PNG',(await capture).suggestedFilename()==='frame-view.png');
+    const renderMs=performance.now()-started;timings.push({name:'Camera View capture',ms:renderMs,limit:15000});
+    check('View activates the selected Camera',renderMs<15000&&(await call('scene.inspect')).objects.filter(n=>n.type==='render'&&n.enabled).map(n=>n.hash).join()===camera.hash);
     const status=await viewportStatusChecks(page);checks.push(...status.checks);
     return {pass:true,checks,timings:[...timings,...status.timings]};
   }catch(e){return {pass:false,checks,error:e.stack};}

@@ -47,7 +47,7 @@ try{
   await call('transform.set',{ids:[sun.hash],channel:'rotation',axis:1,value:32});
 
   const cam=await call('scene.create',{type:'render',name:'Camera',params:{
-    renderer:'Path tracer',realtime:'on',samples:16,environment:'default',
+    renderer:'Viewport',realtime:'on',environment:'default',
     'foliage mode':'hybrid','gi trace scale':'0.5','gi rays':1,'gi nodes':'512','gi bounces':3,'di candidates':4,'cubemap size':'64',reflections:'hybrid'
   }});
   await call('transform.set',{ids:[cam.hash],channel:'position',axis:0,value:0});
