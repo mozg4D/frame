@@ -72,6 +72,7 @@ const cases={
   'flow-regime':['regime-check','verifyFlowRegime'],'modeled-regime':['regime-check','verifyModeledRegime'],
   'pressure-forest':['flux-equilibration-check','verifyPrefixForest'],
   'conserved-discharge':['flux-equilibration-check','verifyFluxEquilibration'],
+  'checkpoint-words':['checkpoint-words-check','verifyCheckpointWords'],
   'sealed-pressure':['flux-equilibration-check','verifySealedPressure'],
   'temporal-interval':['time-statistics-check','verifyNativeTemporalInterval'],
   'frozen-eddy-shape':['steady-shape-check','verifyFrozenEddyForce'],

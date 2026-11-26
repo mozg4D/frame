@@ -2,6 +2,8 @@
 
 Native box authoring, wall kinematics and the Cartesian finite-volume solver live in plugin.js. Numerical qualification imports the production operators.
 
+A physical-time checkpoint preserves all velocity, SST, pressure and face-discharge words. Pack both incidences and both compensated discharge fields independently, omitting their zero alignment lanes. A single-use reverse run can borrow a later forward checkpoint after finishing that interval. Keep reusable histories intact. Check bitwise restoration with storage and copy-only buffers using `native-flow.mjs --case=checkpoint-words`, and compare native body and blade gradients against independently perturbed geometry.
+
 Sum each merged momentum volume in Cartesian cell order after its root. Keep the linked membership order stable across independently evaluated geometry and native storage formats. `native-flow.mjs --case=cut-member-order` compares the GPU fields with an independent FP32 sum for groups of up to 1,024 cells.
 
 Use conservative occurrence bounds to filter the scene. Measure each participating indexed surface on the renderer device for Reynolds number, dense-grid placement and wall search. Reduce signed extrema in the physical flow axes before adding Float64 occurrence translation. A shaft uses the full swept radius for the domain and reference scale. Reuse small extent tables with the matching signed-distance field. Check reflected and sheared buffered and paged triangles, empty occurrences and the Reynolds regime of a rotated native sphere with `native-flow.mjs --case=surface-extents`.

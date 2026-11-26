@@ -83,19 +83,19 @@ export async function verifyNativeModeledShape(device){
           dispatch(e=>op.capture(e,captured));
           const replayed=await words(captured),half=await words(packed),expectedHalf=await words(checkpoints[middle]);
           device.queue.writeBuffer(s.loads,0,beforeLoads);device.queue.writeBuffer(force,0,beforeForce);
-          const history={submit:dispatch,stride:3,anchors:[{step:0,buffer:checkpoints[0]}],
+          const history={submit:dispatch,stride:2,consumeAnchors:true,anchors:[{step:0,buffer:checkpoints[0]},{step:9,buffer:checkpoints[9]}],
             snapshot:label=>gpu.buffer(label,op.checkpointSize,GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST)};
           const actual=await modeledTimeShape(gpu,f,s,force,geom.cutShape,history,
             {steps,averagedSteps:steps,dtS:dt,forceLocal:{drag}},
             {shapeObjective:'drag',objectiveWorld:[1,0,0],objectiveAxis:[1,0,0]},scheduler,()=>{},()=>{});
-          if(!actual.gradient)throw Error('Two-slot time adjoint '+JSON.stringify(actual.shape));
+          if(!actual.gradient)throw Error('Time adjoint with a reused forward checkpoint '+JSON.stringify(actual.shape));
           dispatch(e=>{e.clearBuffer(out);geom.cutShape.scatter(e,actual.gradient,out,range);op.capture(e,captured);});
           const computed=await read(out),returned=new Uint32Array((await gpu.read(captured,stageFull,captured.size/4)).buffer);
           const d=Math.max(...computed.map((v,k)=>Math.abs(v-vertexGradient[k])))/Math.max(...vertexGradient.map(Math.abs));
           const loads=await read(s.loads),axial=await read(force);
           replay={restored:terminal.every((v,i)=>v===returned[i])&&axial.every((v,i)=>v===beforeForce[i])&&loads.every((v,i)=>v===beforeLoads[i]),
             identicalPrimal:terminal.every((v,i)=>v===replayed[i]&&v===single[i])&&half.every((v,i)=>v===expectedHalf[i]),
-            replaySubmissions,relativeGradientDifference:d,replayedSteps:actual.shape.replayedSteps,
+            replaySubmissions,relativeGradientDifference:d,replayedSteps:actual.shape.replayedSteps,reused:actual.shape.reusedForwardCheckpoints,
             fullCheckpoints:actual.shape.checkpointBytes/op.checkpointSize};
         }
       }
@@ -123,7 +123,7 @@ export async function verifyNativeModeledShape(device){
   }
   const b=rows[0].replay;
   return {pass:b?.restored&&b.identicalPrimal&&b.replaySubmissions.range<b.replaySubmissions.single&&
-    b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.replayedSteps===21&&
+    b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.reused===1&&b.replayedSteps===15&&
     rows.every(r=>r.mass<1e-6&&r.inletDefect<3e-6&&r.adjointResidual<3e-6&&r.estimates.every(e=>
     e.sameFlux&&e.sameMomentum&&e.volumeError<1e-12&&e.mass<1e-6&&e.relativeError<.05)),dims:f.dims,steps,dtS:dt,rows};
 }

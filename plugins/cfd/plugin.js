@@ -566,14 +566,14 @@ const checkpointBytes=64*1024*1024;
 // Fixed GPU checkpoints retain the physical state on both sides of a
 // pressure solve. Replay uses the same recorded pressure corrections.
 function physicalHistory(gpu,solver,expectedSteps){
-  const size=solver.checkpointSize,usage=GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
+  const size=solver.checkpointSize,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
   const slots=Math.max(1,Math.min(12,Math.floor(96*1024**2/size)));
   const stride=Math.max(1,Math.ceil(expectedSteps/slots)),anchors=[];
   function submit(encode){
     const e=gpu.device.createCommandEncoder();encode(e);gpu.device.queue.submit([e.finish()]);
   }
   const snapshot=label=>gpu.buffer(label,size,usage);
-  return {anchors,snapshot,submit,stride,remember(step){
+  return {anchors,snapshot,submit,stride,consumeAnchors:true,remember(step){
     if(step%stride||anchors.length>=slots)return;
     const buffer=snapshot('CFD retained physical time level');
     submit(e=>solver.capture(e,buffer));anchors.push({step,buffer});
@@ -642,7 +642,7 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
     if(available.length)return available.pop();
     const b=snapshot('CFD local physical-time checkpoint');all.push(b);return b;
   }
-  let replayed=0,reversed=0,pressureDefect=0,inletDefect=null,krylovIterations=0,failureReason=null,maxPressureAdjoint=0,nextIterations=12;
+  let reusedAnchors=0,replayed=0,reversed=0,pressureDefect=0,inletDefect=null,krylovIterations=0,failureReason=null,maxPressureAdjoint=0,nextIterations=12;
   const tolerance=3e-6;
   async function repeat(lo,hi,afterStep){
     await solver.replayRange(lo,hi,scheduler,check,afterStep);
@@ -718,7 +718,10 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
   try{
     let end=steps;
     for(let a=anchors.length-1;a>=0&&!failureReason;a--){
-      const anchor=anchors[a];await interval(anchor.step,end,anchor.buffer,capacity);end=anchor.step;
+      const anchor=anchors[a];await interval(anchor.step,end,anchor.buffer,capacity+reusedAnchors);end=anchor.step;
+      // A public solve consumes its history once. Earlier intervals may
+      // overwrite a later starting state after its reverse pass has finished.
+      if(record.consumeAnchors&&a>0){available.push(anchor.buffer);reusedAnchors++;}
     }
     if(!failureReason&&op.initialDischarge){
       await scheduler.perform([phase('transpose initial shaft-relative discharge',e=>{op.initialDischarge(e);integrate(e);})],check);
@@ -750,6 +753,7 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
       streamlineAdjoint:'peak time-level velocity sensitivity in N/(m/s)',
       ...(usable?{refinementIndicator:{objective:source.shapeObjective,estimator:'time-integrated-adjoint-weighted-momentum-transport',
         faces:'full-fluid stencils',byAxisN:byAxis}}:{}),
+      bytesPerCheckpoint:solver.checkpointSize,reusedForwardCheckpoints:reusedAnchors,
       checkpointBytes:(1+anchors.length+all.length)*solver.checkpointSize,pressureDefect,inletDefect,krylovIterations,maxPressureAdjoint,
       ...(op.transportDefect?{groupTransportTranspose:{...op.transportDefect}}:{})}};
   }finally{
@@ -1981,6 +1985,40 @@ async function sstStencilTranspose(gpu,f,dt,base,state,flux,tail,wall,mu,mid){
   return {old,face,geometry,encode(e){gpu.dispatch(e,kernel,group,grid);gpu.dispatch(e,geometric,geom,grid);}};
 }
 
+// The two discharges each have six independent FP32 incidence words. Their
+// vec4 alignment lanes are always zero. Copy the bits, including signed zero
+// and the small correction, without arithmetic or a shared-face assumption.
+async function checkpointFaceWords(gpu,major,minor,count){
+  const bytes=48*count,grid=[Math.ceil(count/128)],cache=new WeakMap();let scratch;
+  const shader=save=>`
+    struct Flux{hi:vec4u,lo:vec4u}
+    struct Words{a:vec4u,b:vec4u,c:vec4u}
+    @group(0) @binding(0) var<storage,${save?'read':'read_write'}> major:array<Flux>;
+    @group(0) @binding(1) var<storage,${save?'read':'read_write'}> minor:array<Flux>;
+    @group(0) @binding(2) var<storage,${save?'read_write':'read'}> packed:array<Words>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=arrayLength(&major)){return;}
+      ${save?`let h=major[i];let l=minor[i];
+        packed[i]=Words(vec4u(h.hi.xyz,h.lo.x),vec4u(h.lo.yz,l.hi.xy),vec4u(l.hi.z,l.lo.xyz));`:
+        `let v=packed[i];
+        major[i]=Flux(vec4u(v.a.xyz,0u),vec4u(v.a.w,v.b.xy,0u));
+        minor[i]=Flux(vec4u(v.b.zw,v.c.x,0u),vec4u(v.c.yzw,0u));`}}`;
+  const pipelines=await Promise.all([false,true].map(save=>gpu.kernel('CFD '+(save?'pack':'restore')+' physical face words',shader(save))));
+  return {bytes,encode(e,buffer,save){
+    const direct=(buffer.usage&GPUBufferUsage.STORAGE)!==0;
+    const target=direct?buffer:(scratch??=gpu.buffer('CFD face transfer for copy-only checkpoints',bytes));
+    let groups=cache.get(target);
+    if(!groups){
+      groups=pipelines.map(p=>gpu.device.createBindGroup({layout:p.getBindGroupLayout(0),entries:[
+        {binding:0,resource:{buffer:major}},{binding:1,resource:{buffer:minor}},{binding:2,resource:{buffer:target,size:bytes}}]}));
+      cache.set(target,groups);
+    }
+    if(!save&&!direct)e.copyBufferToBuffer(buffer,0,target,0,bytes);
+    gpu.dispatch(e,pipelines[Number(save)],groups[Number(save)],grid);
+    if(save&&!direct)e.copyBufferToBuffer(target,0,buffer,0,bytes);
+  }};
+}
+
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null,skin=null,fields=null){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const frozenEddy=f.frozenEddyViscosity;
@@ -2862,14 +2900,23 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   }
 
 
-  const length=s0.size,checkpointSize=3*length+mg.p.size;
+  const length=s0.size;
+  const packedFaces=f.modeledShape&&48*count<=gpu.device.limits.maxStorageBufferBindingSize?
+    await checkpointFaceWords(gpu,flux,fluxTail,count):null;
+  const pressureOffset=length+(packedFaces?.bytes??2*length),checkpointSize=pressureOffset+mg.p.size;
   function copyCheckpoint(e,buffer,save,pressure=true){
-      if(buffer.size!==checkpointSize)throw Error('The CFD checkpoint has the wrong physical grid.');
-      for(const [j,field] of [s0,flux,fluxTail,...pressure?[mg.p]:[]].entries()){
-        if(save)e.copyBufferToBuffer(field,0,buffer,j*length,field.size);
-        else e.copyBufferToBuffer(buffer,j*length,field,0,field.size);
-      }
+    if(buffer.size!==checkpointSize)throw Error('The CFD checkpoint has the wrong physical grid.');
+    function transfer(field,offset){
+      if(save)e.copyBufferToBuffer(field,0,buffer,offset,field.size);
+      else e.copyBufferToBuffer(buffer,offset,field,0,field.size);
     }
+    if(packedFaces){
+      packedFaces.encode(e,buffer,save);transfer(s0,packedFaces.bytes);
+    }else{
+      transfer(s0,0);transfer(flux,length);transfer(fluxTail,2*length);
+    }
+    if(pressure)transfer(mg.p,pressureOffset);
+  }
 
   // Reverse one physical advance from its old flow and the pressure of its
   // end state. Walking backwards leaves the primal positioned at the old
@@ -2935,7 +2982,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       });
     const finish=(previous,live)=>[phase('transpose wall and SST momentum transport',model.encode),phase('combine previous-state and material derivatives',e=>{
         gpu.dispatch(e,join,after,grid);gpu.dispatch(e,collect,collectBind,grid);
-        e.copyBufferToBuffer(previous,live?0:3*length,mg.p,0,mg.p.size);
+        e.copyBufferToBuffer(previous,live?0:pressureOffset,mg.p,0,mg.p.size);
       }),volumes];
     function reverseStages(previous,iterations=24,live=false){
       return [restorePredictor(previous,live),...projection.stages(iterations),phase('transpose stored face history',e=>{
