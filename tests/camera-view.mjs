@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 // Default procedural studio lighting has positive neutral ambient (.035..26)
 // plus white lobes. The emissive fixture is unit-radiance white. An off-world
 // black-background oracle does not apply to the untouched toolbar Camera.
-export function standardCameraFilmValid(pixels,samples=128){
+export function standardCameraFilmValid(pixels,samples){
  const colors=pixels?.colors;if(!Number.isInteger(samples)||samples<=0||!pixels?.width||!pixels?.height||!Array.isArray(colors)||colors.length!==2||colors.some(c=>!Array.isArray(c)||c.length!==4||!c.every(Number.isFinite)||c[3]!==samples))return false;
  const [foreground,background]=colors,neutral=background.slice(0,3);
  return foreground.slice(0,3).every((v,k)=>v>=.99&&v-background[k]>=.5)&&neutral.every(v=>v>=.034)&&Math.max(...neutral)-Math.min(...neutral)<1e-5;
@@ -40,7 +40,7 @@ export async function cameraViewChecks(page){
  try{
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-60,0,60,-60,0,0,60,0,0,0,60],indices:[0,2,1,0,1,3,0,3,2,1,2,3]});
   const material=await call('material.create',{params:{h:0,s:0,l:100,emm:100}});await call('material.assign',{id:mesh.hash,material:material.uid});await call('view.set',{index:0,single:true,focus:mesh.hash});
-  const camera=await call('scene.create',{type:'render',params:{realtime:'off',samples:1,environment:'off'}});await call('scene.select',{ids:[camera.hash]});
+  const camera=await call('scene.create',{type:'render',params:{realtime:'off',quality:1,environment:'off'}});await call('scene.select',{ids:[camera.hash]});
   await call('view.set',{index:0,single:false,mode:'object'});
   const gizmos=await page.evaluate(()=>({
     active:frameEngine.gizmoState,views:frameEngine.gizmoStates.map(s=>s.view),
@@ -57,11 +57,11 @@ export async function cameraViewChecks(page){
   const saved=await call('scene.export',{includeData:true});await call('scene.new');check('New scene stops and hides preview',!(await inspect()).render.visible&&!(await inspect()).render.running);
   await call('scene.open',{name:'camera-view.hash',base64:saved.base64});await call('scene.select',{ids:[camera.hash]});await clickView('Native View after HASH reopen');
   const frame=await call('diagnostics.frame',{frames:5});check('Native CPU/GPU frames stay bounded',frame.timestampQueries&&frame.frames.every(f=>f.cpuMs<50&&f.gpuMs<100),frame);
-  await call('scene.update',{id:camera.hash,params:{samples:100000}});
+  await call('scene.update',{id:camera.hash,params:{quality:100}});
   await call('view.set',{index:0,single:true});await call('scene.select',{ids:[camera.hash]});
   const downloads=[];page.on('download',file=>downloads.push(file.suggestedFilename()));
   await page.locator('#frameRenderToggle').click();
-  await page.waitForFunction(()=>/^[1-9][0-9]* \/ 100000$/.test(document.querySelector('#frameRenderSamples')?.textContent));
+  await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.manual&&s.phase==='refining'&&s.samples>0&&s.samples<s.targetSamples;});
   check('Manual View becomes Stop',await page.locator('#frameRenderToggle').textContent()==='stop');
   const box=await page.locator('#frame-engine-canvas').boundingBox(),x=box.x+box.width*.6,y=box.y+box.height*.55;
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+55,y+10,{steps:8});
@@ -80,16 +80,16 @@ export async function cameraRealtimeChecks(page){
  try{
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-60,0,60,-60,0,0,60,0,0,0,60],indices:[0,2,1,0,1,3,0,3,2,1,2,3]});const m=await call('material.create',{params:{h:0,s:0,l:100,emm:100}});await call('material.assign',{id:mesh.hash,material:m.uid});await call('view.set',{index:0,single:true,focus:mesh.hash});await page.locator('#tabAttributes').click();
   await page.locator('#btnRender').click();await page.waitForFunction(()=>frameEngine.renderState().running||frameEngine.renderState().phase==='error',{},{timeout:20000});observations.push({label:'Native toolbar Camera, before first image',state:await state()});
-  const defaults=(await state()).camera.params;check('Native toolbar Camera retains realtime on, default studio and 128 samples',defaults.realtime==='on'&&defaults.environment==='default'&&defaults.samples===128,defaults);
+  const defaults=(await state()).camera.params;check('Toolbar Camera opens with the default studio and quality',defaults.realtime==='on'&&defaults.environment==='default'&&defaults.quality===50,defaults);
   const button=page.locator('#frameRenderToggle');
   check('Automatic accumulation offers Stop',(await button.textContent())==='stop');
-  check('Render label reports samples',/^[0-9]+ \/ 128$/.test(await page.locator('#frameRenderSamples').textContent()));
+  check('Camera exposes the quality field',await page.locator('#attrContent [data-field="quality"]').count()>0);
   await button.click();await page.waitForTimeout(250);
   check('Stop suppresses stationary realtime',!(await state()).render.running&&(await button.textContent())==='view');
   const started=performance.now();await saveViewport(page);
   await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.phase==='complete'&&s.hasImage&&s.visible||s.phase==='error';},{},{timeout:25000});const ms=performance.now()-started;timings.push({name:'First View completes standard realtime Camera',ms,budgetMs:25000});check('First View completed-operation latency',ms<25000,{ms,budgetMs:25000});
   observations.push({label:'Completed standard camera',state:await state()});let s=await state();check('Standard realtime camera produces a complete visible shared-device image',s.render.phase==='complete'&&!s.render.running&&s.render.hasImage&&s.render.visible&&s.actualVisible&&s.render.sharedDevice&&!s.render.errors?.length,s);
-  const pixels=await call('render.pixels',{points:[[.5,.5],[.03,.03]],linear:true});check('Standard realtime View resolves full-sample emitter and positive neutral studio background',standardCameraFilmValid(pixels,defaults.samples),pixels);
+  const pixels=await call('render.pixels',{points:[[.5,.5],[.03,.03]],linear:true});check('Standard realtime View resolves emitter and positive neutral studio background',standardCameraFilmValid(pixels,s.render.targetSamples),pixels);
   const epoch=s.render.epoch;await saveViewport(page);check('Saving a completed realtime image reuses its film',(await state()).render.epoch===epoch);
   return {pass:true,checks,observations,timings};
  }catch(error){observations.push({failure:await state().catch(()=>null)});return {pass:false,checks,observations,timings,error:error.stack};}

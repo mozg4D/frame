@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 26 nov 04:25",
+  "version": "2026 26 nov 18:35",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -492,7 +492,7 @@
       "index.html",
       "frame-sw.js",
       "tests/run.mjs",
-      "tests/camera-realtime-frame.mjs",
+      "tests/camera-lighting-browser.mjs",
       "tests/camera-view-state.mjs"
     ],
     "camera-progressive": [
@@ -507,7 +507,7 @@
       "frame-sw.js",
       "tests/camera-view.mjs",
       "tests/camera-view-state.mjs",
-      "tests/camera-realtime-frame.mjs"
+      "tests/camera-lighting-browser.mjs"
     ],
     "camera-ray-tiles": [
       "index.html",
@@ -567,16 +567,34 @@
       "tests/gi-stage5-glass-alpha-browser.mjs",
       "tests/gi-benchmark-browser.mjs",
       "tests/camera-material-optics-browser.mjs"
+    ],
+    "camera-transport": [
+      "index.html",
+      "frame-sw.js",
+      "tests/run.mjs",
+      "tests/camera-lighting-contracts.mjs",
+      "tests/camera-lighting-browser.mjs",
+      "tests/camera-transport-lighting-browser.mjs",
+      "tests/camera-material-optics-browser.mjs",
+      "tests/camera-raster-transport-browser.mjs",
+      "tests/camera-raster-transport.mjs",
+      "tests/camera-raster-apply.mjs",
+      "tests/camera-transport-replay.mjs",
+      "tests/camera-webnn-interop.mjs",
+      "tests/camera-webnn-validation.mjs",
+      "tests/camera-transport-benchmark.mjs",
+      "tests/camera-angular-benchmark.mjs",
+      "tests/camera-scene-benchmark.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "c6247009effb7b5535ac9d153e7be447b6ead0a01d86c7a825c2ee365e7a1eb2"
+      "sha256": "2300be57780ba93c46d9633a937413998719dfb7d5937a326afae8f3c1838dba"
     },
     "index.html": {
-      "bytes": 4126100,
-      "sha256": "9a6a1ce5e75adee7577eb79f8204ad6efe857bbc7d996c2daaf3ad5ec76287e3"
+      "bytes": 4166258,
+      "sha256": "af8758b91a2096c990ea76686b0817fa753f75439c5047cc5cde094ec7ddf392"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -767,12 +785,12 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 10055,
-      "sha256": "1ab09141cd60372376715ccb3efc749e9aa59501a202532a3e24e5d2dbd0973b"
+      "bytes": 9885,
+      "sha256": "86a3bf1bff160ddb3b60f0d701a5fddb30310dd78826e2c67e3ac1876675651b"
     },
     "tests/run.mjs": {
-      "bytes": 41741,
-      "sha256": "1e8d71418344547d0178f1ca9121a25919d5608359d57be4aa9b1fb13445d376"
+      "bytes": 40799,
+      "sha256": "f090d3522ece28cd117574c9999bc10b3917976e129cfe11f37258c16289fb60"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1143,8 +1161,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 107036,
-      "sha256": "c98e3035a8d5f3dbc3b6541596c0f7141ed0d72c1cc789e82e9847d2928b97e8"
+      "bytes": 100660,
+      "sha256": "f9e8203ce43513a5633a6076d9ba0448174a4aed0e5c851db9bd2cacfe459806"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1199,8 +1217,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18581,
-      "sha256": "1dd996c211cbdc14cd6b74236f2f8a409bf14a9c04d5c0c3feae8a750f833159"
+      "bytes": 19105,
+      "sha256": "b04bdb453077639a20abcb35fd688da8773cd4c05f82e912939ee55edcefd65d"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1330,25 +1348,21 @@
       "bytes": 9431,
       "sha256": "33762812861e839147c5aa626852e5a2f0e9428883c96f04e7d096cee22ebda7"
     },
-    "tests/camera-realtime-frame.mjs": {
-      "bytes": 9624,
-      "sha256": "8a99c01a6edee1f37f9c95b414799fe92c8ad2f2e104b145f703b2a0d3442932"
-    },
     "tests/camera-view-state.mjs": {
-      "bytes": 6759,
-      "sha256": "a45702443a200a785c82b56178c196ba7ea3ee7c82b93f16e061eba6247fe1db"
+      "bytes": 6710,
+      "sha256": "60bd4f97f96be818959b3f3b2dffff0a5ac4d4fece16e5bd5e9d6ded36325a41"
     },
     "tests/camera-progressive.mjs": {
-      "bytes": 12428,
-      "sha256": "e83816b552530283a68a31ee37451659640ec367c75ace4f847f6425213a16ef"
+      "bytes": 3021,
+      "sha256": "2cd795c8d0bdd8940d1c91899bb13e7fafa0619d0eae06d13006bb1971cb723e"
     },
     "tests/camera-view.mjs": {
-      "bytes": 13853,
-      "sha256": "1a23fd6e13cf91f5ab2990d0ac99d0c5f5af0a1c57940c91a1b767288bbdf751"
+      "bytes": 13838,
+      "sha256": "a10325ebc5c50d3bc5932d1eb5f9ed41f05cb61986fb0380ee1a054b68af6b34"
     },
     "tests/camera-antialias.mjs": {
-      "bytes": 9063,
-      "sha256": "76cdd4c3868b8570a1f320cbce4ab5d8d517f4ee8f865e678b308dee4aee5cd5"
+      "bytes": 7572,
+      "sha256": "26ca55e6833b9438f2f93a862cecf977e2c15f1ecbb04100cec5dbec0246c0c5"
     },
     "tools/build-unite.mjs": {
       "bytes": 1632,
@@ -1363,8 +1377,8 @@
       "sha256": "721addfb29bb1d32ca53d21a7cc5ac04ee863057f8b434e4bdb9f187ba6c6662"
     },
     "tests/camera-idle-warmup.mjs": {
-      "bytes": 11341,
-      "sha256": "ae29005ab240dcda4599fb24cd0760e98680f37a7f539fda3a6aa79e9e8f2957"
+      "bytes": 2499,
+      "sha256": "a995e970be42e05a3009726663c3f7777175c92b3770b356c814de2e0fb4ffab"
     },
     "tools/unite-surface.h": {
       "bytes": 4443,
@@ -1603,8 +1617,56 @@
       "sha256": "7504c8f0647f3fb9b72c67713806152d7bdccc86cf69bb5d9e6fc4a9f7201ccb"
     },
     "tests/camera-material-optics-browser.mjs": {
-      "bytes": 7842,
-      "sha256": "207cfae852a432532604096a32e940a6ad9be46fbaba0fc21f462be93ec46d95"
+      "bytes": 7815,
+      "sha256": "1c175eebdb591b7625b4205377189f0bf5193ff39212494fec2755b6fcee6eeb"
+    },
+    "tests/camera-angular-benchmark.mjs": {
+      "bytes": 11372,
+      "sha256": "87f38b206915779bf8ba4eee8ecf80325fd9f3c55a119aa7a8cb10115adb2de9"
+    },
+    "tests/camera-lighting-browser.mjs": {
+      "bytes": 8901,
+      "sha256": "5b793228ce52d3388ea4ac4ec730af3d9e1442ef26ca77d92d385134ddc1f7fa"
+    },
+    "tests/camera-lighting-contracts.mjs": {
+      "bytes": 3279,
+      "sha256": "87e6f24aa21d466907a2691d640615f0cd872c2fe2618f9a3e4f56db4aa3fee1"
+    },
+    "tests/camera-raster-apply.mjs": {
+      "bytes": 11207,
+      "sha256": "62961c04accf460419d8b81b6ded722a6e324d3fde6be51433cf3036e7e3b32a"
+    },
+    "tests/camera-raster-transport-browser.mjs": {
+      "bytes": 5469,
+      "sha256": "dfa46a47447c3b0dfe04fdc930a14fba217d1105f3392fb7f38542a091558cbd"
+    },
+    "tests/camera-raster-transport.mjs": {
+      "bytes": 7961,
+      "sha256": "14492164d089816e67baa91070fc0b992a2090c80085594c9f6653028b6ae9ad"
+    },
+    "tests/camera-scene-benchmark.mjs": {
+      "bytes": 8051,
+      "sha256": "e1a8842ab842459e31801687a59d2a490a9e74c1dd4a1cac7d0d1985be0db9ee"
+    },
+    "tests/camera-transport-benchmark.mjs": {
+      "bytes": 17481,
+      "sha256": "cc1a33be704084f37378dc69f1bf511fb7eced0e49c992fc7c8d54d6f76dd91d"
+    },
+    "tests/camera-transport-lighting-browser.mjs": {
+      "bytes": 4651,
+      "sha256": "3759d02e84bb5c00fbe47084bd7834cc973a96cb40864f473b19ea141874470f"
+    },
+    "tests/camera-transport-replay.mjs": {
+      "bytes": 10887,
+      "sha256": "b1949697a280647e74d7c537d56b826b7bf22d14465501c05b3b70fd83014e42"
+    },
+    "tests/camera-webnn-interop.mjs": {
+      "bytes": 4720,
+      "sha256": "ce2d2788d7b130f331db41fabc80903b828f490cc3f80ae60d7333613138acbb"
+    },
+    "tests/camera-webnn-validation.mjs": {
+      "bytes": 3955,
+      "sha256": "11173d84a9f264dba7257f13411c20701ab1482f2385b0f8c9dfe6c7e74b3ef4"
     }
   }
 }

@@ -36,7 +36,7 @@ export async function cameraMaterialOpticsChecks(page){
   const saved=await call('scene.export',{includeData:true});
   await call('scene.open',{name:'optics.hash',base64:saved.base64});
   assert.deepEqual(await props(),[1.417,14,78,8.5]);
-  await call('scene.create',{type:'render',params:{realtime:'off',samples:1,'resolution x':96,'resolution y':64}});
+  await call('scene.create',{type:'render',params:{realtime:'off',quality:1,'resolution x':96,'resolution y':64}});
   await call('render.export',{kind:'image',download:false});
   const measurements=await page.evaluate(async()=>{
     const t=window.opticsTracer,base=t.options,getScene=base.getScene;
@@ -52,12 +52,12 @@ export async function cameraMaterialOpticsChecks(page){
         if(wax.length!==2||wax.some(m=>m.ior!==1.417||m.sss!==.78||m.sssRadius!==8.5||m.translucency!==.14))throw Error('Native optical snapshot lost authored values');
         for(const m of wax)Object.assign(m,{ior:1,sss:0,translucency:0},material);
         return s;
-      },sceneKey:key,viewKey:key,outputSize:[96,64],frameSeed:7,sampleLimit:32,maxBounces:3,adaptive:false,interactivePreview:!!primary,lightingReuse:!!primary});
-      if(t.stats.errors.length||t.stats.filmFaults||t.stats.phase!==(primary?'preview':'complete'))throw Error(JSON.stringify(t.stats));
+      },sceneKey:key,geometryKey:key,viewKey:key,outputSize:[96,64],quality:65,finish:true,previewPresentation:false,current:undefined});
+      if(t.stats.errors.length||t.stats.phase!=='complete')throw Error(JSON.stringify(t.stats));
       const pixels=await t.readLinearPixels(points);
       if(pixels.some(p=>p.color.some(c=>!Number.isFinite(c))))throw Error('Non-finite linear pixel');
       const mean=p=>p.reduce((v,s)=>v+s.color[0],0)/p.length;
-      return {slab:mean(pixels.slice(0,9)),sheet:mean(pixels.slice(9)),primary:t.stats.gi?.primaryVisibility};
+      return {slab:mean(pixels.slice(0,9)),sheet:mean(pixels.slice(9)),primary:t.stats.primaryVisibility};
     }
     try{
       const off=await frame({}),translucent=await frame({translucency:1});
@@ -79,7 +79,7 @@ export async function cameraMaterialOpticsChecks(page){
   assert.ok(long.slab>short.slab+.08&&long.slab>off.slab+.08,JSON.stringify(measurements));
   assert.ok(high.sheet>3*low.sheet&&high.sheet>.05,JSON.stringify(measurements));
   for(const [r,b] of [[raster,bvh],[orthoRaster,orthoBVH]]){
-    assert.equal(b.primary,'bvh');assert.equal(r.primary,'raster');
+    assert.equal(b.primary,'CWBVH8');assert.equal(r.primary,'raster');
     assert.ok(r.sheet>.1&&Math.abs(b.sheet-r.sheet)<.015&&Math.abs(b.slab-r.slab)<.015,JSON.stringify(measurements));
   }
   for(const {factor,raster:r,bvh:b} of measurements.coverage){
@@ -96,12 +96,12 @@ export async function cameraMaterialOpticsChecks(page){
       });
       return s;
     };
-    await t.start({...base,getScene,sceneKey:'100k-copies',viewKey:'100k-copies',interactivePreview:true,lightingReuse:true});
+    await t.start({...base,getScene,sceneKey:'100k-copies',geometryKey:'100k-copies',viewKey:'100k-copies',finish:false,refine:false,motion:true,current:undefined});
     const s=t.stats;
     const primary4K=t.useRayGBuffer.call({scene:{triangleCount:100632046}},3840,2160);
-    return {phase:s.phase,primary:s.gi.primaryVisibility,primary4K,instances:s.instances,triangles:s.triangles,stored:s.storedTriangles,workerMs:s.buildMs,errors:s.errors};
+    return {phase:s.phase,primary:s.primaryVisibility,primary4K,instances:s.instances,triangles:s.triangles,stored:s.storedTriangles,workerMs:s.buildMs,errors:s.errors};
   });
-  assert.equal(large.phase,'preview',JSON.stringify(large));assert.equal(large.primary,'bvh');
+  assert.equal(large.phase,'preview',JSON.stringify(large));assert.equal(large.primary,'CWBVH8');
   assert.equal(large.instances,100000);assert.equal(large.triangles,1200000);assert.equal(large.stored,12);
   assert.equal(large.primary4K,true);assert.ok(Number.isFinite(large.workerMs));assert.deepEqual(large.errors,[]);
   const validation=await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message);

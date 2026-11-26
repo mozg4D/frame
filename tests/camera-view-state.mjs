@@ -12,7 +12,7 @@ function fixture(html){
   current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
  e.scene={};e.manualGeneration=0;e.manualSceneKey=null;e.cameraSceneRevision=()=>1;e.flushCameraGeometry=async()=>{};e.scheduleRenderPreview=()=>{};e.label={};e.$=id=>id==='frameRenderToggle'?button:id==='frameRenderSamples'?e.label:null;
  vm.createContext(e);
- const names=['frameEnableCamera','toggleCameraRender','cameraRenderBusy','cameraConfig','renderState','renderSampleLabel','renderStatus','renderStart'];
+ const names=['frameEnableCamera','toggleCameraRender','cameraRenderBusy','cameraConfig','renderState','renderStatus','renderStart'];
  for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);const firstEnd=html.indexOf('\n',start);const end=html[firstEnd-1]==='}'?firstEnd:html.indexOf('\n    }',firstEnd)+6;vm.runInContext(html.slice(start,end),e);}
  e.window.frameEngine={renderState:e.renderState,renderStop:()=>actions.push('stop'),renderStart:()=>{actions.push('start');return Promise.resolve();}};
  return e;
@@ -21,7 +21,7 @@ function fixture(html){
 export async function cameraViewStateChecks(html){
  html??=await readFile(new URL('../index.html',import.meta.url),'utf8');
  const checks=[],test=async(name,fn)=>{try{await fn();checks.push({name,pass:true});}catch(error){checks.push({name,pass:false,error:error.stack});}};
- await test('Automatic and manual accumulation show Stop and the completed sample count',()=>{for(const manual of [true,false]){const e=fixture(html);e.camera.params.samples=64;e.renderManual=manual;e.pathtracer.stats.samples=7;e.renderStatus();assert.equal(e.button.textContent,'stop');assert.equal(e.label.textContent,'7 / 64');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);}});
+ await test('Automatic refinement and manual View offer Stop',()=>{for(const manual of [true,false]){const e=fixture(html);e.renderManual=manual;e.pathtracer.stats.phase='refining';e.renderStatus();assert.equal(e.button.textContent,'stop');assert.equal(e.label.textContent,'render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);}});
  await test('A visible completed film offers View and restores the render label',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.pathtracer.canvas.style.display='block';e.renderStatus();assert.equal(e.button.textContent,'view');assert.equal(e.label.textContent,'render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
  await test('View restarts a stopped hidden image',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
  await test('View enables the selected disabled camera and starts it',()=>{const e=fixture(html),selected={id:'other',type:'render',enabled:false,params:{renderer:'Path tracer'}};e.nodes.push(selected);e.toggleCameraRender(selected);assert.equal(e.camera.enabled,false);assert.equal(selected.enabled,true);assert.deepEqual(e.actions,['start']);});
@@ -36,12 +36,12 @@ export async function cameraViewStateChecks(html){
    jobs[0]();await old;assert.equal(e.renderManual,true);
    jobs[1]();await current;assert.equal(e.renderManual,false);
  });
- const film=(foreground=[1.5,1.5,1.5,128],background=[.13,.13,.13,128])=>({width:744,height:760,colors:[foreground,background]});
- await test('Default studio and unit emissive foreground have resolved physical contrast',()=>assert.equal(standardCameraFilmValid(film()),true));
- await test('Black background cannot substitute for the enabled default environment',()=>assert.equal(standardCameraFilmValid(film(undefined,[0,0,0,128])),false));
- await test('Environment-only image cannot substitute for the emissive fixture',()=>assert.equal(standardCameraFilmValid(film([.13,.13,.13,128])),false));
- await test('Partially accumulated image cannot substitute for 128 completed samples',()=>assert.equal(standardCameraFilmValid(film([1.5,1.5,1.5,127])),false));
- await test('Nonfinite, colored or malformed camera background is rejected',()=>{for(const p of [film(undefined,[NaN,.13,.13,128]),film(undefined,[.13,.14,.13,128]),{width:1,height:1,colors:[[1,1,1,128]]}])assert.equal(standardCameraFilmValid(p),false);});
+ const count=19,film=(foreground=[1.5,1.5,1.5,count],background=[.13,.13,.13,count])=>({width:744,height:760,colors:[foreground,background]});
+ await test('Default studio and unit emissive foreground have resolved physical contrast',()=>assert.equal(standardCameraFilmValid(film(),count),true));
+ await test('Black background cannot substitute for the enabled default environment',()=>assert.equal(standardCameraFilmValid(film(undefined,[0,0,0,count]),count),false));
+ await test('Environment-only image cannot substitute for the emissive fixture',()=>assert.equal(standardCameraFilmValid(film([.13,.13,.13,count]),count),false));
+ await test('Partial accumulation is rejected',()=>assert.equal(standardCameraFilmValid(film([1.5,1.5,1.5,count-1]),count),false));
+ await test('Nonfinite, colored or malformed camera background is rejected',()=>{for(const p of [film(undefined,[NaN,.13,.13,count]),film(undefined,[.13,.14,.13,count]),{width:1,height:1,colors:[[1,1,1,count]]}])assert.equal(standardCameraFilmValid(p,count),false);});
  return {pass:checks.every(c=>c.pass),checks};
 }
 

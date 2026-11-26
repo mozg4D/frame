@@ -53,7 +53,7 @@ export async function cameraAntialiasChecks(page){
   assert.equal(adapter.fallback,false);
   const areas=coverageImage(),rows=[];
   await call('scene.new');await call('view.set',{index:0,single:true});
-  const camera=await call('scene.create',{type:'render',params:{realtime:'off',samples:1,environment:'off','resolution x':width,'resolution y':height}});
+  const camera=await call('scene.create',{type:'render',params:{realtime:'off',quality:1,environment:'off','resolution x':width,'resolution y':height}});
   const initial=await call('render.start');assert.equal(initial.phase,'complete',JSON.stringify(initial.errors));
   const vertices=await page.evaluate(({shapes,width,height})=>{
     const cam=aaTest.tracer.options.camera;
@@ -66,46 +66,27 @@ export async function cameraAntialiasChecks(page){
   const mat=await call('material.create',{params:{h:0,s:0,l:100,emm:100,rough:100}});
   await call('material.assign',{id:mesh.hash,material:mat.uid});
   await call('render.export',{kind:'image',download:false});
-  await page.evaluate(()=>{aaTest.options={...aaTest.tracer.options,onSamples:()=>{}};});
-  for(const [material,samples,lightingReuse] of [['emission',1,true],['emission',2,true],['emission',4,true],['diffuse',32,false],['diffuse',128,true]]){
-    const out=await page.evaluate(async({material,samples,lightingReuse})=>{
-      const t=aaTest.tracer;
-      const o={...aaTest.options,previewPresentation:false,frameSeed:4253,localExposure:false,
-        viewKey:material+samples,sceneKey:material,sampleLimit:samples,maxBounces:1,lightingReuse};
-      if(material==='diffuse'){
-        const capture=o.getScene;
-        o.getScene=async cancelled=>{const scene=await capture(cancelled);for(const m of scene.materials)m.emission=[0,0,0];return scene;};
-        o.environment={...o.environment,infiniteLights:[{direction:o.camera.forward.map(v=>-v),angle:0,color:[1,1,1],intensity:.5}]};
+  for(const renderer of ['Interactive GI','Path tracer']){
+    for(const quality of [1,100]){
+      await call('scene.update',{id:camera.hash,params:{renderer,quality}});
+      await call('render.export',{kind:'image',download:false});
+      const sample=await page.evaluate(async()=>{
+        const t=aaTest.tracer,points=Array.from({length:t.width*t.height},(_,i)=>[((i%t.width)+.5)/t.width,((i/t.width|0)+.5)/t.height]);
+        const pixels=await t.readLinearPixels(points),image=await t.readImage();
+        return {linear:pixels.map(p=>p.color[0]),bytes:Array.from({length:pixels.length},(_,i)=>image.rgba[i*4]),passes:t.stats.samples};
+      });
+      const white=sample.linear[108*width+150];assert.ok(white>=.99);
+      let sum=0,aligned=0,count=0,displayError=0;
+      for(let i=0;i<areas.length;i++){
+        const delta=Math.abs(sample.linear[i]/white-areas[i]);
+        if(areas[i]>1e-5&&areas[i]<1-1e-5){sum+=delta;count++;displayError+=Math.abs(sample.bytes[i]-displayByte(areas[i]*white));}
+        else if(Math.floor(i/width)>92)aligned=Math.max(aligned,delta);
       }
-      await t.start(o);if(t.stats.phase!=='complete')throw Error(t.stats.errors.join('\n'));
-      const film=await t.readFilm(),image=await t.readImage(),device=t.device;
-      const read=device.createBuffer({size:16,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
-      let exposure;
-      try{const enc=device.createCommandEncoder();enc.copyBufferToBuffer(t.exposure,0,read,0,16);device.queue.submit([enc.finish()]);await read.mapAsync(GPUMapMode.READ);exposure=new Float32Array(read.getMappedRange())[0];}finally{read.destroy();}
-      return {exposure,linear:Array.from({length:t.width*t.height},(_,i)=>film.data[i*film.stride]),
-        bytes:Array.from({length:t.width*t.height},(_,i)=>image.rgba[i*4]),samples:t.stats.newCameraSamples,ms:t.stats.elapsedMs};
-    },{material,samples,lightingReuse});
-    assert.equal(out.samples,width*height*samples);
-    const white=out.linear[108*width+150];assert.ok(white>.1);
-    let count=0,displayError=0,filmError=0,coverageError=0,alignedError=0,interiorError=0;
-    for(let i=0;i<areas.length;i++){
-      const a=areas[i],expected=displayByte(a*white*out.exposure);
-      if(a>1e-5&&a<1-1e-5){
-        count++;displayError+=Math.abs(out.bytes[i]-expected);
-        filmError+=Math.abs(displayByte(out.linear[i]*out.exposure)-expected);
-        coverageError+=Math.abs(out.linear[i]/white-a);
-      }else{
-        const error=Math.abs(out.bytes[i]-expected);
-        if(Math.floor(i/width)>92)alignedError=Math.max(alignedError,error);
-        interiorError=Math.max(interiorError,error);
-      }
+      const row={renderer,quality,passes:sample.passes,coverageMAE:sum/count,aligned,edgePixels:count,displayMAE:displayError/count};rows.push(row);
+      assert.ok(count>480&&aligned<.025,JSON.stringify(row));
+      assert.ok(row.coverageMAE<(quality===1?.24:.055),JSON.stringify(row));
+      if(quality===100)assert.ok(row.coverageMAE<rows.at(-2).coverageMAE*.6&&row.displayMAE<12,JSON.stringify(row));
     }
-    const row={material,samples,edgePixels:count,displayMAE:displayError/count,rawMAE:filmError/count,coverageMAE:coverageError/count,alignedError,interiorError,ms:out.ms};
-    rows.push(row);console.log('Camera coverage',JSON.stringify(row));
-    assert.ok(count>480&&out.ms<10000,JSON.stringify(row));
-    assert.ok(alignedError<=2&&interiorError<=8,JSON.stringify(row));
-    if(material==='emission')assert.ok(row.displayMAE<row.rawMAE*.8,JSON.stringify(row));
-    else assert.ok(row.displayMAE<=row.rawMAE+1,JSON.stringify(row));
   }
   await call('scene.update',{id:camera.hash,params:{renderer:'Viewport'}});
   const raster=await call('render.export',{kind:'image',download:false});assert.ok(raster.bytes>0&&raster.width===width&&raster.height===height);
