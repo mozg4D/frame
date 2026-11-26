@@ -35,14 +35,14 @@ function mergedBounds(bounds){
   return {min,max};
 }
 
-export async function createNativeRotorFixture(device,measuredPlanform=false){
+export async function createNativeRotorFixture(device,measuredPlanform=false,deform=null){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Static propeller control volume'});
   await call('scene.update',{id:box.hash,params:{Speed:0}});
   const authored=await call('animation.inspect'),end=60,angle=5011*360/60*end/authored.fps,ids=[];
   for(const [index,m] of rotorParts(measuredPlanform).entries()){
-    const part=await call('mesh.create',{name:m.name,vertices:Array.from(m.vertices,v=>1000*v),
-      indices:Array.from(m.indices),storage:index===1?'texture':'auto'});
+    const vertices=Array.from(m.vertices,v=>1000*v);if(deform)deform(vertices,index);
+    const part=await call('mesh.create',{name:m.name,vertices,indices:Array.from(m.indices),storage:index===1?'texture':'auto'});
     ids.push(part.hash);
   }
   const shaft=await call('scene.group',{ids});
@@ -52,7 +52,7 @@ export async function createNativeRotorFixture(device,measuredPlanform=false){
   await call('animation.seek',{frame:0});await call('diagnostics.frame',{frames:4});
   const {capture,motion,assertCurrent}=await nativeAxialSpin(device,ctx,box.hash),diameter=.254;
   if(Math.abs(motion.diameterM/diameter-1)>.005)throw Error('Evaluated APC swept diameter disagrees with its nominal size');
-  return {capture,motion,assertCurrent,diameter,boxHash:box.hash};
+  return {capture,motion,assertCurrent,diameter,boxHash:box.hash,partHashes:ids};
 }
 
 export async function benchmarkNativeRotor(device,tier,progress,selection){
@@ -69,19 +69,19 @@ export async function benchmarkNativeRotor(device,tier,progress,selection){
   return {...result,motion,nominalDiameterM:diameter,sourceSignature:capture.signature};
 }
 
-export async function createNativeAhmedFixture(device,reference='ahmed'){
+export async function createNativeAhmedFixture(device,reference='ahmed',mounted=false){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Ahmed control volume'});
   const air=mediumProperties('Air',0);
   const speed=reference==='ahmed-wake'?768000*air.nu/.288:60;
   await call('scene.update',{id:box.hash,params:{Speed:speed}});
   await call('transform.set',{ids:[box.hash],channel:'size',axis:0,value:1800,coordinates:'world'});
-  const body=await call('mesh.create',ahmedMesh());
+  const body=await call('mesh.create',ahmedMesh(reference==='ahmed-35'?35:25));
   // Wind-tunnel mounting drawing, Fig. 1 of Guilmineau et al., ECCOMAS
   // 2016. The drag reference is tared to the body. The measured wake is
   // downstream of the entire mounted model, including its four supports.
   const supports=[];
-  if(reference==='ahmed-wake'){
+  if(reference==='ahmed-wake'||mounted){
     for(const station of [202,672])for(const z of [-163.5,163.5]){
       const cylinder=await call('scene.create',{type:'cylinder',name:'Ahmed tunnel support',
         params:{diameter:30,height:50,'angle approximation':5}});
@@ -114,6 +114,7 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
   const reference=selection.fixture??'ahmed';
   const {capture,hull,extent,U,air,supportBounds}=await createNativeAhmedFixture(device,reference);
   const f={...flowFixture(reference,tier),...selection,U,maxSpeed:U,period:1.044/U,rho:air.rho,nu:air.nu,normalization:.5*air.rho*U**2*.389*.288,
+    slantSampling:(selection.solver??'cartesian-fvm')==='cartesian-fvm',
     geometry:supportBounds.length?'Mounted native Ahmed body and four cylinder supports on the fixed tunnel floor, combined loads':
       'Evaluated native Ahmed polygon surface on a fixed floor, body-only load'};
   const result=selection.solver==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress,capture):

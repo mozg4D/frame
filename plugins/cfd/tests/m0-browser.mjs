@@ -95,7 +95,8 @@ selection.ddes=args.includes('--ddes');
 selection.wakeDistance=selection.ddes||args.includes('--wake-distance');
 if(selection.wakeDistance&&!wallOnly&&!nativeAhmed&&!nativeRotor&&!scenePath)throw Error('Exterior wall distances require native geometry');
 if(selection.ddes&&!selection.sstWall)throw Error('Shielded SST requires the wall-adjacent SST transport');
-if(nativeAhmed&&selection.fixture&&!['ahmed','ahmed-wake'].includes(selection.fixture))throw Error('Choose the drag or wake reference for the native Ahmed body');
+if(nativeAhmed&&selection.fixture&&!['ahmed','ahmed-35','ahmed-wake'].includes(selection.fixture))throw Error('Choose the 25 or 35 degree drag reference or the mounted 25 degree wake reference');
+if(selection.fixture==='ahmed-35'&&(!nativeAhmed||selection.solver&&selection.solver!=='cartesian-fvm'))throw Error('Choose the native Cartesian Ahmed fixture for the 35 degree comparison');
 selection.faceReconstruction=args.includes('--reconstruct-faces');
 if(selection.faceReconstruction&&!selection.cutCells)throw Error('Aperture-centroid transport requires cut volumes');
 if(selection.sstWall&&!selection.cutCells)throw Error('The wall-adjacent SST model requires physical cut volumes');
@@ -108,7 +109,7 @@ const periods=args.find(s=>s.startsWith('--periods='))?.slice(10);
 if(periods!==undefined){selection.periodLimit=Number(periods);
   if(!(selection.periodLimit>0&&selection.periodLimit<=32))throw Error('Choose a physical duration greater than zero and at most 32 periods');}
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
-if(selection.fixture&&!['sphere','ahmed','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
+if(selection.fixture&&!['sphere','ahmed','ahmed-35','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
 if(selection.solver&&!['cartesian-fvm','sdf-graph','mr-lbm'].includes(selection.solver))throw Error('Unknown CFD candidate');
 if((scenePath||nativeSphere||nativeAhmed||nativeRotor)&&selection.solver==='mr-lbm'&&selection.graded)
   throw Error('Native MR-LBM uses a uniform physical lattice');

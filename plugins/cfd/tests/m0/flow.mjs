@@ -4,7 +4,7 @@ export {settledPeriods,sumForce} from '../../plugin.js';
 import {gpuScope} from './gpu.mjs';
 import {flowFixture,geometryKernel,gradedFixture,gridWGSL,references} from './fixtures.mjs';
 import {momentSolver} from './mr-lbm.mjs';
-import {wakeLength,tunnelProfiles} from './wake.mjs';
+import {wakeLength,tunnelProfiles,slantProfiles} from './wake.mjs';
 import {cutWallResolution} from './wall-resolution.mjs';
 import {radialLoads} from './radial-loads.mjs';
 
@@ -135,7 +135,7 @@ async function stepMonitor(gpu,solver,count){
     for(let i=0;i<vals.length;i++)peak[i%4]=Math.max(peak[i%4],vals[i]);return peak;};
 }
 
-export async function runCase(device,f,kind,progress,capture=null){
+export async function runCase(device,f,kind,progress,capture=null,prepareBalance=null){
   f={...f,rotatingFrame:f.rotor&&kind==='cartesian-fvm'&&!f.inertialRotor,wallModeled:kind==='cartesian-fvm'&&!f.sphere&&!f.laminar&&!(f.rotor&&f.inertialRotor)};
   f.cutCells=!!f.cutCells&&f.wallModeled;
   f.subcellSurface=!!f.subcellSurface&&f.cutCells;
@@ -192,6 +192,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,geom.skin):await momentSolver(gpu,f,dt,geom.wall,force);
     const trace=f.trace&&solver.pressure?await stepMonitor(gpu,solver,count):null;
     const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
+    const balance=prepareBalance?await prepareBalance(gpu,f,force,capture):null;
     const transverse=solver.transverseImpulse?await sumForce(gpu,solver.transverseImpulse,count,4):null;
     const sectionLoads=solver.loads&&solver.hasPressureSplit!==false?await axialLoads(gpu,f,force,solver.loads):null;
     const annular=solver.loads&&f.rotatingFrame&&f.sweptDiameterM>0?await radialLoads(gpu,f,force,solver.loads):null;
@@ -204,7 +205,7 @@ export async function runCase(device,f,kind,progress,capture=null){
     const latticeTick=batchedLattice?{kind:'packed lattice step',encode:geom.encode?e=>{geom.encode(e);solver.encode(e);}:solver.encode}:null;
     let step=0,batch=1,maxBatchMs=0;
     let budgetExhausted=false,partialWindow=null,previousPlane=null,averagedWake=null,previousSections=null,axialProfile=null;
-    const tunnelSum=f.tunnelSymmetry?new Float64Array(f.dims[0]*f.dims[1]):null;
+    const tunnelSum=f.tunnelSymmetry||f.slantSampling?new Float64Array(solver.plane.size/4):null;
     let tunnelSamples=0,tunnelWindows=0;
     const limitSteps=f.periodLimit?Math.max(1,Math.round(f.periodLimit*f.period/dt)):Infinity;
     for(let window=0;window<32&&step<limitSteps;window++){
@@ -250,6 +251,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       const nativePressure=geom.skin?await geom.skin.measure(f.rho*(f.h/dt)**2/(step-first),f.omega):null;
       const latticeMass=solver.mass?await solver.mass.measure(step-first):null;
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
+        ...(balance?{mountedBalance:await balance(scale,forceN)}:{}),
         ...nativePressure?{nativePressure}:{},
         ...latticeMass?{latticeMass}:{},
         ...radialProfile?{radialProfile,shaftPowerFromViscousStressW:radialProfile.reduce((a,b)=>a-f.omega*b.viscousTorqueNm,0),
@@ -263,8 +265,9 @@ export async function runCase(device,f,kind,progress,capture=null){
         break;
       }
       windows.push({...measured,period:window+1});
+      if(balance)progress('body Cd '+measured.mountedBalance.bodyCd.toPrecision(6)+' and mounted Cd '+coefficient.toPrecision(6));
       progress(f.id+' '+kind+' period '+(window+1)+' '+(f.rotor?'CT':f.id==='scene'?'axial force (N)':'CD')+' '+coefficient.toPrecision(5));
-      if(!Number.isFinite(coefficient)||settledPeriods(windows,requireWake))break;
+      if(!Number.isFinite(coefficient)||settledPeriods(windows,requireWake)&&(!balance||settledPeriods(windows.map(w=>({coefficient:w.mountedBalance.bodyCd})))))break;
     }
     const viewport=stopMonitor();stopMonitor=null;
     const certificationStart=performance.now();
@@ -290,6 +293,11 @@ export async function runCase(device,f,kind,progress,capture=null){
       averagingFromPeriod:4,completeWindows:tunnelWindows,sampledTimeS:tunnelSamples*dt,
       meanWakeLengthM:tunnelSamples?windowWake(f,dt,tunnelSum,tunnelSamples):null,
       stations:tunnelSamples?tunnelProfiles(f,(i,j)=>tunnelSum[i+j*f.dims[0]]*f.h/(dt*tunnelSamples)):[]}:undefined;
+    const slantDiagnostics=f.slantSampling&&tunnelSamples?{slantDegrees:f.slantDegrees,averagingFromPeriod:4,
+      completeWindows:tunnelWindows,sampledTimeS:tunnelSamples*dt,profiles:slantProfiles(f,(i,j)=>{
+        const k=i+j*f.dims[0],plane=f.dims[0]*f.dims[1],u=f.h/(dt*tunnelSamples);
+        return [tunnelSum[k]*u,tunnelSum[k+plane]*u];
+      })}:undefined;
     return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,minCellWidthM:f.minPitch,spacing:f.axes?'graded':'uniform',
       geometry:f.geometry,nativeGeometry:geom.stats,rotatingFrame:f.rotatingFrame,pressurePreconditioner:finiteVolume?(f.coarseSpectral?'coarse-separable-and-block':f.globalPressure?'separable-global-and-block':f.axes?'coarse-and-block':'block'):undefined,
       wallTreatment:f.cutCells?'Cut fluid volumes with conservative momentum merging and SDF-normal wall stress':f.wallModeled?'SDF-normal tangential wall stress':finiteVolume?'resolved viscous wall':f.interpolatedWall?'Interpolated SDF lattice links and wall momentum exchange':f.latticeSurfaceWall?'Native triangle normal constraint and Spalding wall stress':'Volume penalization',
@@ -301,7 +309,7 @@ export async function runCase(device,f,kind,progress,capture=null){
       turbulenceClosure:f.ddes?'SST delayed detached-eddy simulation':undefined,
       momentumReconstruction:f.faceReconstruction?'limited aperture-centroid transport and deviatoric stress':undefined,
       faceMomentum:f.apertureFlow?'relative flow integrated on each open polygon':f.faceHistory?'transported with diagonal relaxation':'interpolated predictor',dtS:dt,periodSteps,wakePassed,powerPassed,massPassed,
-      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,periodLimit:f.periodLimit,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,tunnelDiagnostics,
+      latticeMassPassed,setupMs,totalMs,certificationMs,caseBudgetMs:budget,budgetExhausted,periodLimit:f.periodLimit,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,partialWindow,mean,relativeError,stable,field,axialProfile,tunnelDiagnostics,slantDiagnostics,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       forcePassed,powerRelativeError,viewport,scheduling:scheduler?.measure(),fluxConvergence:solver.fluxConvergence,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};

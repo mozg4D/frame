@@ -56,7 +56,7 @@ export async function verifyShaftChannels(){
 export async function verifyTiltedShaft(device){
   const {createNativeRotorFixture}=await import('./native-case.mjs');
   const call=(name,args={})=>frameAI.call(name,args),math=frameEngine.pluginMath;
-  const {boxHash:id}=await createNativeRotorFixture(device,true);
+  const fixture=await createNativeRotorFixture(device,true),id=fixture.boxHash;
   const op=(operation,args={})=>call('plugins.command',{id,operation,args});
   const dot=(a,b)=>a.reduce((s,v,k)=>s+v*b[k],0),norm=v=>Math.hypot(...v),rows=[];
   for(const angle of [0,90,34]){
@@ -99,8 +99,18 @@ export async function verifyTiltedShaft(device){
   const [aligned,quarter]=rows;
   const sameForce=norm(aligned.forceWorld.map((v,k)=>v-quarter.forceWorld[k]))/norm(aligned.forceWorld);
   const samePower=Math.abs(quarter.powerW/aligned.powerW-1);
-  const pass=aligned.steps===quarter.steps&&aligned.cells===quarter.cells&&Math.abs(aligned.dt/quarter.dt-1)<1e-7&&
+  const pointsWorldM=[[0,.21,.04]],before=await op('wall-motion',{pointsWorldM});
+  const blade=fixture.capture.meshes[0].hash;
+  const pivot=()=>math.point(frameEngine.pluginWorld(blade),frameEngine.pluginPivot(blade).slice(12,15));
+  const initial=pivot();
+  await call('transform.apply',{ids:[blade],position:initial.map((v,k)=>v+(k===0?1:0)),coordinates:'world'});
+  await call('diagnostics.frame',{frames:2});
+  const after=await op('wall-motion',{pointsWorldM}),axialEditMm=pivot()[0]-initial[0];
+  const originErrorM=norm(after.axisOriginWorldM.map((v,k)=>v-before.axisOriginWorldM[k]));
+  const axisError=norm(after.shaftAxisWorld.map((v,k)=>v-before.shaftAxisWorld[k]));
+  const pass=Math.abs(axialEditMm-1)<1e-6&&originErrorM===0&&axisError===0&&
+    aligned.steps===quarter.steps&&aligned.cells===quarter.cells&&Math.abs(aligned.dt/quarter.dt-1)<1e-7&&
     sameForce<.003&&samePower<.003&&rows.every(r=>r.steps>=4&&r.velocityError<1e-5&&r.forceError<2e-5&&
       r.torqueError<2e-5&&r.powerError<2e-5&&r.mass<1e-6&&r.powerW>0&&Math.abs(r.CT)>.01&&Math.abs(r.diameter-.254)<.001);
-  return {pass,sameForce,samePower,rows};
+  return {pass,sameForce,samePower,axialEditMm,originErrorM,axisError,rows};
 }

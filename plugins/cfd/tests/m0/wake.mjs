@@ -15,6 +15,56 @@ export function tunnelProfiles(f,axialVelocity){
   });
 }
 
+// Use both measured components. Each trace runs parallel to the actual rear
+// surface. A solid cell centre supplies no velocity observation.
+export function slantProfiles(f,velocity){
+  const angle=f.slantDegrees*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),length=.222;
+  const start=1.044-length*c,top=x=>.338-Math.max(0,x-start)*s/c;
+  const axes=[0,1].map(a=>Array.from({length:f.dims[a]},(_,j)=>cellCenter(f,a,j)));
+  function bracket(a,x){
+    const row=axes[a],j=row.findIndex(v=>v>=x);
+    if(j<1)return [];
+    const t=(x-row[j-1])/(row[j]-row[j-1]);return [[j-1,1-t],[j,t]];
+  }
+  return [.005,.01].map(normalOffsetM=>{
+    const samples=Array.from({length:39},(_,i)=>{
+      const distanceM=length*(i+1)/40,xM=start+distanceM*c+normalOffsetM*s,yM=.338-distanceM*s+normalOffsetM*c;
+      let weight=0,tangent=0;
+      for(const [ix,wx] of bracket(0,xM))for(const [iy,wy] of bracket(1,yM)){
+        if(axes[0][ix]<=1.044&&axes[1][iy]<=top(axes[0][ix]))continue;
+        const [u,v]=velocity(ix,iy);weight+=wx*wy;tangent+=wx*wy*(c*u-s*v);
+      }
+      return {distanceM,xM,yM,fluidWeight:weight,tangentialUOverU:weight>=.5?tangent/(weight*f.U):null};
+    });
+    const resolved=samples.filter(p=>p.tangentialUOverU!==null),reversed=resolved.filter(p=>p.tangentialUOverU<0);
+    const crossings=[];
+    for(let i=1;i<samples.length;i++){
+      const a=samples[i-1],b=samples[i],u=a.tangentialUOverU,v=b.tangentialUOverU;
+      if(u!==null&&v!==null&&u<0&&v>=0)crossings.push(a.distanceM+(b.distanceM-a.distanceM)*(-u)/(v-u));
+    }
+    return {normalOffsetM,distanceUnit:'m',validStations:resolved.length,reversedStations:reversed.length,
+      reversedFraction:resolved.length?reversed.length/resolved.length:null,reattachmentsM:crossings,samples};
+  });
+}
+
+// A positive near-wall trace by itself cannot locate reattachment. On the
+// fully separated slant require reverse flow in the upstream quarter and at
+// the last station, with no downstream return to positive tangential flow.
+export function assessSlant(angle,profiles){
+  const length=.222;
+  const traces=(profiles??[]).map(p=>{
+    const samples=p.samples.filter(s=>Number.isFinite(s.tangentialUOverU));
+    const reverse=samples.find(s=>s.tangentialUOverU<0),last=p.samples.at(-1);
+    const reachesTail=last?.tangentialUOverU<0&&samples.filter(s=>s.distanceM>=.75*length).every(s=>s.tangentialUOverU<0);
+    const reattaches=!!reverse&&last?.tangentialUOverU>0&&p.reattachmentsM.some(x=>x>reverse.distanceM&&x<length);
+    const openSeparation=!!reverse&&reverse.distanceM<=.25*length&&reachesTail&&!p.reattachmentsM.length;
+    return {normalOffsetM:p.normalOffsetM,firstReverseM:reverse?.distanceM??null,tailTangentialUOverU:last?.tangentialUOverU??null,
+      reattachmentsM:p.reattachmentsM,observed:angle===25?reattaches:angle===35&&openSeparation};
+  });
+  return {expected:angle===25?'separation and downstream reattachment':'flow separated to the trailing edge',
+    observed:traces.length===2&&[.005,.01].every(h=>traces.some(p=>p.normalOffsetM===h&&p.observed)),traces};
+}
+
 // Averages span complete sampling windows. The sphere reference is on-axis.
 // The Ahmed reference is the downstream extent of the reversed-flow region
 // in the symmetry plane, not a zero crossing at an arbitrary body height.

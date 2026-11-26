@@ -17,7 +17,8 @@ import {boxMetric} from './m0/native-geometry.mjs';
 import {pressureAxis} from './m0/separable-pressure.mjs';
 import {coarseGraphInverse} from './m0/graph-pressure.mjs';
 import {ahmedMesh,wakeTunnel} from './m0/ahmed.mjs';
-import {tunnelProfiles} from './m0/wake.mjs';
+import {tunnelProfiles,slantProfiles,assessSlant} from './m0/wake.mjs';
+import {assessMountedAhmed} from './m0/modeled-ahmed-check.mjs';
 test('limited-memory time adjoint attains the minimum number of repeated physical steps',()=>{
   const length=80,minimum=[Array.from({length:length+1},(_,n)=>n*(n-1)/2)];
   for(let spare=1;spare<=6;spare++){
@@ -29,6 +30,42 @@ test('limited-memory time adjoint attains the minimum number of repeated physica
       else assert.equal(cost(checkpointSplit(n,spare)),row[n]);
     }
   }
+});
+test('both Ahmed rear slopes have the measured length and recover a manufactured tangential reattachment',()=>{
+  for(const deg of [25,35]){
+    const a=deg*Math.PI/180,c=Math.cos(a),s=Math.sin(a),start=1.044-.222*c;
+    const mesh=ahmedMesh(deg),tail=mesh.vertices.slice(-12),edge=mesh.vertices.slice(-24,-12);
+    assert.ok(Math.abs(Math.hypot(tail[3]-edge[3],tail[4]-edge[4])-222)<1e-9);
+    assert.ok(Math.abs(tail[4]-338+222*s)<1e-9);
+    const f={dims:[256,200,8],origin:[.80,.16,0],h:.001,slantDegrees:deg,U:2};
+    const profiles=slantProfiles(f,(i,j)=>{
+      const x=cellCenter(f,0,i),y=cellCenter(f,1,j),u=f.U*(c*(x-start)-s*(y-.338)-.16);
+      return [c*u+3*s,-s*u+3*c];
+    });
+    for(const p of profiles){assert.equal(p.validStations,39);assert.equal(p.reattachmentsM.length,1);
+      assert.ok(Math.abs(p.reattachmentsM[0]-.16)<1e-9);}
+  }
+});
+test('qualify Ahmed body drag only when its balance interval and both slant observations agree',()=>{
+  const trace=(offset,speeds,reattachmentsM=[])=>({normalOffsetM:offset,reattachmentsM,
+    samples:speeds.map((tangentialUOverU,i)=>({distanceM:[.025,.085,.155,.19,.21645][i],tangentialUOverU}))});
+  const profiles=(v,roots)=>[.005,.01].map(h=>trace(h,v,roots));
+  const separated=profiles([-.2,-.3,-.2,-.15,-.1]),reattached=profiles([-.2,-.1,.15,.25,.3],[.124]);
+  assert.ok(assessSlant(25,reattached).observed);assert.ok(assessSlant(35,separated).observed);
+  assert.equal(assessSlant(25,profiles([.2,.1,.15,.25,.3])).observed,false);
+  assert.equal(assessSlant(35,profiles([.2,.1,.15,.25,-.3])).observed,false);
+  assert.equal(assessSlant(35,profiles([-.2,-.3,-.2,-.15,null])).observed,false);
+  assert.equal(assessSlant(35,[separated[0],separated[0]]).observed,false);
+  const window={forceN:55,mountedBalance:{bodyCd:.285,closureN:0,cellAssignmentRangeCd:[.284,.286]}};
+  const run={stable:true,massPassed:true,windows:Array(8).fill(window),slantDiagnostics:{profiles:reattached}};
+  assert.ok(assessMountedAhmed(run,25).pass);
+  assert.equal(assessMountedAhmed({...run,slantDiagnostics:null},25).pass,false);
+  assert.equal(assessMountedAhmed({...run,massPassed:false},25).pass,false);
+  assert.equal(assessMountedAhmed({...run,windows:[]},25).pass,false);
+  run.windows=Array(8).fill({...window,mountedBalance:{...window.mountedBalance,cellAssignmentRangeCd:[.26,.31]}});
+  assert.equal(assessMountedAhmed(run,25).pass,false);
+  run.windows=Array(8).fill({...window,mountedBalance:{...window.mountedBalance,cellAssignmentRangeCd:[.286,.284]}});
+  assert.equal(assessMountedAhmed(run,25).pass,false);
 });
 test('wind tunnel retains physical bounds, a single pressure outlet and fixed LDA stations on graded axes',()=>{
   const box=wakeTunnel(flowFixture('ahmed-wake',1)),bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};

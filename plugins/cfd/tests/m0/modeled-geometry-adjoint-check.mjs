@@ -1,8 +1,9 @@
 import {cartesianSolver,cutGroups,gpuScope} from '../../plugin.js';
 import {modeledStudyInputs} from './modeled-step-adjoint-check.mjs';
 
-export async function verifyModeledGeometryAdjoint(device){
-  const {dims,n,dt,f,state,flow,tail,mu,wall,centers,point}=modeledStudyInputs(),steps=4;
+export const verifyRotatingGeometryAdjoint=device=>verifyModeledGeometryAdjoint(device,true);
+export async function verifyModeledGeometryAdjoint(device,rotating=false){
+  const {dims,n,dt,f,state,flow,tail,mu,wall,centers,point}=modeledStudyInputs(rotating),steps=4;
   const zu=state.slice(),zq=flow.slice(),zp=new Float32Array(n),zf=mu.slice(),zm=mu.slice();
   for(let i=0;i<n;i++){
     const live=mu[4*i+3]>0;
@@ -36,7 +37,8 @@ export async function verifyModeledGeometryAdjoint(device){
       const fields=[await read(s.state),await read(s.flux),await read(s.fluxTail),await read(s.pressure),await read(force),await read(s.loads)];
       const gradient=new Float64Array(12*n),defects=[];
       if(op)for(let t=steps-1;t>=0;t--){
-        dispatch(e=>{op.reverse(e,history[t]);e.copyBufferToBuffer(op.old,0,seed.state,0,seed.state.size);
+        if(rotating)await op.reverseStep(t+1,history[t],32,scheduler,()=>{});
+        dispatch(e=>{if(!rotating)op.reverse(e,history[t]);e.copyBufferToBuffer(op.old,0,seed.state,0,seed.state.size);
           e.copyBufferToBuffer(op.face,0,seed.face,0,seed.face.size);e.clearBuffer(seed.pressure);});
         const material=await read(op.geometry);for(let k=0;k<material.length;k++)gradient[k]+=material[k];
         defects.push(Array.from(await op.projection.defects()));

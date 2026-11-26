@@ -2,8 +2,9 @@ import {cartesianSolver,cutGroups,gpuScope} from '../../plugin.js';
 
 export const verifySstStencil=device=>study(device,false);
 export const verifyModeledTurbulence=device=>study(device,true);
+export const verifyRotatingTurbulence=device=>study(device,true,true);
 
-async function study(device,withWall){
+async function study(device,withWall,rotating=false){
   const dims=[20,16,12],[nx,ny]=dims,n=dims.reduce((a,b)=>a*b),h=.004,dt=.0002;
   const axes=dims.map((d,a)=>Float64Array.from({length:d+1},(_,j)=>h*j*(1+.007*j+.018*a)));
   const point=i=>[i%nx,Math.floor(i/nx)%ny,Math.floor(i/(nx*ny))],stride=[1,nx,nx*ny];
@@ -35,6 +36,7 @@ async function study(device,withWall){
     const gpu=gpuScope(device),f={dims,h,axes,U:1.2,maxSpeed:3,origin:[0,0,0],nu:1.53e-5,rho:1.2,period:.08,
       wallModeled:true,cutCells:true,sstWall:true,ddes,laminar:false,rotor:false,omega:0,mergeToFluid:false,
       domainWalls:[null,null,[.7,0,.12],null,null,null],tunnelSymmetry:true,pressureOpen:[false,true,false,false,false,false]};
+    if(rotating)Object.assign(f,{rotor:true,rotatingFrame:true,groupTransport:true,omega:-19,sstWall:false,faceHistory:true,implicitRadiusM:.044});
     try{
       const m=gpu.buffer('Native experiment aperture field',mu),w=gpu.buffer('Physical wall and merged volume',wall);
       const groups=await cutGroups(gpu,f,m,w),solver=await cartesianSolver(gpu,f,dt,w,gpu.buffer('Wall force',4*n),m,groups);
@@ -46,7 +48,7 @@ async function study(device,withWall){
       for(const boundaryOnly of [false,true]){
         for(let i=0;i<n;i++){
           const [x,y,z]=point(i),active=!boundaryOnly||x<2||x>=nx-2||y<2||z<2||mu[4*i+3]>0&&mu[4*i+3]<1;
-          for(let a=0;a<4;a++)seeds[4*i+a]=active&&(!withWall||a<3)?(.3+.2*a)*Math.cos(.27*x+.53*y-.39*z+.7*a):0;
+          for(let a=0;a<4;a++)seeds[4*i+a]=active&&(!withWall||rotating||a<3)?(.3+.2*a)*Math.cos(.27*x+.53*y-.39*z+.7*a):0;
         }
         device.queue.writeBuffer(seed,0,seeds);device.queue.writeBuffer(solver.state,0,state);device.queue.writeBuffer(solver.flux,0,baseFlow);
         dispatch(jac.encode);
@@ -65,7 +67,10 @@ async function study(device,withWall){
           // Eddy viscosity influences the extensive bulk outputs through a
           // small dt-scaled transport increment. Resolve that increment above
           // the FP32 rounding of the complete predicted state.
-          for(const step of mode===3?[.008,.004]:[.002,.0006]){
+          // In the shaft frame the implicit donor has been removed from this
+          // predictor. Resolve the smaller limited flux correction in FP32
+          // while keeping the signed discharge perturbation below 1.5%.
+          for(const step of rotating&&mode>=4?[.016,.008]:mode===3?[.008,.004]:[.002,.0006]){
             const fields=[];
             for(const sign of [-1,1]){
               device.queue.writeBuffer(solver.state,0,state.map((v,i)=>v+sign*step*direction[i]));
@@ -85,5 +90,5 @@ async function study(device,withWall){
     }finally{gpu.close();}
   }
   return {pass:rows.length===24&&rows.every(r=>r.mergedCells>0&&r.absoluteDirectionalContributions>1e-5&&
-    r.estimates.every(s=>s.normalizedError<.004)),operator:withWall?'merged wall and spatial SST prediction':'spatial SST prediction',dims,rows};
+    r.estimates.every(s=>s.normalizedError<.004)),operator:withWall?'merged wall and spatial SST prediction':'spatial SST prediction',rotating,dims,rows};
 }

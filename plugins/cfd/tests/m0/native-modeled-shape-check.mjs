@@ -71,10 +71,17 @@ export async function verifyNativeModeledShape(device){
         vertexGradient=Array.from(await read(out));const displaced=nativeLocalShape(1).mesh.vertices;
         derivative=body.mesh.vertices.reduce((total,v,k)=>total+.001*vertexGradient[k]*(displaced[k]-v),0);
         if(storage==='auto'){
+          const replaySubmissions={single:0,range:0};
+          const counted=mode=>({perform(phases,check){replaySubmissions[mode]++;return scheduler.perform(phases,check);}});
           dispatch(e=>op.restore(e,checkpoints[0]));
-          for(let t=0;t<steps;t++)await s.replay(t,scheduler,()=>{});
+          for(let t=0;t<steps;t++)await s.replay(t,counted('single'),()=>{});
           dispatch(e=>op.capture(e,captured));
-          const replayed=new Uint32Array((await gpu.read(captured,stageFull,captured.size/4)).buffer);
+          const words=async b=>new Uint32Array((await gpu.read(b,stageFull,b.size/4)).buffer);
+          const single=await words(captured),middle=Math.floor(steps/2);
+          dispatch(e=>op.restore(e,checkpoints[0]));
+          await s.replayRange(0,steps,counted('range'),()=>{},(e,step)=>{if(step===middle)op.capture(e,packed);});
+          dispatch(e=>op.capture(e,captured));
+          const replayed=await words(captured),half=await words(packed),expectedHalf=await words(checkpoints[middle]);
           device.queue.writeBuffer(s.loads,0,beforeLoads);device.queue.writeBuffer(force,0,beforeForce);
           const history={submit:dispatch,stride:3,anchors:[{step:0,buffer:checkpoints[0]}],
             snapshot:label=>gpu.buffer(label,op.checkpointSize,GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST)};
@@ -87,7 +94,8 @@ export async function verifyNativeModeledShape(device){
           const d=Math.max(...computed.map((v,k)=>Math.abs(v-vertexGradient[k])))/Math.max(...vertexGradient.map(Math.abs));
           const loads=await read(s.loads),axial=await read(force);
           replay={restored:terminal.every((v,i)=>v===returned[i])&&axial.every((v,i)=>v===beforeForce[i])&&loads.every((v,i)=>v===beforeLoads[i]),
-            identicalPrimal:terminal.every((v,i)=>v===replayed[i]),relativeGradientDifference:d,replayedSteps:actual.shape.replayedSteps,
+            identicalPrimal:terminal.every((v,i)=>v===replayed[i]&&v===single[i])&&half.every((v,i)=>v===expectedHalf[i]),
+            replaySubmissions,relativeGradientDifference:d,replayedSteps:actual.shape.replayedSteps,
             fullCheckpoints:actual.shape.checkpointBytes/op.checkpointSize};
         }
       }
@@ -114,7 +122,8 @@ export async function verifyNativeModeledShape(device){
       adjointResidual:Math.max(...base.defects.map(d=>d[1])),samples:base.samples,mass:base.mass,estimates});
   }
   const b=rows[0].replay;
-  return {pass:b?.restored&&b.identicalPrimal&&b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.replayedSteps===21&&
+  return {pass:b?.restored&&b.identicalPrimal&&b.replaySubmissions.range<b.replaySubmissions.single&&
+    b.relativeGradientDifference<.0001&&b.fullCheckpoints===4&&b.replayedSteps===21&&
     rows.every(r=>r.mass<1e-6&&r.inletDefect<3e-6&&r.adjointResidual<3e-6&&r.estimates.every(e=>
     e.sameFlux&&e.sameMomentum&&e.volumeError<1e-12&&e.mass<1e-6&&e.relativeError<.05)),dims:f.dims,steps,dtS:dt,rows};
 }

@@ -222,23 +222,25 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
   const {mul,inv}=ctx.math,base=new Map(initial.meshes.map(m=>[m.hash,m.matrix]));
   const boxWorld=ctx.document.world(owner),fromWorld=mul(boxMetric(boxWorld),inv(boxWorld)),physicalToWorld=inv(fromWorld);
   const offsets=new Map(ids.map(id=>[id,mul(inv(ctx.document.world(id)),mul(physicalToWorld,base.get(id)))]));
+  const shaftId=spinOwners.values().next().value,tracked=[...new Set([...ids,shaftId])];
   const read=frame=>{
-    const answer=ctx.animation.sampleTransforms(ids,frame/animation.fps);
-    return new Map(answer.objects.map(o=>[o.id,mul(fromWorld,mul(o.world,offsets.get(o.id)))]));
+    const answer=ctx.animation.sampleTransforms(tracked,frame/animation.fps);
+    const worlds=new Map(answer.objects.map(o=>[o.id,o.world]));
+    return {shaft:mul(fromWorld,worlds.get(shaftId)),pose:new Map(ids.map(id=>[id,mul(fromWorld,mul(worlds.get(id),offsets.get(id)))]))};
   };
   const heldPoses=read(held);
-  for(const [id,m] of base)if(!ctx.math.equal(m,heldPoses.get(id),1e-8))throw Error('The sampled shaft pose disagrees with the evaluated surface');
+  for(const [id,m] of base)if(!ctx.math.equal(m,heldPoses.pose.get(id),1e-8))throw Error('The sampled shaft pose disagrees with the evaluated surface');
   // Choose two distinct physical angles even when complete turns occur between
   // adjacent editor frames. Sampling never seeks or rewrites the document.
   const forward=last-held>=held-first,span=forward?last-held:held-first;
   const increment=Math.min(.5*span,Math.PI/3*animation.fps/Math.abs(omega))*(forward?1:-1);
   const samples=[held+increment,held+2*increment];
-  const poses=samples.map(t=>({pose:read(t),angle:omega*(t-held)/animation.fps}));
+  const poses=samples.map(t=>({...read(t),angle:omega*(t-held)/animation.fps}));
   const witness=poses.find(({angle})=>Math.abs(Math.sin(angle))>.01);
   if(!witness)throw Error('Evaluated Frame poses do not verify the authored axial angular velocity');
   // The skew part of a physical rotation points along its axis. Verify the
   // recovered line against the full affine displacement of all occurrences.
-  const id=ids[0],relative=mul(witness.pose.get(id),inv(base.get(id)));
+  const relative=mul(witness.shaft,inv(heldPoses.shaft));
   const axis=[relative[6]-relative[9],relative[8]-relative[2],relative[1]-relative[4]];
   const length=Math.hypot(...axis);let basis=null;
   if(length>0&&Math.hypot(axis[1],axis[2])>2e-5*length){
@@ -247,6 +249,7 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
     for(const matrices of [base,...poses.map(s=>s.pose)]){
       for(const [hash,m] of matrices)matrices.set(hash,inFlowBasis(m,basis));
     }
+    for(const sample of [heldPoses,...poses])sample.shaft=inFlowBasis(sample.shaft,basis);
   }
   const errors=[0,0];
   for(const {pose,angle} of poses){
@@ -263,15 +266,16 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
     }
   }
   if(Math.min(...errors)>2e-5)throw Error('Evaluated Frame poses do not verify the authored axial angular velocity');
-  const sign=errors[0]<=errors[1]?1:-1,angularRate=sign*omega,axisOrigin=[base.get(ids[0])[12],0,0];let norm=0;
-  // The renderer may centre component vertices separately. Fit a common
-  // shaft line from the translations of all evaluated occurrences.
-  for(const {pose,angle} of poses){
+  const sign=errors[0]<=errors[1]?1:-1,angularRate=sign*omega;
+  const boxCenter=ctx.math.point(boxMetric(boxWorld),LOCAL_BOX.min.map((v,a)=>(v+LOCAL_BOX.max[a])*.5));
+  // A rotation identifies a line. Select the point nearest the observation
+  // box centre using the keyed transform. Moving a blade along that line
+  // must leave the physical frame of a paired Shape calculation fixed.
+  const axisOrigin=[basis?dot(basis[0],boxCenter):boxCenter[0],0,0];let norm=0;
+  for(const {shaft,angle} of poses){
     const c=Math.cos(angle),s=sign*Math.sin(angle),d=1-c;
-    for(const [id,m] of base){
-      const v=pose.get(id),y=v[13]-c*m[13]+s*m[14],z=v[14]-s*m[13]-c*m[14];
-      axisOrigin[1]+=d*y-s*z;axisOrigin[2]+=s*y+d*z;norm+=d*d+s*s;
-    }
+    const m=heldPoses.shaft,y=shaft[13]-c*m[13]+s*m[14],z=shaft[14]-s*m[13]-c*m[14];
+    axisOrigin[1]+=d*y-s*z;axisOrigin[2]+=s*y+d*z;norm+=d*d+s*s;
   }axisOrigin[1]/=norm;axisOrigin[2]/=norm;
   let positionErrorM=0;
   for(const {pose,angle} of poses){
@@ -603,17 +607,21 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
     pressure:gpu.buffer('CFD terminal pressure objective',4*n)};
   const sum=gpu.buffer('CFD time-integrated cut geometry derivatives',48*n);
   const phase=(kind,encode)=>({kind,encode});
-  const stamp={method:'finite-time-discrete-sst',objective:source.shapeObjective,directionWorld:source.objectiveWorld,
+  const stamp={method:f.rotatingFrame?'finite-time-discrete-rotating-sst':'finite-time-discrete-sst',objective:source.shapeObjective,directionWorld:source.objectiveWorld,
     valueN:result.forceLocal[source.shapeObjective],geometry:'native-fixed-topology',samples:cut.samples,
     vertexGradientUnit:'N/mm',surfaceDensityUnit:'N/m3',primalSteps:steps,averagedSteps,
-    timeRangeS:[first*dtS,steps*dtS],initialization:'projected-uniform-inflow'};
+    timeRangeS:[first*dtS,steps*dtS],initialization:f.rotatingFrame?'shaft-relative-uniform-inflow':'projected-uniform-inflow'};
+  const shaftDirection=f.rotatingFrame?gpu.buffer('CFD fixed-axis objective in the shaft frame',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST):null;
   const directional=await gpu.kernel('CFD selected signed physical force direction',`
     @group(0) @binding(0) var<storage,read_write> out:array<vec4f>;
     ${solver.forceMask?'@group(0) @binding(1) var<storage,read> weight:array<f32>;':''}
+    ${shaftDirection?'@group(0) @binding(2) var<uniform> axis:vec4f;':''}
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-      if(g.x<arrayLength(&out)){out[g.x]=vec4f(vec3f(${source.objectiveAxis.join(',')})*${solver.forceMask?'weight[g.x]':'1.'},0.);}
+      if(g.x<arrayLength(&out)){out[g.x]=vec4f(${shaftDirection?'axis.xyz':'vec3f('+source.objectiveAxis.join(',')+')'}*${solver.forceMask?'weight[g.x]':'1.'},0.);}
     }`);
-  const bindForce=gpu.bind(directional,[seed.force,...solver.forceMask?[solver.forceMask]:[]]);
+  const bindForce=device.createBindGroup({layout:directional.getBindGroupLayout(0),entries:[
+    {binding:0,resource:{buffer:seed.force}},...solver.forceMask?[{binding:1,resource:{buffer:solver.forceMask}}]:[],
+    ...shaftDirection?[{binding:2,resource:{buffer:shaftDirection}}]:[]]});
   const accumulate=await gpu.kernel('CFD integrate physical shape work over time',`
     @group(0) @binding(0) var<storage,read> step:array<vec4f>;@group(0) @binding(1) var<storage,read_write> sum:array<vec4f>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
@@ -636,16 +644,32 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
   }
   let replayed=0,reversed=0,pressureDefect=0,inletDefect=null,krylovIterations=0,failureReason=null,maxPressureAdjoint=0,nextIterations=12;
   const tolerance=3e-6;
+  async function repeat(lo,hi,afterStep){
+    await solver.replayRange(lo,hi,scheduler,check,afterStep);
+    replayed+=hi-lo;
+  }
   async function reverse(t,previous,livePredictor=false){
-    check();submit(e=>{
+    check();
+    const angle=(t+.5)*dtS*f.omega;
+    if(shaftDirection&&t>=first){
+      const [x,y,z]=source.objectiveAxis,c=Math.cos(angle),s=Math.sin(angle);
+      device.queue.writeBuffer(shaftDirection,0,new Float32Array([x,c*y+s*z,c*z-s*y,0]));
+      solver.forceRegion?.angle(angle);
+    }
+    submit(e=>{
       copy(e,solver.pressure,endpoint);
-      if(t===steps-1)gpu.dispatch(e,directional,bindForce,[Math.ceil(n/128)]);
+      if(t===steps-1||shaftDirection&&t>=first){
+        if(shaftDirection)solver.forceRegion?.encode(e);
+        gpu.dispatch(e,directional,bindForce,[Math.ceil(n/128)]);
+      }
       if(t===first-1)e.clearBuffer(seed.force);
     });
     let defect=Infinity;
     for(let iterations=nextIterations;;iterations=Math.min(128,2*iterations)){
       if(iterations!==nextIterations)submit(e=>copy(e,endpoint,solver.pressure));
-      await scheduler.perform(op.reverseStages(previous,iterations,livePredictor),check);check();
+      if(op.reverseStep)await op.reverseStep(t,previous,iterations,scheduler,check,livePredictor);
+      else await scheduler.perform(op.reverseStages(previous,iterations,livePredictor),check);
+      check();
       const residual=await op.projection.relative();
       defect=residual.relative;maxPressureAdjoint=Math.max(maxPressureAdjoint,residual.magnitude);krylovIterations+=iterations;
       if(!Number.isFinite(defect)||defect<=tolerance||iterations===128){
@@ -670,7 +694,7 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
       // place. Only the pressure has to move aside for the endpoint constraint.
       for(let t=hi-1;t>lo&&!failureReason;t--){
         submit(e=>{copy(e,solver.pressure,endpoint);solver.restore(e,start);});
-        for(let s=lo;s<t;s++){await solver.replay(s,scheduler,check);replayed++;}
+        await repeat(lo,t);
         submit(e=>{copy(e,solver.pressure,pressure);copy(e,endpoint,solver.pressure);});
         await reverse(t,pressure,true);
       }
@@ -679,17 +703,14 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
     }
     submit(e=>{copy(e,solver.pressure,pressure);solver.restore(e,start);});
     if(hi-lo<=free+1){
-      const level=[start];
-      for(let t=lo;t<hi-1;t++){
-        await solver.replay(t,scheduler,check);replayed++;
-        const b=borrow();submit(e=>solver.capture(e,b));level.push(b);
-      }
+      const level=[start,...Array.from({length:hi-lo-1},borrow)];
+      await repeat(lo,hi-1,(e,step)=>solver.capture(e,level[step-lo]));
       submit(e=>copy(e,pressure,solver.pressure));
       for(let t=hi-1;t>=lo&&!failureReason;t--)await reverse(t,level[t-lo]);
       available.push(...level.slice(1));return;
     }
     const middle=lo+checkpointSplit(hi-lo,free);
-    for(let t=lo;t<middle;t++){await solver.replay(t,scheduler,check);replayed++;}
+    await repeat(lo,middle);
     const b=borrow();submit(e=>{solver.capture(e,b);copy(e,pressure,solver.pressure);});
     await interval(middle,hi,b,free-1);available.push(b);await interval(lo,middle,start,free);
   }
@@ -699,7 +720,9 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
     for(let a=anchors.length-1;a>=0&&!failureReason;a--){
       const anchor=anchors[a];await interval(anchor.step,end,anchor.buffer,capacity);end=anchor.step;
     }
-    if(!failureReason){
+    if(!failureReason&&op.initialDischarge){
+      await scheduler.perform([phase('transpose initial shaft-relative discharge',e=>{op.initialDischarge(e);integrate(e);})],check);
+    }else if(!failureReason){
       const inlet=await op.projectedInlet();check();
       for(const it of [8,24,64,128]){
         await scheduler.perform(inlet.stages(it),check);inletDefect=(await inlet.relative()).relative;krylovIterations+=it;
@@ -727,9 +750,11 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
       streamlineAdjoint:'peak time-level velocity sensitivity in N/(m/s)',
       ...(usable?{refinementIndicator:{objective:source.shapeObjective,estimator:'time-integrated-adjoint-weighted-momentum-transport',
         faces:'full-fluid stencils',byAxisN:byAxis}}:{}),
-      checkpointBytes:(1+anchors.length+all.length)*solver.checkpointSize,pressureDefect,inletDefect,krylovIterations,maxPressureAdjoint}};
+      checkpointBytes:(1+anchors.length+all.length)*solver.checkpointSize,pressureDefect,inletDefect,krylovIterations,maxPressureAdjoint,
+      ...(op.transportDefect?{groupTransportTranspose:{...op.transportDefect}}:{})}};
   }finally{
-    submit(e=>{solver.restore(e,terminal);copy(e,loads,solver.loads);copy(e,axial,force);});
+    if(shaftDirection)solver.forceRegion?.angle((steps-.5)*dtS*f.omega);
+    submit(e=>{solver.restore(e,terminal);copy(e,loads,solver.loads);copy(e,axial,force);if(shaftDirection)solver.forceRegion?.encode(e);});
   }
 }
 
@@ -938,15 +963,15 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
   if(!Number.isFinite(reynolds)||maxSpeed/fluid.soundSpeedMps>.25)throw failure('FLOW_REGIME','This solve requires an incompressible flow with reference Mach at most 0.25.');
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
-  const stationaryWake=wallModeled&&!motion,matched=history.paired||stationaryWake&&history.refinement?history.prior?.finiteTime:null;
+  const stationaryWake=wallModeled&&!motion,matched=history.paired||wallModeled&&history.refinement?history.prior?.finiteTime:null;
   const windowLimit=matched?.windows.length??(wallModeled?budget.windows:budget.laminarWindows??budget.windows);
-  const cap=Math.min(budget.cells,Math.floor(Math.min(device.limits.maxStorageBufferBindingSize,device.limits.maxBufferSize)/(stationaryWake?128:48)));
+  const cap=Math.min(budget.cells,Math.floor(Math.min(device.limits.maxStorageBufferBindingSize,device.limits.maxBufferSize)/(wallModeled?128:48)));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
   const settings={origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
     rotatingFrame:!!motion,omega,period,movingRoad:domain.road,laminar:!wallModeled,immersedShape:!wallModeled,wallModeled,fullMoment:true,
     globalPressure:true,cutCells:wallModeled,sheetLinks:wallModeled,linearWallPressure:wallModeled,faceHistory:wallModeled,
     wallSpacing:stationaryWake,mergeToFluid:stationaryWake,sstWall:stationaryWake,ddes:stationaryWake,wakeDistance:stationaryWake,
-    projectInflow:stationaryWake,modeledShape:stationaryWake,
+    projectInflow:stationaryWake,modeledShape:wallModeled,
     cutBlockSmoother:wallModeled,incrementalPressure:wallModeled,faceReconstruction:wallModeled,fluxEquilibration:true,
     sweptDiameterM:diameter,groupTransport:!!motion,implicitRadiusM:motion?.625*diameter:0,
     subcellSurface:!!motion,apertureFlow:!!motion,surfacePressure:true,pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined};
@@ -1003,7 +1028,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     const roi=f.regionalLoads?await controlVolumeRegion(gpu,f,domain.region):null;
     const regional=roi?await regionalWallLoads(gpu,f,force,solver.loads,roi,profiles):null;
     profiles.bind(force,regional?.sum??solver.loads);
-    if(roi){solver.forceMask=roi.mask;if(!motion){const e=device.createCommandEncoder();roi.encode(e);device.queue.submit([e.finish()]);}}
+    if(roi){solver.forceMask=roi.mask;solver.forceRegion=roi;if(!motion){const e=device.createCommandEncoder();roi.encode(e);device.queue.submit([e.finish()]);}}
     const reduceForce=regional?null:await sumForce(gpu,force,count),reduceLoads=await sumForce(gpu,regional?.sum??solver.loads,count,4);
     const fixed=regional?.sum??solver.transverseImpulse??solver.loads,reduceMoment=await sumForce(gpu,fixed,count,4,count);
     const reduceTransverse=solver.transverseImpulse?await sumForce(gpu,fixed,count,4):null;
@@ -1115,14 +1140,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           try{
             adj=await modeledTimeShape(gpu,f,solver,force,geom.cutShape,modeled,result,source,scheduler,check,progress);check();
             if(adj.gradient){
-              await publishNativeShape(gpu,display,geom.cutShape,geom.skin.chunks,adj.gradient,.5*f.rho*f.U**2/domain.scale,check);
+              await publishNativeShape(gpu,display,geom.cutShape,geom.skin.chunks,adj.gradient,.5*f.rho*f.maxSpeed**2/domain.scale,check);
               await fields.publishAdjoint(adj.envelope);check();
               display.description={...display.description,shape:adj.shape,available:[...display.description.available,'Shape']};
             }
           }catch(error){
             check();display.shapeVertices=null;
             const clear=device.createCommandEncoder();for(const part of display.chunks)clear.clearBuffer(part.shape);device.queue.submit([clear.finish()]);
-            adj={shape:{state:'failed',objective:source.shapeObjective,method:'finite-time-discrete-sst',failureReason:{message:String(error.message??error)}}};
+            adj={shape:{state:'failed',objective:source.shapeObjective,method:motion?'finite-time-discrete-rotating-sst':'finite-time-discrete-sst',failureReason:{message:String(error.message??error)}}};
           }
           await publishFinished({...result,shape:adj.shape,surfaceFields:display.description});await retain(result,adj.transportWeights);return stationary;
         }
@@ -1880,12 +1905,13 @@ async function sstStencilTranspose(gpu,f,dt,base,state,flux,tail,wall,mu,mid){
         else if(!openFace(axis,side)||q<0.){ghost=3u;b=far(p);}
         else{ghost=4u;}
       }
-      let g=mid[i];let lap=open*invD/(widths[axis]*wall[i].w);let weight=.5*f32(side)*invD*open;
+      let g=mid[i];let lap=open*invD/(widths[axis]*wall[i].w);let weight=.5*f32(side)*invD${f.sstWall?'*open':''};
       let eddy=.5*(a.wt.y+b.wt.y);let deltaK=b.uk.w-a.uk.w;let deltaW=b.wt.x-omega;
       let barK=lap*(g.transport.z+eddy*g.diffusion.x)+weight*g.gradient[axis].w;
       let barW=lap*(g.transport.w+eddy*g.diffusion.y)+weight*g.omega[axis];
       let barEddy=.5*lap*(g.diffusion.x*deltaK+g.diffusion.y*deltaW);
       let fromCentre=q>=0.;let donor=select(b.uk.w,a.uk.w,fromCentre);let other=select(a.uk.w,b.uk.w,fromCentre);
+      let advRate=${f.groupTransport?'select(q,0.,outerFace(p,j))':'q'};
       let behind=select(j+e,p-e,fromCentre);var upK=donor;var donorWeight=1.;var otherWeight=0.;
       if(inside(j)&&inside(behind)&&mu[bounded(j)].w>0.&&mu[bounded(behind)].w>0.&&
         mu[bounded(min(behind,select(j,p,fromCentre)))][axis]>0.){
@@ -1894,20 +1920,21 @@ async function sstStencilTranspose(gpu,f,dt,base,state,flux,tail,wall,mu,mid){
         let rear=(donor-state[index(behind)].uk.w)*backInv;let front=(other-donor)*invD;
         if(rear*front>0.){
           if(abs(rear)<=abs(front)){upK+=halfWidth*rear;donorWeight+=halfWidth*backInv;
-            v.behind=index(behind);v.backK=-g.transport.x*q*halfWidth*backInv;}
+            v.behind=index(behind);v.backK=-g.transport.x*advRate*halfWidth*backInv;}
           else{upK+=halfWidth*front;otherWeight=halfWidth*invD;donorWeight-=otherWeight;}
         }
       }
-      let wActive=select(0.,1.,a.wt.x>=1e-8);let ak=g.transport.x*q;let aw=g.transport.y*q;
+      ${f.groupTransport?'upK-=donor;donorWeight-=1.;':''}
+      let wActive=select(0.,1.,a.wt.x>=1e-8);let ak=g.transport.x*advRate;let aw=${f.groupTransport?'0.':'g.transport.y*q'};
       let du=weight*g.gradient[axis].xyz;
       v.centre=vec4f(-du,-barK+ak*select(otherWeight,donorWeight,fromCentre));
       v.neighbour=vec4f(du,barK+ak*select(donorWeight,otherWeight,fromCentre));
       v.thermo=vec4f(wActive*(-barW+select(0.,aw,fromCentre)),barEddy,barW+select(aw,0.,fromCentre),barEddy);
-      v.discharge=(g.transport.x*upK+g.transport.y*select(b.wt.x,omega,fromCentre))*f32(side)/divisor;
+      v.discharge=${f.groupTransport?'select(g.transport.x*upK,0.,outerFace(p,j))':'(g.transport.x*upK+g.transport.y*select(b.wt.x,omega,fromCentre))'}*f32(side)/divisor;
       let lapWork=(g.transport.z+eddy*g.diffusion.x)*deltaK+(g.transport.w+eddy*g.diffusion.y)*deltaW;
       let differences=vec4f(b.uk.xyz-a.uk.xyz,deltaK);
-      v.geometry.x=invD*lapWork/(widths[axis]*wall[i].w)+
-        .5*(f32(side)*invD*(dot(g.gradient[axis],differences)+g.omega[axis]*deltaW)+g.coverage[axis]);
+      v.geometry.x=invD*lapWork/(widths[axis]*wall[i].w)${f.sstWall?`+
+        .5*(f32(side)*invD*(dot(g.gradient[axis],differences)+g.omega[axis]*deltaW)+g.coverage[axis])`:''};
       v.geometry.y=-(amount*v.discharge+lapWork*lap)/wall[i].w;
       if(ghost!=0u&&ghost!=3u){
         var back=v.neighbour;
@@ -1968,6 +1995,13 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     struct Flux {hi:vec4f,lo:vec4f}
     fn far(p:vec3i)->Cell{let v=${f.inletRows?'inletRow(p.y)':'vec3f(U,K0,O0)'};
       return Cell(vec4f(v.x,0.,0.,v.y),vec2f(v.z,0.),vec2f(0));}
+    ${f.rotor?`fn rotorReservoir(p:vec3i)->f32{
+      let domain=cellCenters(DIMS-1)+.5*cellWidths(DIMS-1);let x=cellCenters(p);
+      let depth=min(x,domain-x)/domain;let edge=1.-smoothstep(0.,.11,min(depth.x,min(depth.y,depth.z)));
+      return 1.-exp(-${cref}*edge);}
+      fn rotorWallDamping(d:f32)->vec2f{
+        let e=exp(-${10*cref}*(1.-smoothstep(-.7,.7,d)));let t=clamp((d+.7)/1.4,0.,1.);
+        return vec2f(1.-e,-e*${10*cref}*(6./1.4)*t*(1.-t));}`:''}
   `;
   const s0=gpu.buffer('CFD momentum and SST',count*32), pred=gpu.buffer('CFD predicted state',count*32);
   const flux=gpu.buffer('CFD conservative corrected face flux',count*32);
@@ -2055,18 +2089,24 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let grad2=dot(grad[0],grad[0])+dot(grad[1],grad[1])+dot(grad[2],grad[2]);
       let inputs=SstInputs(vec4f(a.uk.w,a.wt.x,a.wt.y,ss),vec4f(grad2,dot(gk,gw),distance,max(widths.x,max(widths.y,widths.z))),
         vec4f(NU,share,adv.w,advW),vec4f(dk,dw,edk,edw));
-      ${dual?`let d=bulkSstReverse(inputs,objective[i]);var v:SstSpatialDual;
+      ${dual?`let z=objective[i];${f.rotor?`let reservoir=rotorReservoir(p);let damp=rotorWallDamping(solid.x);
+      let ambient=far(p);let seeds=vec4f((1.-reservoir)*z.xy,0.,z.w);
+      let extraShare=reservoir*dot(z.xy,vec2f(ambient.uk.w,ambient.wt.x))+z.z*damp.x;
+      let extraDistance=z.z*share*damp.y;`:'let seeds=z;let extraShare=0.;let extraDistance=0.;'}
+      let d=bulkSstReverse(inputs,seeds);var v:SstSpatialDual;
       for(var axis=0u;axis<3u;axis++){
-        let coverage=max(gradientCoverage[axis],1e-20);
+        let coverage=${f.sstWall?'max(gradientCoverage[axis],1e-20)':'1.'};
         v.gradient[axis]=vec4f(4.*d.state.w*sym[axis]+2.*d.gradients.x*grad[axis],d.gradients.y*gw[axis])/coverage;
         v.omega[axis]=d.gradients.y*gk[axis]/coverage;
-        v.coverage[axis]=-dot(v.gradient[axis],vec4f(grad[axis],gk[axis]))-v.omega[axis]*gw[axis];
+        ${f.sstWall?'v.coverage[axis]=-dot(v.gradient[axis],vec4f(grad[axis],gk[axis]))-v.omega[axis]*gw[axis];':''}
       }
-      v.coverage.w=select(0.,d.gradients.z,distance==solid.x);
-      v.source=vec4f(d.state.xyz,d.flow.x);v.omega.w=d.flow.y;v.transport=vec4f(d.flow.zw,d.transport.xy);
+      v.coverage.w=select(0.,d.gradients.z,distance==solid.x)+extraDistance;
+      v.source=vec4f(d.state.xyz,d.flow.x);v.omega.w=d.flow.y+extraShare;v.transport=vec4f(d.flow.zw,d.transport.xy);
       v.diffusion=vec4f(d.transport.zw,d.gradients.zw);dual[i]=v;}`:replay?`let v=bulkSst(inputs);
-      out[i]=Cell(vec4f(0.,0.,0.,v.x),v.yz,vec2f(0.,v.w));}`:`let update=bulkSst(inputs);kn=update.x;wn=update.y;
-      let damping=1.-exp(-${10*cref}*${f.cutCells?'(1.-smoothstep(-.7,.7,solid.x))':'solid.w'});
+      ${f.rotor?`let t=rotorReservoir(p);let ambient=far(p);
+      out[i]=Cell(vec4f(0.,0.,0.,mix(v.x,share*ambient.uk.w,t)),vec2f(mix(v.y,share*ambient.wt.x,t),share*rotorWallDamping(solid.x).x),vec2f(0.,v.w));`:
+      'out[i]=Cell(vec4f(0.,0.,0.,v.x),v.yz,vec2f(0.,v.w));'}}`:`let update=bulkSst(inputs);kn=update.x;wn=update.y;
+      let damping=${f.rotor&&f.cutCells?'rotorWallDamping(solid.x).x':`1.-exp(-${10*cref}*${f.cutCells?'(1.-smoothstep(-.7,.7,solid.x))':'solid.w'})`};
       ${f.cutCells?`nut=${f.sstWall?'update.z':'share*damping'};strainLimit=update.w;`:`
       kn=mix(max(1e-12,kn),1e-12,damping);wn=mix(max(1e-8,wn),60.*NU/(0.075*0.25),damping);
       nut=0.31*kn/max(0.31*wn,update.w);`}}
@@ -2074,11 +2114,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       ${f.rotatingFrame?`let transverse=tentative.yz;
         tentative.y=${Math.cos(f.omega*dt)}*transverse.x+${Math.sin(f.omega*dt)}*transverse.y;
         tentative.z=${-Math.sin(f.omega*dt)}*transverse.x+${Math.cos(f.omega*dt)}*transverse.y;`:''}
-      if(${f.rotor}){
-        let domain=cellCenters(DIMS-1)+.5*cellWidths(DIMS-1);let x=cellCenters(p);
-        let depth=min(x,domain-x)/domain;let edge=1.-smoothstep(0.,0.11,min(depth.x,min(depth.y,depth.z)));
-        let reservoir=1.-exp(-${cref}*edge);let outside=far(p);tentative=mix(tentative,share*outside.uk.xyz,reservoir);
-        kn=mix(kn,share*outside.uk.w,reservoir);wn=mix(wn,share*outside.wt.x,reservoir);}
+      ${f.rotor?`let reservoir=rotorReservoir(p);let outside=far(p);tentative=mix(tentative,share*outside.uk.xyz,reservoir);
+        kn=mix(kn,share*outside.uk.w,reservoir);wn=mix(wn,share*outside.wt.x,reservoir);`:''}
       ${f.wallModeled?`
       if(permeability[i].w>0.){
         if(any(cutArea>vec3f(0))){
@@ -2163,10 +2200,11 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   const accumulate=await gpu.kernel('CFD accumulate physical pressure',decl(0,'first','f32')+decl(1,'p','f32',true)+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i<arrayLength(&p)){p[i]+=first[i];}}`);
   const pressureGroup=gpu.bind(accumulate,[basePressure,mg.p]);
-  const [nx,ny,nz]=f.dims,plane=gpu.buffer('CFD time-mean symmetry plane',nx*ny*4);
+  const [nx,ny,nz]=f.dims,plane=gpu.buffer('CFD time-mean symmetry plane',nx*ny*(f.slantSampling?8:4));
   const sample=await gpu.kernel('CFD sample planar velocity',decl(0,'s','vec4f')+decl(1,'plane','f32',true)+`
-    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<arrayLength(&plane)){
-      let a=(i+${nx*ny*(nz/2-1)}u)*2u;plane[i]+=0.5*(s[a].x+s[a+${nx*ny*2}u].x);}}`);
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<${nx*ny}u){
+      let a=(i+${nx*ny*(nz/2-1)}u)*2u;let u=.5*(s[a].xy+s[a+${nx*ny*2}u].xy);plane[i]+=u.x;
+      ${f.slantSampling?`plane[${nx*ny}u+i]+=u.y;`:''}}}`);
   const sb=gpu.bind(sample,[s0,plane]);
   const peak=gpu.buffer('CFD maximum stored mass defect',4),stage=gpu.staging('CFD single residual value',4);
   const norm=await gpu.kernel('CFD stored volume flux convergence',base+faceBalanceWGSL+decl(0,'flux','Flux')+decl(1,'tail','Flux')+(f.cutCells?decl(3,'mu','vec4f'):'')+`
@@ -2289,6 +2327,23 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   // Retain only the pressure paths actually used, so recomputation preserves
   // the original adaptive solver decisions without resampling reported fields.
   const recorded=f.modeledShape?[]:null;
+  const recordedGroupSweeps=recorded&&grouped?[]:null;
+  // These paths already contain the decisions made by the forward solve.
+  // Let the viewport governor choose the submission boundaries across steps.
+  async function replayRange(first,end,scheduler,assertCurrent,afterStep){
+    let phases=[];
+    for(let t=first;t<end;t++){
+      const path=recorded?.[t];
+      if(!path)throw Error('The physical time step has no recorded pressure path.');
+      for(const group of path)phases.push(...group);
+      phases.push(...mergePhysical);
+      if(afterStep)phases.push(phase('capture replayed physical state',e=>afterStep(e,t+1)));
+      if(phases.length>=512||t+1===end){
+        await scheduler.perform(phases,assertCurrent);
+        phases=[];
+      }
+    }
+  }
   let checkPrimaryAt=1;
   async function measure(){
     await stage.mapAsync(GPUMapMode.READ);
@@ -2345,15 +2400,21 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   // high-order shared-face correction and group summation. The fourth
   // predictor seed differentiates the face-history transport diagonal.
   async function rawCutMomentumAdjoint(seed,bodyForce,bodyMoment){
-    if(!f.sstWall||!f.cutCells||!f.faceReconstruction||!f.faceHistory||f.rotor||f.implicitRadiusM||f.groupTransport||
+    const rotating=f.rotor&&f.rotatingFrame&&f.groupTransport;
+    if(!(rotating||f.sstWall&&!f.rotor&&!f.implicitRadiusM&&!f.groupTransport)||!f.cutCells||!f.faceReconstruction||!f.faceHistory||
       [seed,bodyForce,bodyMoment].some(b=>b.size!==16*count))
-      throw Error('Cut momentum needs stationary reconstructed cut volumes and three four-component seed fields.');
+      throw Error('Cut momentum requires a reconstructed stationary or shaft-frame operator and three four-component seed fields.');
     const packed=gpu.buffer('CFD predictor seeds and summed discharges',48*count);
     const packType='struct Packed{seed:vec4f,q:Flux}';
     const pack=await gpu.kernel('CFD collect momentum adjoint face inputs',base+packType+decl(0,'seed','vec4f')+
-      decl(1,'flow','Flux')+decl(2,'tail','Flux')+decl(3,'data','Packed',true)+main(
-      'data[i]=Packed(seed[i],Flux(flow[i].hi+tail[i].hi,flow[i].lo+tail[i].lo));'));
-    const packGroup=gpu.bind(pack,[seed,flux,fluxTail,packed]);
+      decl(1,'flow','Flux')+decl(2,'tail','Flux')+decl(3,'data','Packed',true)+main(`
+        var z=seed[i];var q=Flux(flow[i].hi+tail[i].hi,flow[i].lo+tail[i].lo);q.hi.w=0.;
+        ${rotating?`let t=rotorReservoir(p);let transverse=z.yz;
+        q.hi.w=t*dot(z.xyz,far(p).uk.xyz);
+        z=vec4f((1.-t)*vec3f(z.x,${Math.cos(f.omega*dt)}*transverse.x + ${-Math.sin(f.omega*dt)}*transverse.y,
+          ${Math.sin(f.omega*dt)}*transverse.x+${Math.cos(f.omega*dt)}*transverse.y),z.w);`:''}
+        data[i]=Packed(z,q);`));
+    const packGroup=gpu.bind(pack,[seed,flux,fluxTail,packed],rotating?coords:null);
     const local=gpu.buffer('CFD wall traction cotangent of local geometry',48*count);
     const wallType='struct WallPull{velocityNu:vec4f,hintRatio:vec4f,gradientDistance:vec4f}';
     const friction=`
@@ -2384,8 +2445,10 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           let n=g/max(norm,1e-12);let height=max(0.,solid.x);let scaled=length(n/width);let halfPitch=.5/max(scaled,1e-8);
           let y=max(height,halfPitch);let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+(cellCenters(p)-height*n)*${f.h};
           let tractionSeed=forceSeed[i].xyz+cross(momentSeed[i].xyz,arm);let areaOverVol=length(hint)/groupVol;
-          let response=reverseFriction(old,n,y,areaOverVol,-z+groupVol*tractionSeed);
-          let armSeed=groupVol*cross(response.reaction,momentSeed[i].xyz);
+          let relative=${rotating?`old-vec3f(0.,-arm.z,arm.y)*${f.omega*dt/f.h}`:'old'};
+          let response=reverseFriction(relative,n,y,areaOverVol,-z+groupVol*tractionSeed);
+          var armSeed=groupVol*cross(response.reaction,momentSeed[i].xyz);
+          ${rotating?`armSeed+=vec3f(0.,-response.velocity.z,response.velocity.y)*${f.omega*dt/f.h};`:''}
           var dn=response.normal-height*${f.h}*armSeed;var dh=-${f.h}*dot(armSeed,n);
           if(height>=halfPitch){dh+=response.y;}else if(scaled>1e-8){dn-=response.y*(halfPitch/(scaled*scaled))*n/(width*width);}
           var dg=dn/max(norm,1e-12);if(norm>1e-12){dg=(dn-n*dot(n,dn))/norm;}
@@ -2422,8 +2485,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           }
           let du=neighbour.uk.xyz-u;let donor=select(neighbour.uk.xyz,u,rate>=0.);let lap=invD*open/(width[a]*ratio);
           let visc=NU+.5*(state[i].wt.y+neighbour.wt.y);let barDiff=dot(z.xyz,du)+z.w;
-          let barRate=-dot(z.xyz,donor)+select(0.,z.w,rate>0.);let barLap=visc*barDiff;
-          let jump=visc*lap*z.xyz;let conv=-rate*z.xyz;let dNu=lap*barDiff;
+          let barRate=${rotating?'':'-dot(z.xyz,donor)+'}select(0.,z.w,rate>0.);let barLap=visc*barDiff;
+          let jump=visc*lap*z.xyz;let conv=${rotating?'vec3f(0)':'-rate*z.xyz'};let dNu=lap*barDiff;
           v.here=vec4f(-jump+select(vec3f(0),conv,rate>=0.),.5*dNu);
           v.other=vec4f(jump+select(conv,vec3f(0),rate>=0.),.5*dNu);
           if(ghost!=0u&&ghost!=3u){
@@ -2436,7 +2499,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         d.state=vec4f(here.velocityNu.xyz,0);d.wall=vec4f(here.gradientDistance.w,here.hintRatio.w,here.velocityNu.w,0);
         if(mu[i].w>0.){
           let share=mu[i].w/ratio;let z=data[i].seed.xyz;d.state=vec4f(d.state.xyz+share*z,d.state.w);
-          let vol=dot(z,state[i].uk.xyz)/ratio;d.mu.w=vol;d.wall.y-=share*vol;
+          let vol=(dot(z,state[i].uk.xyz)+data[i].q.hi.w)/ratio;d.mu.w=vol;d.wall.y-=share*vol;
         }
         let area=faceAreas(cellWidths(p));
         for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
@@ -2472,8 +2535,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     return {relative:b>0?r/b:r===0?0:Infinity,magnitude};
   };
   async function cutProjectionAdjoint(seed){
-    if(!groups||!prepareStored||!wallPressure||apertures||f.rotor||!f.fullMoment)
-      throw Error('The cut-pressure transpose requires stationary reconstructed cut volumes and full wall moments.');
+    if(!groups||!prepareStored||!wallPressure||f.rotor&&!f.rotatingFrame||!f.fullMoment)
+      throw Error('The cut-pressure transpose requires fixed physical cut volumes and full wall moments.');
     const cell=gpu.buffer('CFD projected cell cotangents before group scatter',32*count);
     const sumGroups=groups.merge(cell);
     const wrench=gpu.buffer('CFD velocity and wall wrench objective per physical cell',48*count);
@@ -2574,7 +2637,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         gpu.dispatch(e,imbalance,residualGroup,grid);mg.solve(e);mg.refine(e,iterations);
         prepareStored(e);gpu.dispatch(e,refineFlux,refineGroup,grid);
         for(const op of refinement(iterations))op.encode(e);
-        for(const op of mergeState)op.encode(e);
+        for(const op of mergePhysical)op.encode(e);
       }};
   }
 
@@ -2619,8 +2682,9 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     return {out,encode:e=>gpu.dispatch(e,op,bind,grid),predict:predictStored};
   }
   async function bulkTurbulenceAdjoint(objective){
-    if(!f.cutCells||!f.sstWall||f.laminar||f.rotor||f.groupTransport||objective.size!==16*count)
-      throw Error('The spatial SST transpose requires stationary cut volumes and four objective seeds per cell.');
+    const supported=f.rotor?f.rotatingFrame&&f.groupTransport&&!f.sstWall:f.sstWall&&!f.groupTransport;
+    if(!f.cutCells||!supported||f.laminar||objective.size!==16*count)
+      throw Error('The spatial SST transpose needs a fixed cut-volume closure and four objective seeds per cell.');
     const mid=gpu.buffer('CFD cellwise SST transport sensitivities',128*count);
     const kernel=await gpu.kernel('CFD linearize actual SST transport and velocity gradients',predictorShader(true));
     const data=gpu.device.createBindGroup({layout:kernel.getBindGroupLayout(0),entries:[
@@ -2631,8 +2695,9 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       predict(e){gpu.dispatch(e,momentum,m,grid);}};
   }
   async function modeledTurbulenceAdjoint(objective){
-    if(!wallClosure?.quadrature||f.rotor||f.groupTransport||objective.size!==16*count)
-      throw Error('Stationary SST transport needs retained wall quadrature and three objective seeds per cell.');
+    const shaft=f.rotor&&f.rotatingFrame&&f.groupTransport&&!f.sstWall;
+    if(!shaft&&(!wallClosure?.quadrature||f.rotor||f.groupTransport)||objective.size!==16*count)
+      throw Error('The SST wall transpose needs captured physical wall data and four cell objective components.');
     // Replay the extensive scalar predictor in separate storage. Obstacle
     // shear and linear face reconstruction change momentum only at this
     // stage. The real wall condition reads velocity from the old state.
@@ -2641,7 +2706,32 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const bind=gpu.device.createBindGroup({layout:replay.getBindGroupLayout(0),entries:[
       ...[[0,s0],[1,flux],[2,wall],[3,before],[4,fluxTail],[7,mobility],...coords?[[12,coords]]:[]]
         .map(([binding,buffer])=>({binding,resource:{buffer}}))]});
-    const merge=groups.merge(before),wallAdj=await mergedSstWallAdjoint(gpu,f,dt,groups,wallClosure.quadrature,s0,before,objective);
+    const merge=groups.merge(before);
+    if(shaft){
+      const roots=gpu.buffer('CFD rotating SST closure derivatives by momentum group',16*count);
+      const members=gpu.buffer('CFD rotating SST extensive predictor objectives',16*count);
+      const gather=await gpu.kernel('CFD transpose the merged rotating-wall SST closure',base+
+        decl(0,'links','u32')+decl(1,'raw','Cell')+decl(2,'seed','vec4f')+decl(3,'root','vec4f',true)+main(`
+          if(links[3u*i]!=i){return;}var z=seed[i];var j=links[3u*i+1u];
+          while(j!=0xffffffffu){z+=seed[j];j=links[3u*j+2u];}
+          let v=raw[i];let d=clamp(v.wt.y,0.,1.);let k0=max(1e-12,v.uk.w);let w0=max(1e-8,v.wt.x);
+          let wallW=60.*NU/(.075*.25);let k=mix(k0,1e-12,d);let w=mix(w0,wallW,d);
+          let limited=v.padding.y>.31*w;let den=max(.31*w,v.padding.y);
+          let dk=z.x+.31*z.z/den;let dd=-.31*k*z.z/(den*den);let dw=z.y+select(.31*dd,0.,limited);
+          root[i]=vec4f(select(0.,(1.-d)*dk,v.uk.w>=1e-12),select(0.,(1.-d)*dw,v.wt.x>=1e-8),
+            select(0.,(1e-12-k0)*dk+(wallW-w0)*dw,v.wt.y>=0.&&v.wt.y<=1.),z.w+select(0.,dd,limited));`));
+      const spread=await gpu.kernel('CFD transpose extensive rotating turbulence to all group members',
+        decl(0,'links','u32')+decl(1,'root','vec4f')+decl(2,'out','vec4f',true)+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i<arrayLength(&out)){out[i]=root[links[3u*i]];}}`);
+      const sum=gpu.bind(gather,[groups.links,before,objective,roots]),fill=gpu.bind(spread,[groups.links,roots,members]);
+      const bulk=await bulkTurbulenceAdjoint(members);
+      return {old:bulk.old,face:bulk.face,bulkGeometry:bulk.geometry,local:bulk.local,
+        encode(e){gpu.dispatch(e,replay,bind,grid);merge(e);gpu.dispatch(e,gather,sum,grid);
+          gpu.dispatch(e,spread,fill,grid);bulk.encode(e);},
+        predict(e){gpu.dispatch(e,momentum,m,grid);for(const phase of mergePred)phase.encode(e);}};
+    }
+    const wallAdj=await mergedSstWallAdjoint(gpu,f,dt,groups,wallClosure.quadrature,s0,before,objective);
     const material=await wallClosure.quadrature.materialAdjoint(wallAdj.dual,wallAdj.sites);
     const seeds=gpu.buffer('CFD extensive turbulence objective in each group member',16*count);
     const bulk=await bulkTurbulenceAdjoint(seeds);
@@ -2785,63 +2875,92 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   // end state. Walking backwards leaves the primal positioned at the old
   // checkpoint. Pressure is an implicit constraint at each time level.
   async function modeledStepAdjoint(seed){
-    const projection=await cutProjectionAdjoint(seed),history=await cutFaceHistoryAdjoint(projection.faces);
+    const shaft=!!(apertures&&grouped&&f.rotatingFrame),projection=await cutProjectionAdjoint(seed);
+    const history=shaft?await apertures.adjoint(projection.faces):await cutFaceHistoryAdjoint(projection.faces);
     const momentum=gpu.buffer('CFD combined tentative velocity and diagonal objective',16*count);
     const turbulence=gpu.buffer('CFD coupled predicted SST objective',16*count);
     const model=await modeledPredictorAdjoint(momentum,turbulence,seed.force,seed.moment);
-    const historyType='struct History{old:vec4f,pred:vec4f,q:Flux,mu:vec4f}';
-    const prepare=await gpu.kernel('CFD collect predictor paths from pressure and face history',base+historyType+
+    const historyType='struct History{old:vec4f,pred:vec4f,q:Flux,mu:vec4f} struct States{old:vec4f,pred:vec4f} struct Material{q:Flux,geom:array<vec4f,3>}';
+    const groupObjective=shaft?gpu.buffer('CFD projected objectives on transported rotor states',32*count):null;
+    const donor=shaft?await grouped.adjoint(groupObjective):null;
+    const prepare=await gpu.kernel('CFD collect predictor paths from pressure and face history',base+historyType+(shaft?
+      decl(0,'projected','Cell')+decl(1,'history','States')+decl(2,'out','Cell',true)+main(`
+        var a=projected[i];let z=history[i].pred;a.uk+=vec4f(z.xyz,0.);a.padding.x+=z.w;out[i]=a;`):
       decl(0,'projected','Cell')+decl(1,'history','History')+decl(2,'momentum','vec4f',true)+decl(3,'turb','vec4f',true)+main(`
         let a=projected[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x)+history[i].pred;
         turb[i]=vec4f(a.uk.w,a.wt,0.);
-      `));
-    const before=gpu.bind(prepare,[projection.predicted,history.out,momentum,turbulence]);
+      `)));
+    const before=gpu.bind(prepare,shaft?[projection.predicted,history.state,groupObjective]:[projection.predicted,history.out,momentum,turbulence]);
+    const split=shaft?await gpu.kernel('CFD pass transposed donor right hand side to extensive predictors',base+
+      decl(0,'z','Cell')+decl(1,'momentum','vec4f',true)+decl(2,'sst','vec4f',true)+main(`
+        let a=z[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x);sst[i]=vec4f(a.uk.w,a.wt,a.padding.y);`)):null;
+    const splitBind=shaft?gpu.bind(split,[donor.rhs,momentum,turbulence]):null;
     const join=await gpu.kernel('CFD couple transient flux history to the SST momentum transpose',base+historyType+
-      decl(0,'history','History')+decl(1,'old','Cell',true)+decl(2,'q','Flux',true)+main(`
-        let h=history[i];old[i].uk+=vec4f(h.old.xyz,0.);q[i].hi+=h.q.hi;q[i].lo+=h.q.lo;`));
-    const after=gpu.bind(join,[history.out,model.old,model.face]);
+      decl(0,'history',shaft?'States':'History')+decl(1,'old','Cell',true)+decl(2,'q','Flux',true)+
+      (shaft?decl(3,'material','Material')+decl(4,'donor','Flux'):'')+main(`
+        let h=history[i];old[i].uk+=vec4f(h.old.xyz,0.);
+        ${shaft?'q[i].hi+=material[i].q.hi+donor[i].hi;q[i].lo+=material[i].q.lo+donor[i].lo;':'q[i].hi+=h.q.hi;q[i].lo+=h.q.lo;'}`));
+    const after=gpu.bind(join,shaft?[history.state,model.old,model.face,history.material,donor.faces]:[history.out,model.old,model.face]);
     const cutGeometry=gpu.buffer('CFD aperture, centroid, fluid fraction and wall-distance derivatives',48*count);
     const volumeBar=gpu.buffer('CFD objective derivative per merged physical volume',4*count);
     const faceGeometry='struct Geometry{v:array<vec4f,3>}';
     const collect=await gpu.kernel('CFD combine physical geometry derivatives across the time step',base+faceGeometry+historyType+
       'struct Momentum{state:vec4f,q:Flux,mu:vec4f,wall:vec4f} struct Stress{flowNu:vec4f,geometry:array<vec4f,3>} struct Sst{mu:vec4f,wall:vec4f}'+
-      decl(0,'raw','Momentum')+decl(1,'stress','Stress')+decl(2,'history','History')+decl(3,'projection','Geometry')+
-      decl(4,'bulk','Sst')+decl(5,'boundary','Sst')+decl(6,'out','Geometry',true)+main(`
-        let b=bulk[i];let w=boundary[i];let m=raw[i];let face=stress[i];var d=projection[i];
-        let aperture=b.mu+w.mu+m.mu+history[i].mu;
-        for(var a=0u;a<3u;a++){d.v[a]+=vec4f(vec3f(aperture[a],0.,0.)+face.geometry[a].xyz,0.);}
+      decl(0,'raw','Momentum')+decl(1,'stress','Stress')+decl(2,'history',shaft?'Material':'History')+decl(3,'projection','Geometry')+
+      decl(4,'bulk','Sst')+decl(5,'out','Geometry',true)+(shaft?'':decl(6,'boundary','Sst'))+main(`
+        let b=bulk[i];var w:Sst;${shaft?'':'w=boundary[i];'}let m=raw[i];let face=stress[i];var d=projection[i];
+        let aperture=b.mu+w.mu+m.mu${shaft?'':'+history[i].mu'};
+        for(var a=0u;a<3u;a++){d.v[a]+=vec4f(vec3f(aperture[a],0.,0.)+face.geometry[a].xyz${shaft?'+history[i].geom[a].xyz':''},0.);}
         let ratio=d.v[1].w+b.wall.y+m.wall.y+face.geometry[0].w;
         d.v[0].w+=aperture.w;d.v[1].w=b.wall.x+w.wall.x+m.wall.x;d.v[2].w=ratio;out[i]=d;`));
-    const collectBind=gpu.bind(collect,[model.raw,model.shared,history.out,projection.geometry,
-      model.bulkGeometry,model.wallGeometry,cutGeometry]);
+    const collectBind=gpu.bind(collect,[model.raw,model.shared,shaft?history.material:history.out,projection.geometry,
+      model.bulkGeometry,cutGeometry,...shaft?[]:[model.wallGeometry]]);
     // Every group member uses the same physical group volume divided by
     // its own uncut volume. Each member fraction contributes its cell volume.
     const ratio=await gpu.kernel('CFD transpose common cut-group volume to its members',base+faceGeometry+
-      decl(0,'links','u32')+decl(1,'geometry','Geometry')+decl(2,'root','f32',true)+main(`
-        if(links[3u*i]!=i){return;}var j=i;var total=0.;
+      decl(0,'links','u32')+decl(1,'geometry','Geometry')+decl(2,'root','f32',true)+(shaft?decl(3,'donor','f32'):'')+main(`
+        if(links[3u*i]!=i){return;}var j=i;var total=${shaft?'donor[i]':'0.'};
         loop{let w=cellWidths(point(j));total+=geometry[j].v[2].w/(w.x*w.y*w.z);
           j=select(links[3u*j+2u],links[3u*i+1u],j==i);if(j==0xffffffffu){break;}}
         root[i]=total;`));
     const scatter=await gpu.kernel('CFD gradient of the constituent fluid volumes',base+faceGeometry+
       decl(0,'links','u32')+decl(1,'root','f32')+decl(2,'geometry','Geometry',true)+main(`
         let w=cellWidths(p);geometry[i].v[0].w+=root[links[3u*i]]*w.x*w.y*w.z;`));
-    const reduceRatio=gpu.bind(ratio,[groups.links,cutGeometry,volumeBar],coords),spreadRatio=gpu.bind(scatter,[groups.links,volumeBar,cutGeometry],coords);
+    const reduceRatio=gpu.bind(ratio,[groups.links,cutGeometry,volumeBar,...shaft?[donor.volume]:[]],coords),spreadRatio=gpu.bind(scatter,[groups.links,volumeBar,cutGeometry],coords);
     const volumes=phase('combine group volume derivatives',e=>{
       gpu.dispatch(e,ratio,reduceRatio,grid);gpu.dispatch(e,scatter,spreadRatio,grid);
     });
-    function reverseStages(previous,iterations=24,livePredictor=false){
-      return [phase('restore physical predictor for transposition',e=>{
-        if(!livePredictor)copyCheckpoint(e,previous,false,false);
-        model.predict(e);
-      }),...projection.stages(iterations),phase('transpose stored face history',e=>{
-        history.encode(e);gpu.dispatch(e,prepare,before,grid);
-      }),phase('transpose wall and SST momentum transport',model.encode),phase('combine previous-state and material derivatives',e=>{
+    const restorePredictor=(previous,live)=>phase('restore physical predictor for transposition',e=>{
+        if(!live)copyCheckpoint(e,previous,false,false);model.predict(e);
+      });
+    const finish=(previous,live)=>[phase('transpose wall and SST momentum transport',model.encode),phase('combine previous-state and material derivatives',e=>{
         gpu.dispatch(e,join,after,grid);gpu.dispatch(e,collect,collectBind,grid);
-        e.copyBufferToBuffer(previous,livePredictor?0:3*length,mg.p,0,mg.p.size);
+        e.copyBufferToBuffer(previous,live?0:3*length,mg.p,0,mg.p.size);
       }),volumes];
+    function reverseStages(previous,iterations=24,live=false){
+      return [restorePredictor(previous,live),...projection.stages(iterations),phase('transpose stored face history',e=>{
+        history.encode(e);gpu.dispatch(e,prepare,before,grid);
+      }),...finish(previous,live)];
     }
-    return {old:model.old,face:model.face,geometry:cutGeometry,projection,history,model,checkpointSize,reverseStages,
-      capture:(e,b)=>copyCheckpoint(e,b,true),restore:(e,b)=>copyCheckpoint(e,b,false),
+    const fields={old:model.old,face:model.face,geometry:cutGeometry,projection,history,model,checkpointSize,
+      capture:(e,b)=>copyCheckpoint(e,b,true),restore:(e,b)=>copyCheckpoint(e,b,false)};
+    if(shaft){
+      const initialGeometry=await gpu.kernel('CFD material derivative of the initial shaft-relative discharge',base+historyType+faceGeometry+
+        decl(0,'aperture','Material')+decl(1,'out','Geometry',true)+main('out[i]=Geometry(aperture[i].geom);'));
+      const initialBind=gpu.bind(initialGeometry,[history.material,cutGeometry]);
+      return {...fields,transportDefect:donor.stats,
+        initialDischarge(e){
+          e.copyBufferToBuffer(seed.face,0,projection.faces,0,seed.face.size);history.initial(e);
+          gpu.dispatch(e,initialGeometry,initialBind,grid);
+        },
+        async reverseStep(t,previous,iterations,scheduler,check,live=false){
+          await scheduler.perform([restorePredictor(previous,live),...grouped.stages(recordedGroupSweeps?.[t]),...projection.stages(iterations),
+            phase('transpose relative aperture flows',e=>{history.predict(e,t===0);gpu.dispatch(e,prepare,before,grid);})],check);
+          await donor.solve(scheduler,check);
+          await scheduler.perform([phase('restore predictor objective',e=>gpu.dispatch(e,split,splitBind,grid)),...finish(previous,live)],check);
+        }};
+    }
+    return {...fields,reverseStages,
       async projectedInlet(){
         const inlet=await cutInletAdjoint(seed,cutGeometry);
         const stages=iterations=>[...inlet.stages(iterations),volumes];
@@ -2890,10 +3009,15 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(i===0&&f.projectInflow)await initialize(scheduler,assertCurrent);
       spin?.angle(f.omega*(i+.5)*dt);
       if(outer){await scheduler.perform([predictMomentum],assertCurrent);await outer.solve(scheduler,assertCurrent);}
-      if(grouped){await scheduler.perform([predictMomentum,...mergePred],assertCurrent);await grouped.solve(scheduler,assertCurrent);}
+      if(grouped){
+        await scheduler.perform([predictMomentum,...mergePred],assertCurrent);
+        const sweeps=await grouped.solve(scheduler,assertCurrent);
+        if(recordedGroupSweeps)recordedGroupSweeps[i]=sweeps;
+      }
       const checkPrimary=f.faceHistory&&i>=checkPrimaryAt;
       const path=forecast[Number(i===0&&!stats.initialization)];
-      const trace=recorded?[path]:null;if(!checkPrimary)trace?.push(first);
+      const trace=recorded?(grouped?[[predictMomentum,...mergePred],grouped.stages(recordedGroupSweeps[i]),path]:[path]):null;
+      if(!checkPrimary)trace?.push(first);
       await scheduler.perform([...path,...checkPrimary?[]:first,check],assertCurrent);
       let maximum=await measure(),passes=checkPrimary?0:1;
       if(checkPrimary){
@@ -2934,11 +3058,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(mergeState.length||sampling)await scheduler.perform([...mergeState,...sampling?[samplePlane]:[]],assertCurrent);
       if(recorded)recorded[i]=trace;
     },
-    async replay(i,scheduler,assertCurrent){
-      if(!recorded?.[i])throw Error('The physical time step has no recorded pressure path.');
-      for(const group of recorded[i])await scheduler.perform(group,assertCurrent);
-      await scheduler.perform(mergePhysical,assertCurrent);
-    },
+    replayRange,
+    replay(i,scheduler,assertCurrent){return replayRange(i,i+1,scheduler,assertCurrent);},
     step(i,sampling){
       if(outer||grouped)throw Error('Implicit transport requires the residual-controlled advance');
       spin?.angle(f.omega*(i+.5)*dt);
@@ -3633,11 +3754,16 @@ export async function outerTransport(gpu,f,dt,predictor,flux,tail){
 
 // Stop on the true equation defect, then integrate the shared final face
 // fluxes. Subdomains can provide different sweeps on the same scheduler.
-export function residualControlledTransport(stage,begin,sweep,norm,end,maxSweeps){
-  const stats={steps:0,sweeps:0,maxRelativeDefect:0};
-  return {stats,async solve(scheduler,assertCurrent){
+export function residualControlledTransport(stage,begin,sweep,norm,end,maxSweeps,tolerance=2e-5){
+  const stats={steps:0,sweeps:0,maxRelativeDefect:0},replay=new Map();
+  function stages(count){
+    if(!Number.isInteger(count)||count<1||count>maxSweeps)throw Error('Missing implicit transport sweep count.');
+    if(!replay.has(count))replay.set(count,[begin,...Array(count).fill(sweep),end]);
+    return replay.get(count);
+  }
+  return {stats,stages,async solve(scheduler,assertCurrent){
     let count=0,defect=Infinity;
-    while(defect>2e-5){
+    while(defect>tolerance){
       if(count>=maxSweeps)throw Error('Implicit momentum transport did not converge: '+defect);
       const batch=count?4:2;
       await scheduler.perform([...(count?[]:[begin]),...Array(batch).fill(sweep),norm],assertCurrent);
@@ -3648,6 +3774,7 @@ export function residualControlledTransport(stage,begin,sweep,norm,end,maxSweeps
     }
     await scheduler.perform([end],assertCurrent);
     stats.steps++;stats.sweeps+=count;stats.maxRelativeDefect=Math.max(stats.maxRelativeDefect,defect);
+    return count;
   }};
 }
 
@@ -4197,38 +4324,43 @@ export async function fluidCentreLinks(gpu,f,mu,wall,parents){
   return {waves,encode:e=>gpu.dispatch(e,link,group,grid)};
 }
 
-// The rotating coordinate velocity and fluid velocity must be integrated
-// on the same open polygon. Rotation is affine, so its face integral is
-// exact at the aperture centroid. All velocity samples stay on the fluid side.
-export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tail){
-  const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
-  const head=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+addFlowWGSL+`
-    struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Flux{hi:vec4f,lo:vec4f}
-    struct Centers{t:array<vec2f,3>}
-    @group(0) @binding(0) var<storage,read> star:array<Cell>;
-    @group(0) @binding(1) var<storage,read> mu:array<vec4f>;
-    @group(0) @binding(2) var<storage,read> center:array<Centers>;
-    @group(0) @binding(3) var<storage,read_write> primary:array<Flux>;
-    @group(0) @binding(4) var<storage,read_write> tail:array<Flux>;`;
-  const derivative=name=>`
-    fn slope_${name}(p:vec3i,axis:u32,component:u32)->f32{
+function apertureVelocityWGSL(name){
+  return `
+    fn slopeStencil_${name}(p:vec3i,axis:u32,component:u32)->vec3f{
       let i=index(p);let u=${name}[i].uk[component];var pm=p;pm[axis]--;var pp=p;pp[axis]++;
-      var minus=false;var plus=false;var l=0.;var r=0.;
-      if(inside(pm)){let j=index(pm);minus=mu[j][axis]>0.;if(minus){l=(u-${name}[j].uk[component])*spacingInv(axis,p[axis],-1);}}
-      if(inside(pp)){let j=index(pp);plus=mu[i][axis]>0.;if(plus){r=(${name}[j].uk[component]-u)*spacingInv(axis,p[axis],1);}}
-      if(minus&&plus){return select(0.,sign(l)*min(abs(l),abs(r)),l*r>0.);}return l+r;
+      var minus=false;var plus=false;var l=0.;var r=0.;var gl=0.;var gr=0.;
+      if(inside(pm)){let j=index(pm);minus=mu[j][axis]>0.;if(minus){gl=spacingInv(axis,p[axis],-1);l=(u-${name}[j].uk[component])*gl;}}
+      if(inside(pp)){let j=index(pp);plus=mu[i][axis]>0.;if(plus){gr=spacingInv(axis,p[axis],1);r=(${name}[j].uk[component]-u)*gr;}}
+      if(minus&&plus){if(l*r<=0.){return vec3f(0);}
+        if(abs(l)<=abs(r)){return vec3f(l,gl,0.);}return vec3f(r,0.,gr);}
+      return vec3f(l+r,gl,gr);
     }
     fn value_${name}(l:vec3i,r:vec3i,a:u32,t:f32,offset:vec3f)->f32{
       let i=index(l);let j=index(r);var result=mix(${name}[i].uk[a],${name}[j].uk[a],t);
       if(any(offset!=vec3f(0))){
         for(var b=0u;b<3u;b++){if(offset[b]!=0.){
-          result+=offset[b]*mix(slope_${name}(l,b,a),slope_${name}(r,b,a),t);
+          result+=offset[b]*mix(slopeStencil_${name}(l,b,a).x,slopeStencil_${name}(r,b,a).x,t);
         }}
       }return result;
     }`;
+}
+
+// Integrate the rotating coordinate velocity and fluid velocity on the same
+// open polygon. Its centroid integrates the affine rigid velocity exactly.
+export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tail){
+  const n=countOf(f.dims),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
+  const types=`struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Flux{hi:vec4f,lo:vec4f}
+    struct Centers{t:array<vec2f,3>}`;
+  const geometry=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+types;
+  const head=geometry+addFlowWGSL+`
+    @group(0) @binding(0) var<storage,read> star:array<Cell>;
+    @group(0) @binding(1) var<storage,read> mu:array<vec4f>;
+    @group(0) @binding(2) var<storage,read> center:array<Centers>;
+    @group(0) @binding(3) var<storage,read_write> primary:array<Flux>;
+    @group(0) @binding(4) var<storage,read_write> tail:array<Flux>;`;
   async function pipeline(increment){
     return gpu.kernel(increment?'CFD transport relative aperture flow':'CFD initialize relative aperture flow',head+
-      (increment?'@group(0) @binding(5) var<storage,read> previous:array<Cell>;'+derivative('previous'):'')+derivative('star')+`
+      (increment?'@group(0) @binding(5) var<storage,read> previous:array<Cell>;'+apertureVelocityWGSL('previous'):'')+apertureVelocityWGSL('star')+`
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
         let i=g.x;if(i>=CELLS){return;}let p=point(i);let widths=cellWidths(p);let area=faceAreas(widths);
         for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
@@ -4259,8 +4391,89 @@ export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tai
   const later=gpu.bind(update,[pred,...buffers,old],axes);
   return {
     initial:e=>gpu.dispatch(e,seed,initial,grid),
-    predict:(e,cold)=>gpu.dispatch(e,cold?seed:update,cold?first:later,grid)
+    predict:(e,cold)=>gpu.dispatch(e,cold?seed:update,cold?first:later,grid),
+    adjoint:z=>apertureFlowAdjoint(gpu,f,dt,geometry,axes,old,pred,mu,centers,primary,tail,z)
   };
+}
+
+// The two oriented incidences share the face trace and its physical centre.
+// Their old discharges remain independent inputs to transient relaxation.
+async function apertureFlowAdjoint(gpu,f,dt,base,axes,old,pred,mu,centers,high,low,seed){
+  const n=countOf(f.dims),grid=[Math.ceil(n/128)];
+  if(seed.size!==high.size)throw Error('The aperture-flow objective needs six oriented incidences per cell.');
+  const decl=(b,k,type,w=false)=>`@group(0) @binding(${b}) var<storage,${w?'read_write':'read'}> ${k}:array<${type}>;`;
+  const main=code=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+    let i=g.x;if(i>=CELLS){return;}let p=point(i);${code}}`;
+  const types=`struct History{major:Flux,minor:Flux,z:Flux}
+    struct Stencil{previous:vec4f,star:vec4f,oldSlope:array<vec2f,3>,newSlope:array<vec2f,3>}
+    struct Material{flow:Flux,geom:array<vec4f,3>}
+    struct States{previous:vec4f,predicted:vec4f}`;
+  const history=gpu.buffer('CFD aperture incidence objectives and previous two-word flows',96*n);
+  const stencil=gpu.buffer('CFD aperture endpoint and slope cotangents',80*n);
+  const material=gpu.buffer('CFD transient aperture flow, opening and centroid derivatives',80*n);
+  const state=gpu.buffer('CFD relative aperture interpolation state derivatives',32*n);
+  const pack=await gpu.kernel('CFD gather independent aperture incidences',base+types+
+    decl(0,'major','Flux')+decl(1,'minor','Flux')+decl(2,'z','Flux')+decl(3,'hist','History',true)+
+    main('hist[i]=History(major[i],minor[i],z[i]);'));
+  const packBind=gpu.bind(pack,[high,low,seed,history]);
+  const fields=decl(0,'previous','Cell')+decl(1,'star','Cell')+decl(2,'mu','vec4f');
+  const slopes=apertureVelocityWGSL('previous')+apertureVelocityWGSL('star');
+  const local=await gpu.kernel('CFD transpose motion and reconstruction at each physical aperture',base+types+fields+
+    decl(3,'centres','Centers')+decl(4,'hist','History')+decl(5,'stencil','Stencil',true)+decl(6,'out','Material',true)+
+    '@group(0) @binding(7) var<uniform> cold:u32;'+slopes+`
+      fn incidence(v:Flux,a:u32,s:i32)->f32{return select(v.lo[a],v.hi[a],s>0);}
+      fn diagWork(h:History,reference:f32,a:u32,s:i32)->f32{
+        return incidence(h.z,a,s)*((reference-incidence(h.major,a,s))-incidence(h.minor,a,s));}`+main(`
+      let widths=cellWidths(p);let area=faceAreas(widths);var d:Stencil;var material:Material;
+      for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
+        var q=p;q[a]+=s;let interior=inside(q);if(!interior&&!openFace(a,s)){continue;}
+        let other=clamp(q,vec3i(0),DIMS-1);let l=select(other,p,s>0);let r=select(p,other,s>0);
+        let li=index(l);let ri=index(r);let j=index(other);let o=select(1.,mu[li][a],interior);
+        if(o<=0.){continue;}let met=axisMetric(a,l[a]);let t=.5*met.y*met.z;
+        let portion=select(select(t,1.-t,s>0),1.,!interior);let b=(a+1u)%3u;let c=(a+2u)%3u;
+        var offset=vec3f(0);if(interior&&o<1.){let m=centres[li].t[a];offset[b]=m.x*widths[b];offset[c]=m.y*widths[c];}
+        let pos=vec3f(${f.origin.join(',')})+(cellCenters(l)+offset)*${f.h};
+        let frame=vec3f(0.,-pos.z,pos.y)[a]*${f.omega*dt/f.h};let weight=o*area[a];
+        let u=value_star(l,r,a,t,offset);let one=incidence(hist[i].z,a,s);var z=one;
+        if(interior){z+=incidence(hist[j].z,a,-s);}
+        let zNew=z*weight;var zOld=0.;var zFrame=-zNew;var opening=z*area[a]*(u-frame);
+        if(cold==0u){
+          let before=value_previous(l,r,a,t,offset);let reference=weight*(before-frame);
+          let diag=mix(star[li].padding.x,star[ri].padding.x,t);let rem=1./(1.+diag);let relax=diag*rem;
+          var wd=diagWork(hist[i],reference,a,s);
+          if(interior){wd+=diagWork(hist[j],reference,a,-s);}d.star.w+=portion*wd*rem*rem;
+          if(s>0){material.flow.hi[a]=one*rem;}else{material.flow.lo[a]=one*rem;}
+          zOld=-rem*zNew;zFrame=-relax*zNew;opening=z*area[a]*((u-before)+relax*(before-frame));
+        }
+        d.previous[a]+=portion*zOld;d.star[a]+=portion*zNew;
+        let offset2=vec2f(offset[b],offset[c]);d.oldSlope[a]+=portion*zOld*offset2;d.newSlope[a]+=portion*zNew*offset2;
+        if(interior&&s>0){var shape=vec4f(opening,0.,0.,0.);
+          if(o<1.){for(var k=0u;k<2u;k++){let axis=(a+1u+k)%3u;var unit=vec3f(0);unit[axis]=1.;
+            let ds=mix(slopeStencil_star(l,axis,a).x,slopeStencil_star(r,axis,a).x,t);
+            let dp=mix(slopeStencil_previous(l,axis,a).x,slopeStencil_previous(r,axis,a).x,t);
+            let spin=vec3f(0.,-unit.z,unit.y)[a]*f32(${f.omega*dt});
+            shape[1u+k]=widths[axis]*(zNew*ds+zOld*dp+zFrame*spin);
+          }}material.geom[a]=shape;}
+      }}stencil[i]=d;out[i]=material;`));
+  const mode=[0,1].map(v=>gpu.buffer('CFD aperture interpolation time level',new Uint32Array([v]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST));
+  const states=[[old,pred],[old,pred],[old,old]];
+  const localBinds=states.map(([v,s],i)=>gpu.bind(local,[v,s,mu,centers,history,stencil,material,mode[Number(i>0)]],axes));
+  const gather=(field,slope)=>`fn gather_${field}(p:vec3i,a:u32)->f32{
+    let i=index(p);var v=0.;for(var k=0u;k<2u;k++){let b=(a+k+1u)%3u;
+      let own=slopeStencil_${field}(p,b,a);v+=(own.y-own.z)*d[i].${slope}[a][k];
+      var l=p;l[b]--;var r=p;r[b]++;
+      if(inside(l)){v+=slopeStencil_${field}(l,b,a).z*d[index(l)].${slope}[a][k];}
+      if(inside(r)){v-=slopeStencil_${field}(r,b,a).y*d[index(r)].${slope}[a][k];}
+    }return v;}`;
+  const scatter=await gpu.kernel('CFD gather active minmod aperture-stencil derivatives',base+types+fields+
+    decl(3,'d','Stencil')+decl(4,'out','States',true)+slopes+gather('previous','oldSlope')+gather('star','newSlope')+
+    '@group(0) @binding(5) var<uniform> initial:u32;'+main(`
+      var v=d[i].previous;var s=d[i].star;
+      for(var a=0u;a<3u;a++){v[a]+=gather_previous(p,a);s[a]+=gather_star(p,a);}
+      if(initial!=0u){v+=s;s=vec4f(0);}out[i]=States(v,s);`));
+  const gatherBinds=states.map(([v,s],i)=>gpu.bind(scatter,[v,s,mu,stencil,state,mode[Number(i===2)]],axes));
+  const encode=(e,i)=>{gpu.dispatch(e,pack,packBind,grid);gpu.dispatch(e,local,localBinds[i],grid);gpu.dispatch(e,scatter,gatherBinds[i],grid);};
+  return {state,material,initial:e=>encode(e,2),predict:(e,cold=false)=>encode(e,Number(cold))};
 }
 
 // Spalding's smooth-wall relation, y+ = F(u+). Solving u+ F(u+) =
@@ -4309,7 +4522,7 @@ export const sstWallWGSL=wallResistanceWGSL+`
 export async function cutFaceTransport(gpu,f,dt,old,predictor,mu,centers,wall,flux,tail){
   const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
   const gradient=gpu.buffer('CFD open-fluid velocity reconstruction',48*n),faces=gpu.buffer('CFD shared face momentum correction',48*n);
-  const limits=f.rotor?null:gpu.buffer('CFD local open-stencil velocity bounds',32*n);
+  const limits=!f.rotor||f.modeledShape?gpu.buffer('CFD local open-stencil velocity bounds',32*n):null;
   const common=gridWGSL(f)+metricWGSL(f)+outerSpinWGSL(f)+`
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Centers{t:array<vec2f,3>}
     struct Gradient{v:array<vec4f,3>} struct Limits{low:vec4f,high:vec4f}
@@ -4888,13 +5101,17 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
   const types=`struct Cell{uk:vec4f,wt:vec2f,pad:vec2f} struct Flux{hi:vec4f,lo:vec4f}
     struct Link{root:u32,head:u32,next:u32} struct Roster{count:u32,ids:array<u32>}
     struct Budget{incoming:vec4f,omega:f32,outgoing:f32} const END=0xffffffffu;`;
+  const reservoir=`fn groupReservoir(p:vec3i)->Cell{
+    ${f.inletRows?'let row=inletRow(p.y);return Cell(vec4f(row.x,0.,0.,row.y),vec2f(row.z,0.),vec2f(0));':
+      `return Cell(vec4f(${free},0.,0.,${k0}),vec2f(${omega0},0.),vec2f(0));`}
+  }`;
   const op=(body)=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u){let i=id.x;${body}}`;
   const storage=(i,name,type,write=false)=>`@group(0) @binding(${i}) var<storage,${write?'read_write':'read'}> ${name}:${type};`;
   const roster=await gpu.kernel('CFD list merged transport roots',types+storage(0,'link','array<Link>')+
     'struct WritableRoster{count:atomic<u32>,ids:array<u32>}'+storage(1,'roster','WritableRoster',true)+
     op('if(i<arrayLength(&link)&&link[i].head!=END){let j=atomicAdd(&roster.count,1u);roster.ids[j]=i;}'));
   gpu.run(roster,[links,merged],grid);
-  const base=(writeRhs,writeGuess)=>gridWGSL(f)+inletRowsWGSL(f,dt)+types+storage(0,'rhs','array<Cell>',writeRhs)+storage(1,'guess','array<Cell>',writeGuess)+
+  const base=(writeRhs,writeGuess)=>gridWGSL(f)+inletRowsWGSL(f,dt)+types+reservoir+storage(0,'rhs','array<Cell>',writeRhs)+storage(1,'guess','array<Cell>',writeGuess)+
     storage(2,'link','array<Link>')+storage(3,'volume','array<f32>')+storage(4,'high','array<Flux>')+storage(5,'low','array<Flux>')+`
     fn transfers(root:u32)->Budget{
       var sums=Budget(vec4f(0),0.,0.);var i=root;let inv=1./volume[root];
@@ -4905,10 +5122,8 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
           let h=select(high[i].lo[axis],high[i].hi[axis],side>0);
           let l=select(low[i].lo[axis],low[i].hi[axis],side>0);let rate=f32(side)*(h+l)*inv;
           if(rate>=0.){sums.outgoing+=rate;}else{
-            var u=vec4f(${free},0.,0.,${k0});var omega=f32(${omega0});
-            ${f.inletRows?'let row=inletRow(p.y);u=vec4f(row.x,0.,0.,row.y);omega=row.z;':''}
-            if(internal){u=guess[neighbour].uk;omega=guess[neighbour].wt.x;}
-            sums.incoming-=rate*u;sums.omega-=rate*omega;
+            var donor=groupReservoir(p);if(internal){donor=guess[neighbour];}
+            sums.incoming-=rate*donor.uk;sums.omega-=rate*donor.wt.x;
           }
         }}
         i=select(link[i].next,link[root].head,i==root);if(i==END){break;}
@@ -4961,7 +5176,97 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
   const end={kind:'conservative group transport integral',encode:e=>{
     gpu.dispatch(e,finish,final,grid);if(count)gpu.dispatch(e,scatter,fill,grid);
   }};
-  return residualControlledTransport(stage,begin,sweep,norm,end,192);
+  const solver=residualControlledTransport(stage,begin,sweep,norm,end,192);
+  return {...solver,adjoint:seed=>mergedTransportAdjoint(gpu,f,dt,groups,work,high,low,seed,types,reservoir)};
+}
+
+// Each row owns its signed incidences. The coefficient arriving from the
+// opposite row therefore uses that row's stored discharge and group volume.
+// This also transposes face tails that are perturbed on just one incidence.
+async function mergedTransportAdjoint(gpu,f,dt,groups,primal,high,low,seed,types,reservoir){
+  const n=countOf(f.dims),grid=[Math.ceil(n/128)],{links,volumes}=groups;
+  if(seed.size!==primal.size)throw Error('Group transport requires a complete cell-state objective.');
+  const head=gridWGSL(f)+inletRowsWGSL(f,dt)+types+reservoir;
+  const decl=(i,k,t,w=false)=>`@group(0) @binding(${i}) var<storage,${w?'read_write':'read'}> ${k}:array<${t}>;`;
+  const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+    let i=g.x;if(i>=CELLS){return;}${body}}`;
+  const eachMember=body=>`var j=i;loop{${body}
+    j=select(link[j].next,link[i].head,j==i);if(j==END){break;}}`;
+  const objective=gpu.buffer('CFD implicit transport objective by group',primal.size);
+  const scale=gpu.buffer('CFD group adjoint forcing scale by component',20);
+  const lambda=gpu.buffer('CFD group transport transpose solution',primal.size);
+  const work=gpu.buffer('CFD group transport transpose iterate',primal.size);
+  const residual=gpu.buffer('CFD true group transport transpose defect',4);
+  const stage=gpu.staging('CFD group transport transpose residual readback',4);
+  const gather=await gpu.kernel('CFD transpose the physical group broadcast',head+
+    decl(0,'link','Link')+decl(1,'z','Cell')+decl(2,'out','Cell',true)+decl(3,'scale','atomic<u32>',true)+main(`
+      var b:Cell;if(link[i].root==i){
+        ${eachMember('let v=z[j];b.uk+=v.uk;b.wt+=v.wt;b.pad+=v.pad;')}
+        for(var a=0u;a<4u;a++){atomicMax(&scale[a],bitcast<u32>(abs(b.uk[a])));}
+        atomicMax(&scale[4],bitcast<u32>(abs(b.wt.x)));
+      }out[i]=b;`));
+  const gatherBind=gpu.bind(gather,[links,seed,objective,scale]);
+  const faceData=head+decl(0,'link','Link')+decl(1,'vol','f32')+decl(2,'high','Flux')+decl(3,'low','Flux')+`
+    fn outward(j:u32,a:u32,s:i32)->f32{
+      return f32(s)*(select(high[j].lo[a],high[j].hi[a],s>0)+select(low[j].lo[a],low[j].hi[a],s>0));
+    }`;
+  const row=faceData+decl(4,'z','Cell')+decl(5,'dual','Cell')+`
+    fn transposed(i:u32)->Budget{
+      var b=Budget(z[i].uk,z[i].wt.x,1.);
+      ${eachMember(`let p=point(j);for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
+        var q=p;q[a]+=side;let internal=inside(q);let k=bounded(q);let other=link[k].root;
+        if(internal&&other==i){continue;}
+        if(vol[i]>0.){b.outgoing+=max(0.,outward(j,a,side))/vol[i];}
+        if(internal&&vol[other]>0.){
+          let rate=max(0.,-outward(k,a,-side))/vol[other];
+          b.incoming+=rate*dual[other].uk;b.omega+=rate*dual[other].wt.x;
+        }
+      }}`)}
+      return b;
+    }`;
+  const update=await gpu.kernel('CFD apply transposed upwind transport on merged volumes',row+decl(6,'out','Cell',true)+main(`
+    if(link[i].root!=i){return;}let b=transposed(i);var y=z[i];y.uk=b.incoming/b.outgoing;
+    y.wt.x=b.omega/b.outgoing;out[i]=y;`));
+  const common=[links,volumes,high,low,objective];
+  const steps=[[lambda,work],[work,lambda]].map(([src,dst])=>gpu.bind(update,[...common,src,dst]));
+  const norm=await gpu.kernel('CFD measure transposed momentum equation by component',row+
+    decl(6,'scale','u32')+decl(7,'peak','atomic<u32>',true)+main(`
+    if(link[i].root!=i){return;}let b=transposed(i);let v=dual[i];
+    let r=abs(b.outgoing*v.uk-b.incoming);var largest=0.;
+    for(var a=0u;a<4u;a++){largest=max(largest,r[a]/max(1e-30,bitcast<f32>(scale[a])));}
+    largest=max(largest,abs(b.outgoing*v.wt.x-b.omega)/max(1e-30,bitcast<f32>(scale[4])));
+    atomicMax(&peak[0],bitcast<u32>(largest));`));
+  const normBind=gpu.bind(norm,[...common,lambda,scale,residual]);
+  const faces=gpu.buffer('CFD derivatives of oriented donor discharges',high.size);
+  const volume=gpu.buffer('CFD derivatives of physical momentum-group volumes',4*n);
+  const material=await gpu.kernel('CFD transpose donor work to discharges and cut volume',faceData+
+    decl(4,'dual','Cell')+decl(5,'x','Cell')+decl(6,'faces','Flux',true)+decl(7,'memberVolume','f32',true)+main(`
+      let root=link[i].root;let v=vol[root];var qbar:Flux;var volumeBar=0.;
+      if(v>0.){let p=point(i);let y=dual[root];
+        for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;let other=link[bounded(q)].root;
+          if(inside(q)&&other==root){continue;}let flow=outward(i,a,s);var donor=x[root];
+          if(flow<0.){donor=groupReservoir(p);if(inside(q)){donor=x[other];}}
+          let response=(dot(y.uk,donor.uk)+y.wt.x*donor.wt.x)/v;
+          if(s>0){qbar.hi[a]=-response;}else{qbar.lo[a]=response;}
+          volumeBar+=(flow/v)*response;
+      }}}faces[i]=qbar;memberVolume[i]=volumeBar;`));
+  const materialBind=gpu.bind(material,[links,volumes,high,low,lambda,primal,faces,volume]);
+  // Store the group-volume derivative only at its owner, just as in the
+  // primal volume array. The face derivatives retain their own incidences.
+  const groupVolume=await gpu.kernel('CFD sum the transport derivative of each group volume',head+
+    decl(0,'link','Link')+decl(1,'partial','f32')+decl(2,'out','f32',true)+main(`
+      var value=0.;if(link[i].root==i){${eachMember('value+=partial[j];')}}out[i]=value;`));
+  const ownedVolume=gpu.buffer('CFD transport derivative per volume owner',4*n);
+  const volumeBind=gpu.bind(groupVolume,[links,volume,ownedVolume]);
+  const phases=residualControlledTransport(stage,
+    {kind:'assemble merged transport transpose',encode(e){e.clearBuffer(scale);gpu.dispatch(e,gather,gatherBind,grid);
+      e.copyBufferToBuffer(objective,0,lambda,0,lambda.size);}},
+    {kind:'sweep merged transport transpose',encode(e){for(const group of steps)gpu.dispatch(e,update,group,grid);}},
+    {kind:'measure merged transport transpose',encode(e){e.clearBuffer(residual);gpu.dispatch(e,norm,normBind,grid);
+      e.copyBufferToBuffer(residual,0,stage,0,4);}},
+    {kind:'recover merged transport geometry derivatives',encode(e){gpu.dispatch(e,material,materialBind,grid);
+      gpu.dispatch(e,groupVolume,volumeBind,grid);}},192,3e-6);
+  return {...phases,rhs:lambda,faces,volume:ownedVolume};
 }
 
 // Give each pressure-tree subtree a contiguous interval once. On each
@@ -5447,9 +5752,9 @@ export async function nativeFlowGeometry(gpu,f,capture,dt,storage=null){
     const shape=f.immersedShape?await nativeImmersedShape(gpu,f,capture,wall,response):null;
     const extension=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h,exact?gpu:null):null;
     const wallDistance=extension?{propagationPasses:extension.propagationPasses,preservedBandM:extension.preservedBandM}:null;
-    const cutShape=exact&&extension?.adjoint?{...exact.shape,async prepare(work){
-      const height=await extension.adjoint(work),cut=await cutBandAdjoint(gpu,f,band,distance,response,work,height.bar);
-      return {gradient:cut.derivatives,encode(e){height.encode(e);cut.encode(e);}};
+    const cutShape=exact&&(extension?.adjoint||f.subcellSurface)?{...exact.shape,async prepare(work){
+      const height=await extension?.adjoint?.(work),cut=await cutBandAdjoint(gpu,f,band,distance,response,work,height?.bar);
+      return {gradient:cut.derivatives,encode(e){height?.encode(e);cut.encode(e);}};
     }}:null;
     const skin=f.surfacePressure?await surfacePressure(gpu,f,capture,band,distance,response):null;
     capture.assertCurrent();
@@ -6073,11 +6378,14 @@ export const cutMetricTangentWGSL=`
     }return result;
   }`;
 
-export function cutBandSampling(f,band){
+function cutBandCoordinates(f,band){
   const offset=f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',');
   return `
     const BAND=vec3i(${band.dims});const PITCH=f32(${band.h/f.h});
-    fn coordinatesInBand(v:vec3f)->vec3f{return v*f32(${f.h/band.h})+vec3f(${offset});}
+    fn coordinatesInBand(v:vec3f)->vec3f{return v*f32(${f.h/band.h})+vec3f(${offset});}`;
+}
+export function cutBandSampling(f,band){
+  return cutBandCoordinates(f,band)+`
     fn sample(p:vec3f)->f32{
       if(any(p<vec3f(0))||any(p>vec3f(BAND-1))){return ${12*band.h/f.h};}let q=vec3i(floor(p));let t=fract(p);var d=0.;
       for(var i=0;i<8;i++){let off=vec3i(i&1,(i>>1)&1,i>>2);let b=min(BAND-1,q+off);let w=select(1.-t,t,off==vec3i(1));
@@ -6094,8 +6402,7 @@ export async function cutBandAdjoint(gpu,f,band,metric,mobility,work,centerBar){
   const derivatives=gpu.buffer('CFD corner and centre distance cotangents in the native band',metric.size);
   const storage=(k,name,type,write=false)=>`@group(0) @binding(${k}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
   const base=gridWGSL(f)+metricWGSL(f)+storage(0,'metric','f32')+cutBandSampling(f,band)+cutGridWGSL+cutMetricWGSL+cutMetricTangentWGSL;
-  const transpose=await gpu.kernel('CFD transpose sealed cut volumes and centroids to native SDF samples',base+
-    storage(1,'mu','vec4f')+storage(2,'work','CutWork')+storage(3,'center','f32')+storage(4,'bar','atomic<u32>',true)+`
+  const distribute=`
     fn add(i:u32,value:f32){
       if(value==0.){return;}var old=atomicLoad(&bar[i]);loop{
         let next=atomicCompareExchangeWeak(&bar[i],old,bitcast<u32>(bitcast<f32>(old)+value));
@@ -6107,7 +6414,67 @@ export async function cutBandAdjoint(gpu,f,band,metric,mobility,work,centerBar){
       let q=vec3i(floor(p));let t=fract(p);
       for(var k=0u;k<8u;k++){let off=vec3i(vec3u(k&1u,(k>>1u)&1u,k>>2u));let b=min(BAND-1,q+off);
         let w=select(1.-t,t,off==vec3i(1));add(u32(b.x+BAND.x*(b.y+BAND.y*b.z)),-PITCH*w.x*w.y*w.z*amount);}
+    }`;
+  if(f.subcellSurface){
+    // Scatter each centre-distance sample once. A shaft has a direct native
+    // metric here, while a transported wake can provide its own pullback.
+    const center=await gpu.kernel('CFD transpose subcell centre distance',gridWGSL(f)+metricWGSL(f)+cutBandCoordinates(f,band)+
+      'struct CutWork{v:array<vec4f,3>}'+storage(0,'z',centerBar?'f32':'CutWork')+storage(1,'bar','atomic<u32>',true)+distribute+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+        let i=g.x;if(i<CELLS){contribute(cellCenters(point(i)),${centerBar?'z[i]':'z[i].v[1].w'});}}`);
+    const centerBind=gpu.bind(center,[centerBar??work,derivatives],coords);
+    const list=gpu.buffer('CFD cells carrying subcell geometric work',4*n),counter=gpu.buffer('CFD subcell interface count',4);
+    const compact=await gpu.kernel('CFD locate coarse cells with partial or sealed apertures',storage(0,'mu','vec4f')+
+      storage(1,'ids','u32',true)+storage(2,'count','atomic<u32>',true)+`
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;
+        if(i<arrayLength(&mu)){let m=mu[i];
+          if((m.w>0.&&m.w<1.)||any((m.xyz>vec3f(0))&(m.xyz<vec3f(1)))||(m.w>0.&&any(m.xyz==vec3f(0)))){
+            ids[atomicAdd(&count[0],1u)]=i;}}}`);
+    gpu.run(compact,[mobility,list,counter],grid);
+    const size=await gpu.read(counter,gpu.staging('CFD active subcell count',4),1);
+    const active=new Uint32Array(size.buffer)[0],span=Math.max(1,Math.min(32768,active));
+    let blocks=null,binding=null;
+    if(active){
+      // One lane differentiates one of the 4^3 tetrahedral subcells. Sum
+      // moments in the same x-fastest order as the physical integration.
+      blocks=await gpu.kernel('CFD transpose the 64 material subcells of a cut volume',base+
+        storage(1,'mu','vec4f')+storage(2,'work','CutWork')+storage(3,'ids','u32')+storage(4,'bar','atomic<u32>',true)+
+        distribute+`
+        struct Part{m:vec4f,c:FaceCenters}
+        var<workgroup> samples:array<f32,125>;var<workgroup> piece:array<Part,64>;var<workgroup> whole:Part;
+        @compute @workgroup_size(64) fn main(@builtin(workgroup_id) gid:vec3u,@builtin(local_invocation_index) lane:u32){
+          let job=gid.x+${span}u*gid.y;if(job>=${active}u){return;}let i=ids[job];let p=point(i);
+          let origin=cutVertex(p,0u);let pitch=.25*cellWidths(p);
+          for(var v=lane;v<125u;v+=64u){let at=vec3u(v%5u,(v/5u)%5u,v/25u);
+            samples[v]=surfaceDistance(origin+pitch*vec3f(at));}
+          workgroupBarrier();let low=vec3u(lane%4u,(lane/4u)%4u,lane/16u);var q:array<f32,8>;
+          for(var k=0u;k<8u;k++){let r=low+vec3u(k&1u,(k>>1u)&1u,k>>2u);q[k]=samples[r.x+5u*(r.y+5u*r.z)];}
+          let m=cutMetric(q);let c=cutFaceCenters(q,m);piece[lane]=Part(m,c);workgroupBarrier();
+          if(lane==0u){var sum:Part;
+            for(var l=0u;l<64u;l++){let uv=vec3u(l%4u,(l/4u)%4u,l/16u);let v=piece[l];
+              for(var a=0u;a<3u;a++){if(uv[a]!=3u){continue;}let b=(a+1u)%3u;let k=(a+2u)%3u;
+                let area=v.m[a]/16.;let t=.25*(vec2f(f32(uv[b]),f32(uv[k]))+.5+v.c.t[a])-.5;
+                sum.m[a]+=area;sum.c.t[a]+=area*t;}}
+            for(var a=0u;a<3u;a++){if(sum.m[a]>0.){sum.c.t[a]/=sum.m[a];}}whole=sum;
+          }
+          workgroupBarrier();if(m.w<=0.||m.w>=1.){return;}
+          var z:CutWork;let objective=work[i];z.v[0].w=objective.v[0].w/64.;
+          for(var a=0u;a<3u;a++){if(low[a]!=3u||whole.m[a]<=0.){continue;}
+            let b=(a+1u)%3u;let k=(a+2u)%3u;let t=.25*(vec2f(f32(low[b]),f32(low[k]))+.5+c.t[a])-.5;
+            let moment=objective.v[a].yz/whole.m[a];
+            z.v[a].x=(select(0.,objective.v[a].x,mu[i][a]>0.)+dot(moment,t-whole.c.t[a]))/16.;
+            z.v[a].y=.25*m[a]/16.*moment.x;z.v[a].z=.25*m[a]/16.*moment.y;
+          }
+          for(var k=0u;k<8u;k++){let at=low+vec3u(k&1u,(k>>1u)&1u,k>>2u);var d:array<f32,8>;d[k]=1.;
+            contribute(origin+pitch*vec3f(at),cutTangent(q,m,c,d,z));}
+        }`);
+      binding=gpu.bind(blocks,[metric,mobility,work,list,derivatives],coords);
     }
+    return {derivatives,activeCells:active,encode(e){e.clearBuffer(derivatives);gpu.dispatch(e,center,centerBind,grid);
+      if(blocks)gpu.dispatch(e,blocks,binding,[span,Math.ceil(active/span)]);}};
+  }
+  const transpose=await gpu.kernel('CFD transpose sealed cut volumes and centroids to native SDF samples',base+
+    storage(1,'mu','vec4f')+storage(2,'work','CutWork')+storage(3,'center','f32')+storage(4,'bar','atomic<u32>',true)+distribute+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=CELLS){return;}let p=point(i);contribute(cellCenters(p),center[i]);
       let q=cellSamples(p);let m=cutMetric(q);if(m.w<=0.||m.w>=1.){return;}

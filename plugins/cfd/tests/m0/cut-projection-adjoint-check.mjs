@@ -28,9 +28,10 @@ export function cutStudyInputs(){
   return {dims,n,h,dt,axes,f,state,flow,tail,mu,wall,centers,strides,point};
 }
 
-export async function verifyCutProjectionAdjoint(device){
+export async function verifyCutProjectionAdjoint(device,rotating=false){
   const gpu=gpuScope(device);
   const {dims,n,dt,f,state,flow,tail,mu,wall,centers,strides,point}=cutStudyInputs();
+  if(rotating)Object.assign(f,{rotor:true,rotatingFrame:true,omega:-36,apertureFlow:true});
   const zu=state.slice(),zq=flow.slice(),zp=new Float32Array(n),zf=mu.slice(),zm=mu.slice();
   try{
     const mob=gpu.buffer('Open physical faces and fluid volumes',mu),walls=gpu.buffer('Signed wall distance',wall);
@@ -44,6 +45,10 @@ export async function verifyCutProjectionAdjoint(device){
     const dispatch=fn=>{const e=device.createCommandEncoder();fn(e);device.queue.submit([e.finish()]);};
     wall.set(await read(walls));
     for(const onlyBody of [false,true]){
+      // A fixed-frame wrench contracts with the blade impulse at its actual
+      // angle. Transfer the laboratory objective to body axes for the transpose.
+      const angle=rotating?(onlyBody?-1.21:.73):0,c=Math.cos(angle),sn=Math.sin(angle);
+      const bodySeed=values=>values.map((v,k)=>k%4===1?c*v+sn*values[k+1]:k%4===2?c*v-sn*values[k-1]:v);
       for(let i=0;i<n;i++){
         const live=mu[4*i+3]>0;
         for(let a=0;a<8;a++){
@@ -56,7 +61,7 @@ export async function verifyCutProjectionAdjoint(device){
           zm[4*i+a]=1.8*Math.cos(.33*i+.37*a);
         }
       }
-      Object.values(seed).forEach((b,j)=>device.queue.writeBuffer(b,0,[zu,zq,zp,zf,zm][j]));
+      Object.values(seed).forEach((b,j)=>device.queue.writeBuffer(b,0,[zu,zq,zp,bodySeed(zf),bodySeed(zm)][j]));
       values.forEach((v,j)=>device.queue.writeBuffer(buffers[j],0,v));
       dispatch(op.project);dispatch(op.encode);residuals.push(Array.from(await op.defects()));
       const ubar=await read(op.predicted),qbar=await read(op.faces),geom=await read(op.geometry);
@@ -94,10 +99,9 @@ export async function verifyCutProjectionAdjoint(device){
           for(let i=0;i<n;i++){
             for(let a=0;a<8;a++){const k=8*i+a;value+=zu[k]*diff(0,k)+zq[k]*(diff(1,k)+diff(2,k));}
             value+=zp[i]*diff(3,i);
-            for(let a=0;a<3;a++){
-              value+=zf[4*i+a]*(a?diff(5,4*i+1+a):diff(4,i));
-              value+=zm[4*i+a]*(a?diff(5,4*(n+i)+1+a):diff(5,4*i+1));
-            }
+            const fy=diff(5,4*i+2),fz=diff(5,4*i+3),my=diff(5,4*(n+i)+2),mz=diff(5,4*(n+i)+3);
+            value+=zf[4*i]*diff(4,i)+zf[4*i+1]*(c*fy-sn*fz)+zf[4*i+2]*(sn*fy+c*fz);
+            value+=zm[4*i]*diff(5,4*i+1)+zm[4*i+1]*(c*my-sn*mz)+zm[4*i+2]*(sn*my+c*mz);
           }
           const secant=value/(2*step);estimates.push({step,secant,normalizedError:Math.abs(secant-derivative)/Math.max(1e-9,scale)});
         }
@@ -105,6 +109,8 @@ export async function verifyCutProjectionAdjoint(device){
       }
     }
     return {pass:groups.stats.mergedCells>0&&residuals.every(r=>r[1]<3e-6)&&rows.every(r=>r.estimates.every(e=>e.normalizedError<.004)),
-      dims,mergedCells:groups.stats.mergedCells,residuals,rows};
+      dims,rotating,mergedCells:groups.stats.mergedCells,residuals,rows};
   }finally{gpu.close();}
 }
+
+export const verifyRotatingCutProjection=device=>verifyCutProjectionAdjoint(device,true);

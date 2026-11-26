@@ -12,13 +12,16 @@ export const references = {
     condition:'Unconfined sphere, Re_D = 100; wake length from the rear pole'},
   ahmed:{metric:'CD',value:0.285,source:'https://doi.org/10.4271/840300',
     condition:'Ahmed 25 degrees, Re_L = 4.29e6, body-only axial force'},
+  'ahmed-35':{metric:'CD',value:.256,source:'https://doi.org/10.4271/840300',
+    tabulation:'https://files.eccomasproceedia.org/papers/eccomas-congress-2016/10023.pdf',
+    condition:'Ahmed 35 degrees, Re_L = 4.29e6, body-only axial force. Experimental Cd as tabulated in Guilmineau et al., Table 1.'},
   'ahmed-wake':{metric:'wake/H',wakeM:.6*.288,source:'https://math.univ-cotedazur.fr/u/rpas/publis/physfluids08.pdf',
     condition:'Ahmed 25 degrees, Re_H = 768000; time-mean symmetry-plane recirculation extent, Fig. 10'},
   propeller:{metric:'CT',value:0.1071,powerCoefficient:0.0529,source:'https://m-selig.ae.illinois.edu/props/volume-1/data/apce_10x7_static_pg0811.txt',geometrySource:'https://www.apcprop.com/propeller-technical-data-files/10x7E-PERF.PE0',measuredPlanform:'https://m-selig.ae.illinois.edu/props/volume-1/data/apce_10x7_geom.txt',
     condition:'APC Thin Electric 10x7, 5011 rpm, J = 0 (UIUC Volume 1)'}
 };
 export function flowFixture(name,tier,measuredPlanform=false){
-  const id=name;if(name==='ahmed-wake')name='ahmed';
+  const id=name;if(name==='ahmed-wake'||name==='ahmed-35')name='ahmed';
   const rotor=name==='propeller',sphere=name==='sphere',h=(rotor?0.008:sphere?0.01:0.032)/tier;
   const dims=(rotor?[80,72,72]:sphere?[88,56,56]:[144,40,64]).map(v=>Math.round(v*tier));
   const diameter=0.254, rps=5011/60, omega=rotor?2*Math.PI*rps:0;
@@ -29,6 +32,7 @@ export function flowFixture(name,tier,measuredPlanform=false){
     normalization:rotor?rho*rps**2*diameter**4:0.5*rho*U**2*(sphere?Math.PI*0.04**2:0.389*0.288),
     powerNormalization:rotor?rho*rps**3*diameter**5:null,
     measuredPlanform:rotor&&measuredPlanform,
+    slantDegrees:name==='ahmed'?(id==='ahmed-35'?35:25):undefined,
     geometry:rotor?(measuredPlanform?'UIUC specimen chord and pitch with APC design sweep, rake, profiles and hub':
       'APC 10x7E design stations, leading-edge sweep and rake, thickness-scaled E63/APC12 sections, hub and shaft dimensions'):
       sphere?'Sphere of diameter 80 mm':id==='ahmed-wake'?'Full-scale Ahmed wake tunnel, fixed floor and four cylinder supports':
@@ -63,7 +67,7 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
       return length(max(q,vec2f(0)))+min(max(q.x,q.y),0.)-0.1;
     }
     fn distanceToBody(p:vec3f,phase:vec2f)->f32{
-      let a=radians(25.);let roof=p.y-0.338;
+      let a=radians(${f.slantDegrees??25}.);let roof=p.y-0.338;
       let slant=(p.x-(1.044-0.222*cos(a)))*sin(a)+roof*cos(a);
       let hull=max(max(nose(p.x,p.y-0.194,0.144),nose(p.x,p.z,0.1945)),max(p.x-1.044,slant));
       ${f.id==='ahmed-wake'?`let x=min(abs(p.x-.202),abs(p.x-.672));let z=abs(abs(p.z)-.1635);

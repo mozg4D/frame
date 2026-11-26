@@ -1,9 +1,11 @@
 import {cutFaceTransport,gpuScope} from '../../plugin.js';
 
-export async function verifyCutFaceAdjoint(device){
+export const verifyRotatingFaceAdjoint=device=>verifyCutFaceAdjoint(device,true);
+export async function verifyCutFaceAdjoint(device,rotating=false){
   const gpu=gpuScope(device),dims=[18,13,10],[nx,ny]=dims,n=dims.reduce((a,b)=>a*b),h=.009,dt=.0008;
   const axes=dims.map((d,a)=>Float64Array.from({length:d+1},(_,i)=>h*i*(1+.013*i+.04*a)));
   const f={dims,h,axes,nu:.000019,origin:[-.04,0,-.08]};
+  if(rotating)Object.assign(f,{rotor:true,rotatingFrame:true,modeledShape:true,implicitRadiusM:.084});
   const state=new Float32Array(8*n),mu=new Float32Array(4*n),walls=new Float32Array(4*n),centers=new Float32Array(6*n);
   const flow=new Float32Array(8*n),tail=flow.slice(),seed=mu.slice();
   const point=i=>[i%nx,Math.floor(i/nx)%ny,Math.floor(i/(nx*ny))],s=[1,nx,nx*ny];

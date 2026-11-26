@@ -20,7 +20,7 @@ function solveDense(rows,size){
   return result;
 }
 
-export async function verifyGroupTransport(device){
+export async function verifyGroupTransport(device,checkAdjoint=false){
   const gpu=gpuScope(device),dims=[8,4,4],[nx,ny,nz]=dims,n=nx*ny*nz;
   const f={dims,h:1,origin:[0,0,0],U:.08,maxSpeed:.3,nu:.04},dt=1,k=1.5*(.005*f.maxSpeed)**2;
   const ambient=[f.U,0,0,k,k/(5*f.nu)],scales=[f.maxSpeed,f.maxSpeed,f.maxSpeed,k,ambient[4]];
@@ -40,7 +40,9 @@ export async function verifyGroupTransport(device){
     const groups={links:gpu.buffer('CFD irregular group forest',links),volumes:gpu.buffer('CFD irregular group volumes',volume),stats:{groupsWithChildren:2*nz}};
     const solver=await groupTransport(gpu,f,dt,pred,hi,lo,groups),stage=gpu.staging('CFD group validation',pred.size);
     const scheduler={async perform(ops){const e=device.createCommandEncoder();for(const op of ops)op.encode(e);device.queue.submit([e.finish()]);await device.queue.onSubmittedWorkDone();}};
-    const cases=[];
+    const seed=Float32Array.from(initial,(_,i)=>Math.cos(.22*i+.38)/(i%8<5?scales[i%8]:1));
+    const dual=checkAdjoint?await solver.adjoint(gpu.buffer('CFD independent donor objective',seed)):null;
+    const cases=[],directional=[];
     for(const rate of [2.75,-3.5]){
       const q=new Float32Array(8*n),tail=new Float32Array(q.length),rows=members.map(()=>new Float64Array(members.length+5));
       const yForce=(x,y)=>.5*Math.sin((x+1)*.7+y*.5); // interior transverse transfer
@@ -59,6 +61,12 @@ export async function verifyGroupTransport(device){
           else for(let a=0;a<5;a++)row[members.length+a]-=flux*ambient[a];
         }
       }
+      const transpose=dual?members.map((r,j)=>{
+        const row=new Float64Array(members.length+5);
+        for(let i=0;i<members.length;i++)row[i]=rows[i][j];
+        for(let i=0;i<n;i++)if(root[i]===r)for(let a=0;a<5;a++)row[members.length+a]+=seed[8*i+a];
+        return row;
+      }):null;
       const exact=solveDense(rows,members.length);
       device.queue.writeBuffer(hi,0,q);device.queue.writeBuffer(lo,0,tail);device.queue.writeBuffer(pred,0,initial);
       await solver.solve(scheduler);
@@ -71,8 +79,52 @@ export async function verifyGroupTransport(device){
       }
       const imbalance=Math.max(...balance.map((v,a)=>Math.abs(v)/(scales[a]*ny*nz)));
       cases.push({rate,maxError,maxScatter,imbalance});
+      if(!dual)continue;
+      await dual.solve(scheduler);
+      const dualState=await gpu.read(dual.rhs,stage,initial.length),dualFace=await gpu.read(dual.faces,stage,q.length);
+      const dualVolume=await gpu.read(dual.volume,stage,n),exactPsi=solveDense(transpose,members.length);
+      let denseError=0;
+      for(let i=0;i<n;i++)for(let a=0;a<5;a++){
+        const expected=root[i]===i?volume[i]*exactPsi[index.get(i)][a]:0;
+        denseError=Math.max(denseError,Math.abs(dualState[8*i+a]-expected)*scales[a]);
+      }
+      const data=[initial,q,tail,volume],buffers=[pred,hi,lo,groups.volumes];
+      const casesOf=[
+        ['all eight RHS components',0,(k)=>Math.sin(.37*k+.8)*(scales[k%8]??1)],
+        ['both incidences of interior discharges',1,(k)=>{
+          const i=k>>3,a=k%4,side=(k%8)<4?1:-1,x=i%nx,y=Math.floor(i/nx)%ny;
+          if(a>1||(a===0&&(side<0?x===0:x===nx-1))||(a===1&&(side<0?y===0:y===ny-1)))return 0;
+          const owner=i-(side<0?(a===0?1:nx):0);return Math.sin(.19*owner+.23*a);
+        }],
+        ['one signed face tail',2,k=>k%8===4&&q[k]!==0?Math.sin(.2*k-.34):0],
+        ['inlet and outlet discharges',1,k=>(k%8===0&&(k>>3)%nx===nx-1||k%8===4&&(k>>3)%nx===0)?Math.cos(.24*k):0],
+        ['merged and singleton volumes',3,k=>volume[k]*Math.sin(.31*k-.26)],
+      ];
+      for(const [name,j,tangent] of casesOf){
+        const dir=Float32Array.from(data[j],(_,k)=>tangent(k)),g=[dualState,dualFace,dualFace,dualVolume][j];
+        const prediction=dir.reduce((s,v,k)=>s+v*g[k],0);
+        for(const eps of [.008,.004]){
+          const loads=[];
+          for(const sign of [-1,1]){
+            for(let a=0;a<data.length;a++){
+              const values=a===j?data[a].map((v,k)=>v+sign*eps*dir[k]):data[a];
+              device.queue.writeBuffer(buffers[a],0,values);
+            }
+            await solver.solve(scheduler);
+            const y=await gpu.read(pred,stage,initial.length);loads.push(y.reduce((s,v,k)=>s+v*seed[k],0));
+          }
+          const finite=(loads[1]-loads[0])/(2*eps);
+          directional.push({rate,name,eps,prediction,finite,relativeError:Math.abs(prediction-finite)/Math.max(1e-9,Math.abs(prediction),Math.abs(finite))});
+        }
+      }
+      device.queue.writeBuffer(groups.volumes,0,volume);
+      cases.at(-1).denseTransposeError=denseError;
     }
+    if(dual)return {cases,directional,adjoint:dual.stats,pass:cases.every(c=>c.denseTransposeError<2e-5&&c.maxError<5e-5)&&
+      directional.every(v=>v.relativeError<.01)&&dual.stats.maxRelativeDefect<3e-6};
     const coupled=await verifyMomentum(device,true,true,true,true,false,true,false,true);
     return {cases,...solver.stats,coupled,pass:coupled.pass&&cases.every(c=>c.maxError<5e-5&&c.maxScatter===0&&c.imbalance<5e-5)};
   }finally{gpu.close();}
 }
+
+export const verifyMergedTransportAdjoint=device=>verifyGroupTransport(device,true);

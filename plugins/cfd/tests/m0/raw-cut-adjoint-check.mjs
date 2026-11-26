@@ -2,13 +2,17 @@ import {cartesianSolver,cutGroups,gpuScope} from '../../plugin.js';
 
 export const verifyRawCutAdjoint=device=>study(device,false);
 export const verifyModeledPredictor=device=>study(device,true);
-async function study(device,composed){
+export const verifyRotatingMomentumAdjoint=device=>study(device,false,true);
+export const verifyRotatingPredictor=device=>study(device,true,true);
+async function study(device,composed,rotating=false){
   const gpu=gpuScope(device),dims=[16,12,10],[nx,ny]=dims,n=dims.reduce((a,b)=>a*b),h=.007,dt=.0005;
   const axes=dims.map((d,a)=>Float64Array.from({length:d+1},(_,j)=>h*j*(1+.012*j+.025*a)));
   const f={dims,h,axes,nu:1.5e-5,U:1.3,maxSpeed:2,origin:[-.06,-.035,-.025],rho:1.17,period:.08,
     wallModeled:true,cutCells:true,sstWall:true,ddes:true,rotor:false,omega:0,faceReconstruction:true,faceHistory:true,
     fullMoment:true,mergeToFluid:false,tunnelSymmetry:true,domainWalls:[null,null,[.5,0,-.12],null,null,null],
     pressureOpen:[false,true,false,false,false,false]};
+  if(rotating)Object.assign(f,{rotor:true,rotatingFrame:true,omega:-73,apertureFlow:true,groupTransport:true,
+    implicitRadiusM:.04,sstWall:false,ddes:false,modeledShape:composed});
   const state=new Float32Array(8*n),mu=new Float32Array(4*n),wall=new Float32Array(4*n);
   const q=new Float32Array(8*n),tail=q.slice(),seeds=mu.slice(),forceSeed=mu.slice(),momentSeed=mu.slice(),turbulence=mu.slice();
   const point=i=>[i%nx,Math.floor(i/nx)%ny,Math.floor(i/(nx*ny))],strides=[1,nx,nx*ny];
@@ -121,6 +125,6 @@ async function study(device,composed){
     }
     return {pass:rows.length===(composed?12:16)&&rows.every(r=>r.estimates.every(e=>e.normalizedError<.004)),
       operator:composed?'full stationary cut-volume momentum and SST prediction':'extensive raw momentum prediction and wall wrench',
-      dims,mergedCells:groups.stats.mergedCells,rows};
+      dims,rotating,mergedCells:groups.stats.mergedCells,rows};
   }finally{gpu.close();}
 }
