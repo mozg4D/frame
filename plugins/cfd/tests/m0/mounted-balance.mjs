@@ -8,10 +8,12 @@ export async function mountedAxialBalance(gpu,f,force,capture){
   const n=f.dims.reduce((a,b)=>a*b),launch=[Math.ceil(n/128)],scratch=gpuScope(gpu.device);
   const mask=gpu.buffer('CFD test body and stilt attribution',4*n);
   try{
-    const walls=[];
+    const walls=[],envelopes=[];
     for(const body of [true,false]){
       const meshes=capture.meshes.filter(m=>(m.hash===f.balanceBody)===body);
       if(meshes.length!==(body?1:4))throw Error('Incomplete native support assembly');
+      envelopes.push(meshes.map(m=>
+        '(all(hi>=vec3f('+m.bounds.min.join(',')+'))&&all(lo<=vec3f('+m.bounds.max.join(',')+')))').join('||'));
       const metric=await nativeFlowGeometry(scratch,{...f,cutCells:false,sheetLinks:false,surfacePressure:false,wakeDistance:false,
         modeledShape:true,subcellSurface:false}, {...capture,meshes},1);
       walls.push(metric.wall);
@@ -20,9 +22,18 @@ export async function mountedAxialBalance(gpu,f,force,capture){
       @group(0) @binding(0) var<storage,read> body:array<vec4f>;@group(0) @binding(1) var<storage,read> stilts:array<vec4f>;
       @group(0) @binding(2) var<storage,read_write> mask:array<u32>;
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-        let i=g.x;if(i<CELLS){let distance=abs(stilts[i].x)-abs(body[i].x);
-          let diameter=length(cellWidths(point(i)));
-          mask[i]=u32(distance>=0.)+2u*u32(abs(distance)<=diameter);}}`);
+        let i=g.x;if(i<CELLS){
+          // A pressure barrier can place a reaction on either side of a cell
+          // face. Include the adjacent cells' full extent on the graded grid.
+          let p=point(i);let left=max(p-1,vec3i(0));let right=min(p+1,DIMS-1);
+          let origin=vec3f(${f.origin.join(',')});
+          let lo=origin+${f.h}*(cellCenters(left)-.5*cellWidths(left));
+          let hi=origin+${f.h}*(cellCenters(right)+.5*cellWidths(right));
+          let hull=${envelopes[0]};let support=${envelopes[1]};
+          let distance=abs(stilts[i].x)-abs(body[i].x);let diameter=length(cellWidths(p));
+          let owner=select(distance>=0.,hull,hull!=support);
+          let ambiguous=(!hull&&!support)||(hull&&support&&abs(distance)<=diameter);
+          mask[i]=u32(owner)+2u*u32(ambiguous);}}`);
     gpu.run(pipe,[...walls,mask],launch,metricBuffer(gpu,f));await gpu.device.queue.onSubmittedWorkDone();
   }finally{scratch.close();}
   const components=gpu.buffer('CFD test body, supports and ambiguous load interval',16*n);

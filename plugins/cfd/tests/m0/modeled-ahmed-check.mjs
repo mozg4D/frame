@@ -64,9 +64,13 @@ export async function verifyAhmedObservations(device){
     for(const angle of [25,35]){
       const id=angle===25?'ahmed':'ahmed-35',native=await createNativeAhmedFixture(device,id,true);
       const f={...flowFixture(id,1),h:.0125,dims:[96,32,40],origin:[-.08,0,-.25],normalization:1,balanceBody:native.hull.hash};
+      // A wide downstream cell touches the back of the body far outside
+      // the native distance band of every support.
+      f.axes=f.dims.map((size,a)=>Float64Array.from({length:size+1},(_,i)=>
+        f.origin[a]+f.h*i+(a===0&&i>83?.1605:0)));
       const [nx,ny,nz]=f.dims,loads=new Float32Array(nx*ny*nz);
-      const at=p=>{const [x,y,z]=p.map((v,a)=>Math.floor((v-f.origin[a])/f.h));return x+nx*(y+ny*z);};
-      loads[at([.53,.338,0])]=3;loads[at([.202,.006,.1785])]=-.75;
+      const at=p=>{const [x,y,z]=p.map((v,a)=>f.axes[a].findIndex(edge=>edge>v)-1);return x+nx*(y+ny*z);};
+      loads[at([.53,.338,0])]=2;loads[at([1.044,.15,0])]=1;loads[at([.202,.006,.1785])]=-.75;
       const buffer=gpu.buffer('Known body and support impulses',loads);
       const measure=await mountedAxialBalance(gpu,f,buffer,native.capture),clear=await measure(1,2.25);
       loads[at([.217,.05,.1635])]=.5;device.queue.writeBuffer(buffer,0,loads);
@@ -75,6 +79,7 @@ export async function verifyAhmedObservations(device){
     }
     return {pass:plane.length===2*size&&planeError<1e-6&&transversePeak>.001&&assemblies.every(a=>a.supports===4&&
       Math.abs(a.bodyWidthM-.389)<.001&&a.clear.bodyN===3&&a.clear.stiltsN===-.75&&a.clear.closureN===0&&a.joint.closureN===0&&
-      a.joint.cellAssignmentRangeCd[0]<=3&&a.joint.cellAssignmentRangeCd[1]>=3.5),planeError,transversePeak,assemblies};
+      a.clear.cellAssignmentRangeCd.every(v=>v===3)&&a.joint.cellAssignmentRangeCd[0]===3&&
+      a.joint.cellAssignmentRangeCd[1]===3.5),planeError,transversePeak,assemblies};
   }finally{gpu.close();}
 }
