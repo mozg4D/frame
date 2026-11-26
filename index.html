@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 26 nov 21:45">
+<meta name="frame-version" content="2026 27 nov 02:15">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -9823,9 +9823,12 @@ fn sampleDirectLights(m: SurfaceMat, pos: vec3f, V: vec3f, rng: ptr<function, u3
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let w = params.dims.x;
   let h = params.dims.y;
-  if (gid.x >= w || gid.y >= h) { return; }
+  let yStart = u32(params.extra0.x);
+  let yEnd = select(h, u32(params.extra0.y), params.extra0.y > 0.5);
+  let py = gid.y + yStart;
+  if (gid.x >= w || py >= yEnd || py >= h) { return; }
 
-  let px = vec2i(gid.xy);
+  let px = vec2i(i32(gid.x), i32(py));
   let frameIdx = params.counts.x;
   let spp = max(1u, u32(params.bgSpp.w));
   let interactive = (params.counts.w & FLAG_INTERACTIVE) != 0u;
@@ -9843,14 +9846,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   var primaryPixFlags = PIX_FLAG_SKY;
 
   // R2 low-discrepancy subpixel jitter with per-pixel blue-noise-like hash offset
-  let pixHash = pcg(gid.x * 1973u + gid.y * 9277u + 26699u);
+  let pixHash = pcg(gid.x * 1973u + py * 9277u + 26699u);
   let baseJit = vec2f(f32(pixHash & 0xffffu) / 65536.0, f32((pixHash >> 16u) & 0xffffu) / 65536.0);
 
   for (var s = 0u; s < spp; s++) {
     let sampleIdx = frameIdx * spp + s;
     var rng = pcg(pixHash ^ pcg(sampleIdx * 374761393u + 668265263u));
     let jitter = fract(baseJit + vec2f(f32(sampleIdx) * 0.754877666, f32(sampleIdx) * 0.569840291));
-    let uv = (vec2f(gid.xy) + jitter) / vec2f(f32(w), f32(h));
+    let uv = (vec2f(f32(gid.x), f32(py)) + jitter) / vec2f(f32(w), f32(h));
     let ndc = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
 
     var rayO = params.camPosFocal.xyz;
@@ -10521,6 +10524,9 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
 
       // GPU scene buffers
       this.uniformBuf = this.makeBuf('PT frame params', 256, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+      this.presentUniformBuf = this.makeBuf('PT present params', 256, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+      this.lastPresentOutW = 0;
+      this.lastPresentOutH = 0;
       this.atrousUniforms = [1, 2, 4, 8].map(step => {
         const b = this.makeBuf('PT atrous ' + step, 16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
         const ab = new ArrayBuffer(16);
@@ -10583,6 +10589,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       this.targets = null;
       this.ping = 0;
       this.wasInteractive = false;
+      this.wasBootstrap = false;
 
       // Accumulation & timing state
       this.frameIndex = 0;
@@ -10590,6 +10597,8 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       this.lastCameraSig = '';
       this.prevCamera = null;
       this.lastGpuMs = 0;
+      this.msPerMPix = 0;
+      this.pendingSlice = null;
       this.lastBvhMs = 0;
       this.adaptiveScale = 1.0;
       this.hasImage = false;
@@ -10710,13 +10719,21 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       };
       this.ping = 0;
       this.staticSamples = 0;
+      this.pendingSlice = null;
+      this.wasBootstrap = false;
+      this.hasImage = false;
       this.prevCamera = null;
       this.cachedGroups = null;
       this.bindGroupsDirty = true;
     }
 
+    cancelPendingSlice() {
+      this.pendingSlice = null;
+    }
+
     resetAccumulation(dropHistory = false) {
       this.staticSamples = 0;
+      this.pendingSlice = null;
       if (dropHistory) {
         this.prevCamera = null;
         this.prevWorldByKey.clear();
@@ -11500,7 +11517,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
           g = device.createBindGroup({
             layout: pipe.getBindGroupLayout(0),
             entries: [
-              {binding: 0, resource: {buffer: this.uniformBuf}},
+              {binding: 0, resource: {buffer: this.presentUniformBuf}},
               {binding: 1, resource: t.accum[cur].createView()},
               {binding: 2, resource: t.denoise[denIdx].createView()},
               {binding: 3, resource: t.albedoAcc[cur].createView()},
@@ -11517,49 +11534,107 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       return this.cachedGroups = {atlas: materialAtlas, traceG0, traceG1, traceG2, tempG0, tempG1, atrousGroups, getPresentGroup};
     }
 
-    // --- Render one sample (interactive or progressive) and present to target texture ---
-    renderFrame({camera, outWidth, outHeight, targetView, targetFormat, materialAtlas, envMode, hasUserLights, quality, interactive, sppPerDispatch = 1, reset = false, useAgX = true}) {
+    // --- Render one sample (interactive or budget-sliced progressive) and present to target texture ---
+    renderFrame({camera, outWidth, outHeight, targetView, targetFormat, materialAtlas, envMode, hasUserLights, quality, interactive, sppPerDispatch = 1, reset = false, useAgX = true, allowSlice = false}) {
       const camSig = [...camera.position, ...camera.right, ...camera.up, ...camera.forward, camera.focal, outWidth, outHeight, envMode].map(v => Math.fround(v)).join(':');
       const camMoved = camSig !== this.lastCameraSig;
-      if (reset || camMoved) this.staticSamples = 0;
+      const mpix = Math.max(0.05, (outWidth * outHeight) / 1e6);
 
-      // Instant stable-tier interactive resolution scaling (zero texture reallocation mid-drag!)
+      // Scale-invariant pixel-budget interactive resolution selection (instant ~60 FPS even on 4K frame #1!)
+      const wasInteractive = this.wasInteractive;
+      const targetsWillResize = !this.targets || this.targetW !== outWidth || this.targetH !== outHeight;
+      const bootstrap = allowSlice && !interactive && (!this.hasImage || targetsWillResize) && mpix > 2.2;
+      const minScale = outWidth * outHeight >= 3500000 ? 0.25 : 0.35;
       if (interactive) {
-        if (!this.wasInteractive) {
-          this.adaptiveScale = this.lastGpuMs >= 42 ? 0.5 : (this.lastGpuMs >= 16 ? 0.75 : 1.0);
-        } else if (this.lastGpuMs > 28 && this.adaptiveScale > 0.5) {
-          this.adaptiveScale = this.adaptiveScale > 0.75 ? 0.75 : 0.5;
-        } else if (this.lastGpuMs > 0 && this.lastGpuMs < 8 && this.adaptiveScale < 1.0) {
-          this.adaptiveScale = this.adaptiveScale < 0.75 ? 0.75 : 1.0;
+        if (!wasInteractive) {
+          const estFullInteractiveMs = this.msPerMPix > 0 ? this.msPerMPix * mpix * 0.52 : mpix * 36;
+          const ideal = Math.sqrt(15 / Math.max(1, estFullInteractiveMs));
+          this.adaptiveScale = ideal >= 0.90 ? 1.0 : (ideal >= 0.68 ? 0.75 : (ideal >= 0.45 ? 0.5 : (ideal >= 0.30 || minScale >= 0.35 ? 0.35 : 0.25)));
+        } else if (this.lastGpuMs > 28 && this.adaptiveScale > minScale) {
+          this.adaptiveScale = this.adaptiveScale > 0.75 ? 0.75 : (this.adaptiveScale > 0.5 ? 0.5 : (this.adaptiveScale > 0.35 ? 0.35 : minScale));
+        } else if (this.lastGpuMs > 0 && this.lastGpuMs < 7.5 && this.adaptiveScale < 1.0) {
+          this.adaptiveScale = this.adaptiveScale < 0.35 ? 0.35 : (this.adaptiveScale < 0.5 ? 0.5 : (this.adaptiveScale < 0.75 ? 0.75 : 1.0));
         }
       } else {
         this.adaptiveScale = 1.0;
       }
-      this.wasInteractive = interactive;
 
-      const traceW = Math.max(1, Math.round(outWidth * (interactive ? this.adaptiveScale : 1.0)));
-      const traceH = Math.max(1, Math.round(outHeight * (interactive ? this.adaptiveScale : 1.0)));
+      let traceScale = interactive ? this.adaptiveScale : 1.0;
+      if (bootstrap) {
+        const estBootMs = this.msPerMPix > 0 ? this.msPerMPix * mpix * 0.52 : mpix * 36;
+        const ideal = Math.sqrt(18 / Math.max(1, estBootMs));
+        traceScale = ideal >= 0.45 ? 0.5 : (ideal >= 0.30 || minScale >= 0.35 ? 0.35 : 0.25);
+      }
+      const traceW = Math.max(1, Math.round(outWidth * traceScale));
+      const traceH = Math.max(1, Math.round(outHeight * traceScale));
+      const scaleChanged = traceW !== this.lastTraceW || traceH !== this.lastTraceH;
+      const exitedInteractive = wasInteractive && !interactive;
+      const exitedBootstrap = this.wasBootstrap && !bootstrap;
+      const continuingSlice = !interactive && !bootstrap && !reset && !targetsWillResize && !!this.pendingSlice &&
+        this.pendingSlice.camSig === camSig && this.pendingSlice.cur === this.ping &&
+        this.pendingSlice.traceW === traceW && this.pendingSlice.traceH === traceH;
+
+      // Always reset progressive accumulation across interactive/bootstrap->static or scale/size transitions
+      // so a sub-res quadrant can NEVER blend into full-res progressive accumulation!
+      if (!continuingSlice && (reset || camMoved || scaleChanged || exitedInteractive || exitedBootstrap || targetsWillResize)) {
+        this.staticSamples = 0;
+        this.pendingSlice = null;
+      }
+
       this.outW = outWidth;
       this.outH = outHeight;
       this.ensureTargets(outWidth, outHeight);
-      const prevValid = this.prevCamera && this.lastTraceW === traceW && this.lastTraceH === traceH ? 1.0 : 0.0;
+      const prevValid = !targetsWillResize && this.prevCamera && !scaleChanged && !exitedInteractive && !exitedBootstrap ? 1.0 : 0.0;
       this.traceW = traceW;
       this.traceH = traceH;
 
       const cur = this.ping;
-      this.frameIndex++;
-      if (interactive) this.staticSamples = 1;
-      else this.staticSamples += sppPerDispatch;
+      // Budget-slice heavy/4K static refinement into <=14ms horizontal strips so pointer input preempts instantly!
+      const canSlice = allowSlice && !interactive && !bootstrap && this.hasImage && !targetsWillResize && this.lastPresentedPing !== cur;
+      let sliceCount = 1;
+      if (continuingSlice) {
+        sliceCount = this.pendingSlice.sliceCount;
+      } else if (canSlice) {
+        const estStaticMs = this.msPerMPix > 0 ? this.msPerMPix * mpix : (mpix > 2.2 ? mpix * 24 : 0);
+        if (estStaticMs >= 24) {
+          sliceCount = Math.min(16, Math.max(2, Math.pow(2, Math.ceil(Math.log2(estStaticMs / 14)))));
+        }
+      }
+
+      let yStart = 0, yEnd = traceH, isFinalSlice = true;
+      let activeFrameIdx = this.frameIndex + 1;
+      let activeStaticSamples = (interactive || bootstrap) ? 1 : (this.staticSamples + sppPerDispatch);
+      if (sliceCount > 1) {
+        if (!this.pendingSlice || this.pendingSlice.camSig !== camSig || this.pendingSlice.cur !== cur ||
+            this.pendingSlice.traceW !== traceW || this.pendingSlice.traceH !== traceH) {
+          this.pendingSlice = {
+            camSig, cur, traceW, traceH,
+            sliceIdx: 0, sliceCount,
+            frameIdx: this.frameIndex + 1,
+            nextStaticSamples: this.staticSamples + sppPerDispatch
+          };
+        }
+        const ps = this.pendingSlice;
+        sliceCount = ps.sliceCount;
+        yStart = Math.floor(ps.sliceIdx * traceH / sliceCount);
+        yEnd = Math.floor((ps.sliceIdx + 1) * traceH / sliceCount);
+        isFinalSlice = ps.sliceIdx >= sliceCount - 1;
+        activeFrameIdx = ps.frameIdx;
+        activeStaticSamples = ps.nextStaticSamples;
+      } else {
+        this.pendingSlice = null;
+      }
 
       // Full variance-guided A-Trous denoising with zero raw-grain bleed-through; smoothly hands off to pure MC at high spp!
-      const denoisePasses = interactive || this.staticSamples <= 6 ? 4 : (this.staticSamples <= 24 ? 3 : (this.staticSamples <= 64 ? 2 : (this.staticSamples <= 112 ? 1 : 0)));
-      const denoiseStrength = interactive ? 1.0 : (denoisePasses === 0 ? 0.0 : (this.staticSamples <= 64 ? 1.0 : Math.max(0.0, (112 - this.staticSamples) / 48)));
+      const fastPass = interactive || bootstrap;
+      const denoisePasses = fastPass || activeStaticSamples <= 6 ? 4 : (activeStaticSamples <= 24 ? 3 : (activeStaticSamples <= 64 ? 2 : (activeStaticSamples <= 112 ? 1 : 0)));
+      const denoiseStrength = fastPass ? 1.0 : (denoisePasses === 0 ? 0.0 : (activeStaticSamples <= 64 ? 1.0 : Math.max(0.0, (112 - activeStaticSamples) / 48)));
       const denOutIdx = (denoisePasses - 1) & 1; // 4->1, 3->0, 2->1, 1->0
-      const maxBounces = interactive ? 2 : (quality >= 75 ? 6 : 4);
-      const fireflyClamp = interactive ? 8.0 : 24.0;
+      const maxBounces = fastPass ? 2 : (quality >= 75 ? 6 : 4);
+      const fireflyClamp = fastPass ? 8.0 : 24.0;
 
       let flags = 0;
-      if (interactive) flags |= 1;
+      if (fastPass) flags |= 1;
       if (envMode === 'default') flags |= 2;
       if (envMode === 'image') flags |= 4;
       if (this.tlasNodeCount > 0) flags |= 8;
@@ -11580,30 +11655,84 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       f.set([...prev.up, prevValid], 24);
       f.set([...prev.forward, 1.05], 28); // clean photographic exposure calibration
       u.set([traceW, traceH, outWidth, outHeight], 32);
-      u.set([this.frameIndex, this.staticSamples, maxBounces, flags], 36);
+      u.set([activeFrameIdx, activeStaticSamples, maxBounces, flags], 36);
       u.set([this.lightsOffset, this.lightCount, this.emissiveOffset, this.emissiveCount], 40);
       u.set([this.envCdfOffset, this.envWidth, this.envHeight, this.tlasNodeCount], 44);
       f.set([denoiseStrength, fireflyClamp, this.envTotalWeight, this.totalEmissivePower], 48);
       f.set([0.005, 0.005, 0.005, sppPerDispatch], 52);
+      f.set([yStart, yEnd, 0, 0], 56);
       device.queue.writeBuffer(this.uniformBuf, 0, uBuf);
+      if (isFinalSlice) {
+        device.queue.writeBuffer(this.presentUniformBuf, 0, uBuf);
+        this.lastPresentOutW = outWidth;
+        this.lastPresentOutH = outHeight;
+      } else if (targetView && (outWidth !== this.lastPresentOutW || outHeight !== this.lastPresentOutH)) {
+        device.queue.writeBuffer(this.presentUniformBuf, 128, new Uint32Array([this.lastTraceW || outWidth, this.lastTraceH || outHeight, outWidth, outHeight]));
+        this.lastPresentOutW = outWidth;
+        this.lastPresentOutH = outHeight;
+      }
 
       const g = this.ensureBindGroups(materialAtlas);
       const p = this.pipelines;
       const gx = Math.ceil(traceW / 8), gy = Math.ceil(traceH / 8);
+      const gySlice = Math.max(1, Math.ceil((yEnd - yStart) / 8));
       const timer = this.gpuQuery && !this.gpuQuery.busy ? this.gpuQuery : null;
       if (timer) timer.busy = true;
 
       const enc = device.createCommandEncoder({label: 'FramePathTracer'});
-      // Pass 1: Path Trace
+      // Pass 1: Path Trace (full frame or horizontal band slice)
       {
         const pass = enc.beginComputePass(timer ? {timestampWrites: {querySet: timer.queries, beginningOfPassWriteIndex: 0}} : undefined);
         pass.setPipeline(p.trace);
         pass.setBindGroup(0, g.traceG0);
         pass.setBindGroup(1, g.traceG1);
         pass.setBindGroup(2, g.traceG2[cur]);
-        pass.dispatchWorkgroups(gx, gy);
+        pass.dispatchWorkgroups(gx, gySlice);
         pass.end();
       }
+
+      if (!isFinalSlice) {
+        // Re-present the last completed frame cleanly via its dedicated presentUniformBuf while tracing slices
+        if (targetView) {
+          const format = targetFormat || this.presentFormat;
+          const pipe = this.presentPipelines.get(format);
+          const prevPing = this.lastPresentedPing ?? (1 - cur);
+          const pass = enc.beginRenderPass({
+            ...(timer ? {timestampWrites: {querySet: timer.queries, endOfPassWriteIndex: 1}} : {}),
+            colorAttachments: [{view: targetView, loadOp: 'clear', storeOp: 'store', clearValue: [0.06, 0.06, 0.06, 1]}]
+          });
+          pass.setPipeline(pipe);
+          pass.setBindGroup(0, g.getPresentGroup(format, prevPing, this.lastDenoiseIdx || 0));
+          pass.draw(3);
+          pass.end();
+        } else if (timer) {
+          const pass = enc.beginComputePass({timestampWrites: {querySet: timer.queries, endOfPassWriteIndex: 1}});
+          pass.end();
+        }
+        if (timer) {
+          enc.resolveQuerySet(timer.queries, 0, 2, timer.resolve, 0);
+          enc.copyBufferToBuffer(timer.resolve, 0, timer.read, 0, 16);
+        }
+        device.queue.submit([enc.finish()]);
+        if (timer) {
+          const sCnt = sliceCount;
+          timer.read.mapAsync(GPUMapMode.READ).then(() => {
+            if (this.dead) { timer.read.unmap(); timer.busy = false; return; }
+            const q = new BigUint64Array(timer.read.getMappedRange());
+            const ms = Number(q[1] - q[0]) / 1e6;
+            timer.read.unmap();
+            timer.busy = false;
+            if (ms > 0 && ms < 10000) {
+              this.lastGpuMs = ms;
+              const est = (ms * sCnt) / mpix;
+              this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+            }
+          }).catch(() => { timer.busy = false; });
+        }
+        this.pendingSlice.sliceIdx++;
+        return false;
+      }
+
       // Pass 2: Temporal Reprojection / Progressive Accumulation
       {
         const pass = enc.beginComputePass();
@@ -11649,16 +11778,26 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       device.queue.submit([enc.finish()]);
 
       if (timer) {
+        const wasFast = fastPass, sCnt = sliceCount, tracedMpix = Math.max(0.05, (traceW * traceH) / 1e6), sppDiv = Math.max(1, sppPerDispatch);
         timer.read.mapAsync(GPUMapMode.READ).then(() => {
           if (this.dead) { timer.read.unmap(); timer.busy = false; return; }
           const q = new BigUint64Array(timer.read.getMappedRange());
           const ms = Number(q[1] - q[0]) / 1e6;
           timer.read.unmap();
           timer.busy = false;
-          if (ms > 0 && ms < 10000) this.lastGpuMs = ms;
+          if (ms > 0 && ms < 10000) {
+            this.lastGpuMs = ms;
+            const est = wasFast ? (ms / tracedMpix) * 1.85 : ((ms * sCnt) / (mpix * sppDiv));
+            this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+          }
         }).catch(() => { timer.busy = false; });
       }
 
+      this.frameIndex = activeFrameIdx;
+      this.staticSamples = bootstrap ? 0 : activeStaticSamples;
+      this.pendingSlice = null;
+      this.wasInteractive = interactive;
+      this.wasBootstrap = bootstrap;
       this.lastCameraSig = camSig;
       this.lastTraceW = traceW;
       this.lastTraceH = traceH;
@@ -11673,14 +11812,20 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       this.lastPresentedPing = cur;
       this.ping = 1 - cur;
       this.hasImage = true;
+      return true;
     }
 
     // Re-present the current converged image onto a canvas/target without tracing a new sample
-    presentCached(targetView, targetFormat, materialAtlas) {
+    presentCached(targetView, targetFormat, materialAtlas, outWidth = 0, outHeight = 0) {
       if (!this.hasImage || !this.targets || !this.pipelines) return false;
       const format = targetFormat || this.presentFormat;
       const pipe = this.presentPipelines.get(format);
       if (!pipe) return false;
+      if (outWidth > 0 && outHeight > 0 && (outWidth !== this.lastPresentOutW || outHeight !== this.lastPresentOutH)) {
+        device.queue.writeBuffer(this.presentUniformBuf, 128, new Uint32Array([this.lastTraceW || outWidth, this.lastTraceH || outHeight, outWidth, outHeight]));
+        this.lastPresentOutW = outWidth;
+        this.lastPresentOutH = outHeight;
+      }
       const g = this.ensureBindGroups(materialAtlas);
       const cur = this.lastPresentedPing ?? (1 - this.ping);
       const enc = device.createCommandEncoder({label: 'FramePathTracer present'});
@@ -11745,7 +11890,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
     dispose() {
       this.dead = true;
       this.releaseTargets();
-      for (const b of [this.uniformBuf, this.dummyBuf, this.tlasBuf, this.blasBuf, this.instBuf, this.triGeomBuf, this.triShadingBuf, this.uvFaceProjBuf, this.matLightsBuf, ...(this.atrousUniforms || [])]) {
+      for (const b of [this.uniformBuf, this.presentUniformBuf, this.dummyBuf, this.tlasBuf, this.blasBuf, this.instBuf, this.triGeomBuf, this.triShadingBuf, this.uvFaceProjBuf, this.matLightsBuf, ...(this.atrousUniforms || [])]) {
         if (b) releaseGPU(b);
       }
       if (this.envTex) releaseGPU(this.envTex);
@@ -25932,17 +26077,28 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
 
     let lastViewportOutput=null,previewCamera=null,renderExportJob=null,renderStoppedCamera=null,lastSeenCameraHash=null;
     let pathTracer=null,pathTracerFactory=null,pathTracerSyncPromise=null,pathTracerSyncGeneration=0;
-    let pathTracerRefineRAF=0,pathTracerSettleTimer=0,pathTracerBusy=false,lastWheelActivityAt=0;
+    let pathTracerRefineRAF=0,pathTracerSettleTimer=0,pathTracerBusy=false,lastWheelActivityAt=0,lastWheelView=-1;
 
     function pathTracerTargetSamples(quality){
       const q=Math.max(1,Math.min(100,Math.round(quality??50)));
       return Math.max(4,Math.round(4+252*Math.pow((q-1)/99,2)));
     }
-    function isCameraInteractiveMotion(){
+    function isSceneInteractiveMotion(){
+      return !!(gizmoSession?.moved||coreNumeric||editDrag||motionDrag||materialGesture||playing);
+    }
+    function isView0CameraNavigation(){
       const wheelRecent=performance.now()-lastWheelActivityAt<180;
-      return !!((drag&&!drag.navigationBlocked)||(touchNavigation&&!touchNavigation.navigationBlocked)||
-        wheelBusy||pendingWheel||wheelNavigation||wheelRecent||
-        gizmoSession?.moved||coreNumeric||editDrag||motionDrag||materialGesture||playing);
+      const ptrNav=viewIndex===0&&!!((drag&&!drag.navigationBlocked)||(touchNavigation&&!touchNavigation.navigationBlocked));
+      const wheelNav=lastWheelView===0&&(wheelBusy||pendingWheel||wheelNavigation||wheelRecent);
+      return !!(ptrNav||wheelNav);
+    }
+    function isCameraInteractiveMotion(){
+      return isSceneInteractiveMotion()||isView0CameraNavigation();
+    }
+    function pathTracerPreemptForInput(){
+      if(pathTracerRefineRAF){FrameViewWindows.cancelFrame(pathTracerRefineRAF);pathTracerRefineRAF=0;}
+      if(pathTracerSettleTimer){clearTimeout(pathTracerSettleTimer);pathTracerSettleTimer=0;}
+      pathTracer?.cancelPendingSlice();
     }
     function syncActiveCameraAutoStart(){
       const cam=cameraConfig(),hash=cam?.nativeHash||null;
@@ -26178,23 +26334,38 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         if(active!==0){viewIndex=active;restoreCamera(saved);}
       }
     }
+    function stepPassivePathTracerView0(){
+      if(!scene||!renderer||viewIndex===0||!frameViewVisible(0)||!pathTracerWantsDisplay())return;
+      const c=frameViewCanvases.get(0);if(!c?.getClientRects().length)return;
+      const r=renderer,d=r.device;
+      let v=passiveViews.get(0);if(!v){const context=c.getContext('webgpu');context.configure({device:d,format:navigator.gpu.getPreferredCanvasFormat(),alphaMode:'opaque'});v={context};passiveViews.set(0,v);}
+      const dpr=Math.min(c.ownerDocument.defaultView?.devicePixelRatio||1,2);
+      const width=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(c.clientWidth*dpr)));
+      const height=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(c.clientHeight*dpr)));
+      if(c.width!==width||c.height!==height){c.width=v.width=width;c.height=v.height=height;}
+      drivePathTracerView0(r,v.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true,passiveOnly:false});
+    }
     function schedulePathTracerRefine(){
       if(pathTracerRefineRAF||renderExportJob)return;
       const cam=cameraConfig();
       if(!pathTracerWantsDisplay(cam)||isCameraInteractiveMotion())return;
       const target=pathTracerTargetSamples(cam.params.quality);
-      if(pathTracer&&pathTracer.staticSamples>=target)return;
+      if(pathTracer&&!pathTracer.pendingSlice&&pathTracer.staticSamples>=target)return;
       pathTracerRefineRAF=FrameViewWindows.frame(()=>{
         pathTracerRefineRAF=0;
         if(!scene||!renderer||renderExportJob)return;
         const c=cameraConfig();
         if(!pathTracerWantsDisplay(c)||isCameraInteractiveMotion())return;
-        if(pathTracer&&pathTracer.staticSamples>=pathTracerTargetSamples(c.params.quality))return;
+        if(pathTracer&&!pathTracer.pendingSlice&&pathTracer.staticSamples>=pathTracerTargetSamples(c.params.quality))return;
         if(pathTracerBusy){schedulePathTracerRefine();return;}
-        draw(false);
+        // While navigating an ortho view in quad mode, politely yield refine ticks without resetting Perspective's accumulation!
+        if(viewIndex!==0&&(drag||touchNavigation||wheelBusy||pendingWheel)){schedulePathTracerSettle(60);return;}
+        if(viewIndex!==0)stepPassivePathTracerView0();
+        else draw(false);
       });
     }
-    function drivePathTracerView0(r,targetView,targetFormat,width,height){
+    function drivePathTracerView0(r,targetView,targetFormat,width,height,opts={}){
+      const {allowSlice=false,passiveOnly=false}=opts;
       const cam=cameraConfig();
       if(!cam||!pathTracerWantsDisplay(cam))return false;
       const pt=ensurePathTracer(r);
@@ -26237,18 +26408,24 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         }
         const camera=view0CameraFrame();
         const camSig=[...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,width,height,envMode].map(v=>Math.fround(v)).join(':');
-        if(!interactive&&pt.hasImage&&pt.staticSamples>=targetSamples&&pt.lastCameraSig===camSig&&pt.outW===width&&pt.outH===height){
-          pt.presentCached(targetView,targetFormat,state.atlas);
+        // During ortho navigation in quad view, keep Perspective completely untouched (no restart, no stall)!
+        if(passiveOnly&&!interactive&&pt.hasImage&&pt.lastCameraSig===camSig&&pt.outW===width&&pt.outH===height&&pt.tlasKey===fastPoseKey){
+          pt.presentCached(targetView,targetFormat,state.atlas,width,height);
+          if(pt.pendingSlice||pt.staticSamples<targetSamples)schedulePathTracerSettle(60);
           return true;
         }
-        const spp=!interactive&&pt.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7?2:1;
+        if(!interactive&&!pt.pendingSlice&&pt.hasImage&&pt.staticSamples>=targetSamples&&pt.lastCameraSig===camSig&&pt.outW===width&&pt.outH===height){
+          pt.presentCached(targetView,targetFormat,state.atlas,width,height);
+          return true;
+        }
+        const spp=!interactive&&pt.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7&&!pt.pendingSlice?2:1;
         pt.renderFrame({
           camera,outWidth:width,outHeight:height,targetView,targetFormat,
           materialAtlas:state.atlas,envMode,
           hasUserLights:(scene.lightObjects||[]).some(h=>lightShown(h)),quality:cam.params.quality,
-          interactive,sppPerDispatch:Math.min(spp,Math.max(1,targetSamples-pt.staticSamples))
+          interactive,sppPerDispatch:Math.min(spp,Math.max(1,targetSamples-pt.staticSamples)),allowSlice
         });
-        if(!interactive&&pt.staticSamples<targetSamples){
+        if(!interactive&&(pt.pendingSlice||pt.staticSamples<targetSamples)){
           pathTracerBusy=true;
           r.device.queue.onSubmittedWorkDone().then(()=>{pathTracerBusy=false;schedulePathTracerRefine();},()=>{pathTracerBusy=false;});
         }
@@ -26271,23 +26448,23 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
             if(scene===space&&pathTracerWantsDisplay())draw(false);
           });
         }
-        return pt.hasImage&&pt.pipelines&&pt.targets&&pt.envTex?pt.presentCached(targetView,targetFormat,snapshot.materialAtlas):false;
+        return pt.hasImage&&pt.pipelines&&pt.targets&&pt.envTex?pt.presentCached(targetView,targetFormat,snapshot.materialAtlas,width,height):false;
       }
 
       const camera=view0CameraFrame();
       const camSig=[...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,width,height,snapshot.envMode].map(v=>Math.fround(v)).join(':');
-      if(!interactive&&pt.hasImage&&pt.staticSamples>=targetSamples&&pt.lastCameraSig===camSig&&pt.outW===width&&pt.outH===height){
-        pt.presentCached(targetView,targetFormat,snapshot.materialAtlas);
+      if(!interactive&&!pt.pendingSlice&&pt.hasImage&&pt.staticSamples>=targetSamples&&pt.lastCameraSig===camSig&&pt.outW===width&&pt.outH===height){
+        pt.presentCached(targetView,targetFormat,snapshot.materialAtlas,width,height);
         return true;
       }
-      const spp=!interactive&&pt.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7?2:1;
+      const spp=!interactive&&pt.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7&&!pt.pendingSlice?2:1;
       pt.renderFrame({
         camera,outWidth:width,outHeight:height,targetView,targetFormat,
         materialAtlas:snapshot.materialAtlas,envMode:snapshot.envMode,
         hasUserLights:snapshot.lights.length>0,quality:cam.params.quality,
-        interactive,sppPerDispatch:Math.min(spp,Math.max(1,targetSamples-pt.staticSamples))
+        interactive,sppPerDispatch:Math.min(spp,Math.max(1,targetSamples-pt.staticSamples)),allowSlice
       });
-      if(!interactive&&pt.staticSamples<targetSamples){
+      if(!interactive&&(pt.pendingSlice||pt.staticSamples<targetSamples)){
         pathTracerBusy=true;
         r.device.queue.onSubmittedWorkDone().then(()=>{pathTracerBusy=false;schedulePathTracerRefine();},()=>{pathTracerBusy=false;});
       }
@@ -28700,7 +28877,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const state=viewStates[i]||defaultCamera(i),key=[viewRevision,width,height,viewShadings[i],...state].join(':');
         if(i===0&&pathTracerWantsDisplay()){
           if(canvas.width!==width||canvas.height!==height){canvas.width=v.width=width;canvas.height=v.height=height;}
-          if(drivePathTracerView0(r,v.context.getCurrentTexture().createView(),r.format,width,height)){v.scene=scene;v.key='';canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);continue;}
+          const passiveOnly=activeIndex!==0&&!isSceneInteractiveMotion();
+          if(drivePathTracerView0(r,v.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true,passiveOnly})){v.scene=scene;v.key='';canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);continue;}
         }
         if(v.scene===scene&&v.key===key)continue;
         viewIndex=i;shadingMode=viewShadings[i];restoreCamera(state);
@@ -29205,6 +29383,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const saved=navigationScene,revision=navigationRevision;
       const eligible=scene&&renderer&&single&&!FrameViewWindows.size&&elementMode==='object'&&
         scene.meshes.length>=256&&['solid','solid-wire','solid-isoparms'].includes(shadingMode)&&
+        !(viewIndex===0&&pathTracerWantsDisplay())&&
         (!gizmoSession||gizmoSession.scope==='objects'&&gizmoSession.before?.poseScope?.work?.retain&&!gizmoSession.before.poseScope.work.generators?.length)&&!editDrag&&!coreNumeric&&!editFinishing&&!FrameSpline.drawing;
       const replay=eligible&&saved?.scene===scene&&saved.meshes===scene.meshes&&saved.count===scene.meshes.length&&
         saved.nodes===nodes&&saved.nodeCount===nodes.length&&saved.view===viewIndex&&saved.mode===shadingMode&&
@@ -29252,7 +29431,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         canvas.dataset.frameCount=String(id);canvas.dataset.elementMode=elementMode;canvas.dataset.shadingMode=shadingMode;canvas.dataset.viewIndex='0';
         if(scene.records)nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());
         canvas.dataset.camera=JSON.stringify({yaw,pitch,fov:perspectiveFov,view:0,offset:orbitOffset,pan:[panX,panY]});canvas.dataset.zoom=String(zoom);canvas.dataset.clip=JSON.stringify(clippingPlanes());
-        if(drivePathTracerView0(r,r.context.getCurrentTexture().createView(),r.format,width,height)){
+        if(drivePathTracerView0(r,r.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true})){
           sceneFrameDirty=false;r.cachedScene=scene;
           const cpuMs=performance.now()-cpuStart;updateMemoryStats();
           const rawTiming={id,gpuMs:pathTracer?.lastGpuMs||0,cpuMs,fps:pathTracer?.lastGpuMs>0?1000/pathTracer.lastGpuMs:null,samples:pathTracer?.staticSamples||0,source:'Path tracer',key:'pathtracer'};
@@ -29557,9 +29736,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
           // Wheel ticks at the same anchor share the first surface readback.
           let delta=Math.max(-1000,Math.min(1000,job.delta));
           if(pendingWheel&&pendingWheel.x===job.x&&pendingWheel.y===job.y){delta+=Math.max(-1000,Math.min(1000,pendingWheel.delta));pendingWheel=null;}
-          lastWheelActivityAt=performance.now();
+          if(viewIndex===0){lastWheelView=0;lastWheelActivityAt=performance.now();pathTracerPreemptForInput();}else lastWheelView=viewIndex;
           zoomAt(point||fallbackZoomPoint(job.x,job.y),job.x,job.y,zoom*Math.exp(-delta*(frameViewKind(viewIndex)?.004:.0015)));navigation.changed=true;
-          if(cameraConfig()?.params.renderer==='Path tracer')schedulePathTracerSettle(200);
+          if(viewIndex===0&&cameraConfig()?.params.renderer==='Path tracer')schedulePathTracerSettle(200);
         }
       }catch(error){canvas.dataset.zoomError=error.message;}
       finally{if(renderer===session){wheelBusy=false;wheelNavigation=null;if(navigation.changed&&!navigation.cancelled)storeCameraNavigation();deferHoverMaps();if(pendingWheel)processWheel();}}
@@ -30562,7 +30741,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const t=transformTransaction(),pivot=Array.from(t.frame.slice(12,15)),basis=gizmoBasis(),state=gizmoViewStates.get(viewIndex),signed=basis.map((a,i)=>FM.scale(a,state?.mode3D?state.signs[i]:1)),viewAxis=FM.unit(inverseView([0,0,1]));let kind=part.startsWith('rotate')||part==='screenRotate'?'rotate':part.startsWith('scale')?'scale':'move',indices=(part.match(/\d/g)||[]).map(Number),axis=indices.length?signed[indices[0]]:viewAxis,normal=viewAxis,axes=indices.length?indices.map(i=>signed[i]):[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))];
       if(kind==='rotate')normal=axis;else if(indices.length===2)normal=FM.unit(FM.cross(...axes));else if(indices.length===1)normal=FM.unit(FM.sub(viewAxis,FM.scale(axis,FM.dot(viewAxis,axis))));
       let other=basis[(indices[0]+1)%3];if(kind==='scale'&&event.altKey&&indices.length){kind='skew';other=basis.map((b,i)=>({b,i,d:Math.hypot(...FM.sub(worldScreen(FM.add(pivot,FM.scale(b,worldPerPixel(pivot)*80))),worldScreen(pivot)))})).filter(o=>o.i!==indices[0]).sort((a,b)=>b.d-a.d)[0].b;normal=FM.unit(FM.cross(axis,other));}
-      const hit=pointerWorld(event,pivot,normal);if(!hit)return;const g=gizmoSession={...t,camera:captureCamera(),pivot,basis,kind,axis,axes,normal,other,hit,editPivot:pivotEditing,uniform:part==='scale',screenPlane:part==='move',extent:part==='scale'?Math.max(...t.state.size):t.state.size[indices[0]||0],at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind!=='skew')lastGizmoOperation=kind;if(kind==='scale'){g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!g.uniform)g.scaleRate=scaleResponse(axis,pivot,g.extent);}gizmoSvg.setPointerCapture(event.pointerId);hoverCursor.inside=false;deferHoverMaps();
+      const hit=pointerWorld(event,pivot,normal);if(!hit)return;const g=gizmoSession={...t,camera:captureCamera(),pivot,basis,kind,axis,axes,normal,other,hit,editPivot:pivotEditing,uniform:part==='scale',screenPlane:part==='move',extent:part==='scale'?Math.max(...t.state.size):t.state.size[indices[0]||0],at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind!=='skew')lastGizmoOperation=kind;pathTracerPreemptForInput();if(kind==='scale'){g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!g.uniform)g.scaleRate=scaleResponse(axis,pivot,g.extent);}gizmoSvg.setPointerCapture(event.pointerId);hoverCursor.inside=false;deferHoverMaps();
     }
     let gizmoRAF=0;
     function gizmoPointerMove(event){const g=gizmoSession;if(!g||g.ending)return;g.event=event;if(gizmoRAF)return;
@@ -30994,7 +31173,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(polygonClickGesture||FramePlugins.dispatch('interceptsPointer'))return false;
       if((!frameViewKind(viewIndex)&&!component)||event.altKey||!selectionBox||!selected.size||gizmoSession||coreNumeric||editDrag||editFinishing||selectionBusy||nativeIOBusy)return false;
       const t=transformTransaction(prepared),pivot=Array.from(t.frame.slice(12,15)),normal=FM.unit(inverseView([0,0,1])),hit=pointerWorld(event,pivot,normal);if(!hit)return false;
-      const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
+      const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());pathTracerPreemptForInput();if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
     }
     if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag||g.ending)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
     if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;const click=!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6;finishGizmo(event).catch(editError);if(click)selectElement(event.clientX,event.clientY,frameSelectionOperation(event));});
@@ -31022,6 +31201,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function beginTouchNavigation(multi=false){
       clearTimeout(touchHold);const owned=cameraNavigationOwned();if(owned&&touchNavigation&&!touchNavigation.navigationBlocked){cancelCameraNavigation();return;}const navigationBlocked=!!touchNavigation?.navigationBlocked||!!cancelledTouchPointers.size||owned,p=touchCenter(),point=navigationBlocked?scene.center:fallbackZoomPoint(p.x,p.y),pivot=point.map((v,i)=>(v-scene.center[i])*scene.scale),anchor=rotatePoint(pivot).map((v,i)=>v+orbitOffset[i]);
       touchNavigation={...p,navigationBlocked,element:canvas,startX:p.x,startY:p.y,x:p.x,y:p.y,yaw,pitch,zoom,panX,panY,offset:[...orbitOffset],pivot,anchor,point,depth:Math.max(.01,3.2-anchor[2]),time:performance.now(),multi,moved:multi,held:false,camera:captureCamera()};
+      if(viewIndex===0&&!navigationBlocked)pathTracerPreemptForInput();
       const state=touchNavigation;if(!multi){touchHold=setTimeout(()=>{if(touchNavigation!==state||state.moved||touchPointers.size!==1)return;state.held=true;lastTouchTap=null;navigationMenuSuppressed=false;canvas.dispatchEvent(new MouseEvent('contextmenu',{clientX:p.x,clientY:p.y,button:2,bubbles:true,cancelable:true}));if($('menu').hidden){if(current())objectMenu(p.x,p.y);else showMenu(p.x,p.y,[['Paste',()=>pasteSelection().catch(editError)]]);}},550);
         if(!navigationBlocked&&!frameViewKind(viewIndex))pickWorldPoint(p.x,p.y).then(point=>{if(!point||touchNavigation!==state||state.moved||state.held)return;state.point=point;state.pivot=point.map((v,i)=>(v-scene.center[i])*scene.scale);state.anchor=rotatePoint(state.pivot).map((v,i)=>v+state.offset[i]);state.depth=Math.max(.01,3.2-state.anchor[2]);}).catch(editError);
       }
@@ -31045,7 +31225,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);
       if(cancel){cancelTouchNavigation();return;}
       if(touchPointers.size){if(touchPointers.size>=2)beginTouchNavigation(true);else touchNavigation={moved:true,held:true,blocked:true,navigationBlocked:g?.navigationBlocked,element:g?.element||canvas};return;}touchNavigation=null;if(!g)return;
-      if(g.moved){if(!g.navigationBlocked)storeCameraNavigation();}else if(!g.held){const now=performance.now(),p=[event.clientX,event.clientY];if(lastTouchTap&&lastTouchTap.view===viewIndex&&now-lastTouchTap.time<320&&Math.hypot(p[0]-lastTouchTap.x,p[1]-lastTouchTap.y)<24){lastTouchTap=null;frameToggleViewLayout(viewIndex);}else{lastTouchTap={x:p[0],y:p[1],time:now,view:viewIndex};selectElement(...p,'replace');}}deferHoverMaps();
+      if(g.moved){if(!g.navigationBlocked){storeCameraNavigation();if(viewIndex===0&&cameraConfig()?.params.renderer==='Path tracer')schedulePathTracerSettle(16);}}else if(!g.held){const now=performance.now(),p=[event.clientX,event.clientY];if(lastTouchTap&&lastTouchTap.view===viewIndex&&now-lastTouchTap.time<320&&Math.hypot(p[0]-lastTouchTap.x,p[1]-lastTouchTap.y)<24){lastTouchTap=null;frameToggleViewLayout(viewIndex);}else{lastTouchTap={x:p[0],y:p[1],time:now,view:viewIndex};selectElement(...p,'replace');}}deferHoverMaps();
     }
     FrameViewWindows.onDocument('pointerup',e=>endTouchNavigation(e),{capture:true,passive:false});FrameViewWindows.onDocument('pointercancel',e=>endTouchNavigation(e,true),{capture:true,passive:false});
     FrameViewWindows.onWindow('blur',()=>{cancelTouchNavigation();cancelledTouchPointers.clear();});
@@ -31168,6 +31348,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const state={id:event.pointerId,element:canvas,navigationBlocked:cameraNavigationOwned(),x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,button:event.button,operation:frameSelectionOperation(event),
         yaw,pitch,pivot:[...orbitPivot],offset:[...orbitOffset],generation:++orbitGeneration,mesh:scene,pending:event.button!==1,released:false,zoom,panX,panY,time:performance.now(),middlePan:false};
       drag=state;navigationMenuSuppressed=false;canvas.style.cursor='default';canvas.setPointerCapture(event.pointerId);
+      if(viewIndex===0&&!state.navigationBlocked)pathTracerPreemptForInput();
       if(state.button===1&&!state.navigationBlocked){const p=fallbackZoomPoint(state.startX,state.startY);orbitDepth=Math.max(.01,3.2-rotatePoint(p.map((v,i)=>(v-scene.center[i])*scene.scale))[2]-orbitOffset[2]);}
       if(state.button===0&&!FramePlugins.dispatch('interceptsPointer')&&elementMode==='vertex'&&(frameViewKind(viewIndex)||selectionScope==='components'&&selectedMeshes.length)&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
         state.vertexPending=true;const task=(async()=>{
@@ -31229,6 +31410,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(cancel||state.button===1)orbitGeneration++;
       else if(state.button===0){state.x=event.clientX;state.y=event.clientY;if(Math.hypot(state.x-state.startX,state.y-state.startY)<=3){orbitGeneration++;drag=null;canvas.style.cursor='default';selectElement(event.clientX,event.clientY,state.operation);return;}if(!state.navigationBlocked&&!state.pending&&!frameViewKind(viewIndex))applyOrbit(state);}
       drag=null;canvas.style.cursor='default';const middle=frameEngineViewGesture,elapsed=middle?performance.now()-middle.time:Infinity,quick=state.button===1&&middle&&elapsed<=350&&Math.max(middle.distance,Math.hypot(event.clientX-middle.x,event.clientY-middle.y))<=(elapsed<=180?72:24);if(!quick&&!state.navigationBlocked)storeCameraNavigation();deferHoverMaps();
+      if(viewIndex===0&&!state.navigationBlocked&&cameraConfig()?.params.renderer==='Path tracer')schedulePathTracerSettle(16);
     }
     FrameViewWindows.onWindow('blur',()=>{if(drag)finishDrag({type:'blur'},true);});
     FrameViewWindows.onWindow('keydown',event=>{if(event.key==='Escape'&&drag?.vertexPending){drag.cancelled=true;event.preventDefault();event.stopImmediatePropagation();}},true);

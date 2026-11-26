@@ -102,6 +102,60 @@ export async function cameraPathTracerChecks(page){
     const resumedAfterDrag=await call('render.inspect');
     check('Path tracer resumes automatically after object transform ends',resumedAfterDrag.visible&&resumedAfterDrag.samples>=3,resumedAfterDrag);
 
+    // 3b. Quad-view isolation: navigating in ortho views (Top/Front/Right) must NOT restart or hide Perspective Path tracer!
+    await call('scene.select',{ids:[]});
+    await call('view.set',{single:false,index:0});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    for(const rtDuringNav of [true,false]){
+      await call('scene.update',{id:camNode.hash,params:{'realtime during navigation':rtDuringNav}});
+      await call('view.set',{index:1});
+      const beforeOrtho=await call('render.inspect');
+      const topCanvas=await page.locator('.view[data-view="1"]').boundingBox();
+      assert.ok(topCanvas,'Quad Top view visible');
+      const tx=topCanvas.x+topCanvas.width*.5,ty=topCanvas.y+topCanvas.height*.5;
+      await page.mouse.move(tx,ty);
+      await page.mouse.down({button:'middle'});
+      await page.mouse.move(tx+110,ty-45,{steps:6});
+      const duringOrthoPan=await call('render.inspect');
+      await page.mouse.up({button:'middle'});
+      await page.mouse.wheel(0,-180);
+      await page.waitForTimeout(80);
+      const afterOrthoWheel=await call('render.inspect');
+      check('Quad ortho navigation (rtDuringNav='+rtDuringNav+') never hides or restarts Perspective Path tracer',
+        duringOrthoPan.visible&&!duringOrthoPan.interactive&&duringOrthoPan.samples>=beforeOrtho.samples&&
+        afterOrthoWheel.visible&&!afterOrthoWheel.interactive&&afterOrthoWheel.samples>=beforeOrtho.samples,
+        {rtDuringNav,beforeOrtho,duringOrthoPan,afterOrthoWheel});
+    }
+    await call('view.set',{single:true,index:0});
+    await call('scene.update',{id:camNode.hash,params:{'realtime during navigation':true}});
+
+    // 3c. Exiting sub-resolution interactive drag to static full-res must NEVER leave a quarter-screen top-left ghost!
+    await call('scene.new');
+    const centerBall=await call('scene.create',{type:'sphere',name:'GhostCheck',params:{diameter:120}});
+    const neonMat=await call('material.create',{name:'NeonGreen',params:{h:120,s:100,l:50,emm:100,rough:100}});
+    await call('material.assign',{id:centerBall.hash,material:neonMat.uid});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:centerBall.hash});
+    await call('scene.create',{type:'render',params:{realtime:'on',quality:30,environment:'off','realtime during navigation':true}});
+    await call('scene.select',{ids:[]});
+    await page.waitForFunction(()=>frameEngine.renderState().hasImage&&frameEngine.renderState().visible,{},{timeout:15000});
+    // Start windowed, drag interactively, release to static accumulation, then read live Path tracer pixels via view export!
+    const gRect=await page.locator('#frame-engine-canvas').boundingBox();
+    const gox=gRect.x+gRect.width*.82,goy=gRect.y+gRect.height*.82;
+    await page.mouse.move(gox,goy);
+    await page.mouse.down({button:'left'});
+    await page.mouse.move(gox+25,goy-12,{steps:4});
+    await page.mouse.up({button:'left'});
+    await page.waitForFunction(()=>!frameEngine.renderState().interactive&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const pngBuf=await page.locator('#frame-engine-canvas').screenshot();
+    const cornerPx=await page.evaluate(async b64=>{
+      const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();
+      const c=new OffscreenCanvas(img.width,img.height),ctx=c.getContext('2d');ctx.drawImage(img,0,0);
+      const at=(u,v)=>[...ctx.getImageData(Math.floor(u*img.width),Math.floor(v*img.height),1,1).data];
+      return {colors:[at(0.25,0.25),at(0.5,0.5)]};
+    },pngBuf.toString('base64'));
+    check('No quarter-screen ghost in top-left quadrant after exiting interactive navigation',
+      cornerPx.colors[0][1]<35&&cornerPx.colors[1][1]>140,cornerPx);
+
     // 4. Optics & lighting: emissive bounce in environment off, Infinite Light, dielectric glass, deterministic export
     await call('scene.new');
     const wall=await call('scene.create',{type:'cube',name:'Wall',params:{'size x':220,'size y':220,'size z':10}});
