@@ -447,6 +447,115 @@ export async function cameraPathTracerChecks(page){
       preemptTiming&&midSecondNav.inter&&maxGap<250,
       {midSecondNav,maxGap:Math.round(maxGap),rafGaps:rafGaps.map(v=>Math.round(v))});
 
+    // 12. Sliced static refinement & sub-res->full-res transitions must NEVER flash wrong colors or display half-denoised frames!
+    const prevViewport=page.viewportSize();
+    await page.setViewportSize({width:1920,height:1080});
+    try{
+      await call('scene.new');
+      const blueCube=await call('scene.create',{type:'cube',name:'CenterBlue',params:{'size x':320,'size y':320,'size z':320}});
+      const redCorner=await call('scene.create',{type:'cube',name:'CornerRed',params:{'size x':450,'size y':450,'size z':450}});
+      await call('scene.select',{ids:[redCorner.hash]});
+      await call('transform.set',{channel:'position',axis:0,value:-420});
+      await call('transform.set',{channel:'position',axis:1,value:320});
+      const floorBig=await call('scene.create',{type:'cube',name:'FloorBig',params:{'size x':3000,'size y':40,'size z':3000}});
+      await call('scene.select',{ids:[floorBig.hash]});
+      await call('transform.set',{channel:'position',axis:1,value:-200});
+      for(let i=0;i<16;i++){
+        const sp=await call('scene.create',{type:'sphere',name:'Sph'+i,params:{diameter:90}});
+        await call('scene.select',{ids:[sp.hash]});
+        await call('transform.set',{channel:'position',axis:0,value:-500+(i%4)*330});
+        await call('transform.set',{channel:'position',axis:2,value:-450-Math.floor(i/4)*280});
+      }
+      const mBlue=await call('material.create',{name:'VividBlue',params:{h:220,s:85,l:45,rough:75}});
+      const mRed=await call('material.create',{name:'VividRed',params:{h:0,s:95,l:50,rough:70}});
+      await call('material.assign',{id:blueCube.hash,material:mBlue.uid});
+      await call('material.assign',{id:redCorner.hash,material:mRed.uid});
+      await call('view.set',{index:0,single:true,mode:'object',shading:'solid-isoparms',focus:blueCube.hash});
+      await call('scene.select',{ids:[]});
+      await call('scene.create',{type:'render',name:'CamStable',params:{renderer:'Path tracer',realtime:'on','realtime during navigation':true,samples:10}});
+      await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:25000});
+      const sigCheck=await call('render.inspect');
+      check('Camera signature encodes envMode cleanly without NaN',
+        (sigCheck.views?.[0]?.presentedCamSig||'').endsWith(':default'),
+        {presentedCamSig:sigCheck.views?.[0]?.presentedCamSig});
+
+      await page.evaluate(()=>{
+        const canvas=document.getElementById('frame-engine-canvas');
+        const c2=document.createElement('canvas');c2.width=160;c2.height=90;
+        const ctx=c2.getContext('2d',{willReadFrequently:true});
+        const q=frameEngine.renderer.device.queue;
+        window.__origSubmit=q.submit.bind(q);
+        window.__stabFrames=[];window.__stabPrev=null;window.__stabActive=false;
+        let lastFc=0;
+        q.submit=function(cmds){
+          const res=window.__origSubmit(cmds);
+          if(window.__stabActive){
+            const fc=Number(canvas.dataset.frameCount||0);
+            if(fc!==lastFc){
+              lastFc=fc;
+              ctx.drawImage(canvas,0,0,c2.width,c2.height);
+              const img=ctx.getImageData(0,0,c2.width,c2.height).data;
+              let rS=0,gS=0,bS=0,n=0;
+              for(let y=38;y<=52;y++)for(let x=72;x<=88;x++){const idx=(y*c2.width+x)*4;rS+=img[idx];gS+=img[idx+1];bS+=img[idx+2];n++;}
+              const snap=new Uint8Array(img.length);snap.set(img);
+              let maxDiff=0;
+              if(window.__stabPrev){
+                for(let i=0;i<snap.length;i+=4){
+                  const d=Math.max(Math.abs(snap[i]-window.__stabPrev[i]),Math.abs(snap[i+1]-window.__stabPrev[i+1]),Math.abs(snap[i+2]-window.__stabPrev[i+2]));
+                  if(d>maxDiff)maxDiff=d;
+                }
+              }
+              window.__stabPrev=snap;
+              const rs=frameEngine.renderState();
+              window.__stabFrames.push({fc,samples:rs.samples,slicing:rs.slicing,inter:rs.interactive,rgb:[Math.round(rS/n),Math.round(gS/n),Math.round(bS/n)],maxDiff});
+            }
+          }
+          return res;
+        };
+      });
+
+      const analyzeFrames=(frames)=>{
+        // Find first non-interactive frame after motion (skipping initial hook warmup before interactive starts)
+        const firstInter=frames.findIndex(f=>f.inter);
+        const postMotion=firstInter>=0?frames.slice(firstInter).filter(f=>!f.inter):frames.filter(f=>!f.inter);
+        const sliceFrames=postMotion.filter(f=>f.slicing);
+        const maxSliceDiff=sliceFrames.reduce((m,f)=>Math.max(m,f.maxDiff),0);
+        const badColor=postMotion.filter(f=>f.rgb[2]<=f.rgb[0]+40);
+        return {total:frames.length,postMotion:postMotion.length,sliceCount:sliceFrames.length,maxSliceDiff,badColorCount:badColor.length,sampleMax:Math.max(0,...postMotion.map(f=>f.samples)),badColorSample:badColor.slice(0,3)};
+      };
+
+      // 12a. Post-navigation stability through 4-pass -> 3-pass denoiser transition (samples 0..9)
+      const sBox=await page.locator('#frame-engine-canvas').boundingBox();
+      await page.evaluate(()=>{window.__stabFrames=[];window.__stabPrev=null;window.__stabActive=true;});
+      await page.mouse.move(sBox.x+sBox.width*.72,sBox.y+sBox.height*.5);
+      await page.mouse.down({button:'left'});
+      await page.mouse.move(sBox.x+sBox.width*.64,sBox.y+sBox.height*.45,{steps:6});
+      await page.mouse.up({button:'left'});
+      await page.waitForFunction(()=>frameEngine.renderState().samples>=9,{},{timeout:30000});
+      const navStab=analyzeFrames(await page.evaluate(()=>{window.__stabActive=false;return window.__stabFrames;}));
+      check('Post-navigation sliced refinement keeps displayed denoised frame pixel-identical without wrong-color flash',
+        navStab.postMotion>=8&&navStab.maxSliceDiff===0&&navStab.badColorCount===0,navStab);
+
+      // 12b. Post-object-transform stability through 4-pass -> 3-pass denoiser transition (samples 0..9)
+      await call('scene.select',{ids:[blueCube.hash]});
+      await page.waitForFunction(()=>!!document.querySelector('#frame-gizmo [data-part="move0"]'),{},{timeout:5000});
+      const hBox=await page.locator('#frame-gizmo [data-part="move0"]').boundingBox();
+      await page.evaluate(()=>{window.__stabFrames=[];window.__stabPrev=null;window.__stabActive=true;});
+      await page.mouse.move(hBox.x+hBox.width*.6,hBox.y+hBox.height*.5);
+      await page.mouse.down({button:'left'});
+      await page.mouse.move(hBox.x+hBox.width*.6+70,hBox.y+hBox.height*.5,{steps:6});
+      await page.mouse.up({button:'left'});
+      await page.waitForFunction(()=>frameEngine.renderState().samples>=9,{},{timeout:30000});
+      const xformStab=analyzeFrames(await page.evaluate(()=>{window.__stabActive=false;return window.__stabFrames;}));
+      check('Post-transform sliced refinement keeps displayed denoised frame pixel-identical without wrong-color flash',
+        xformStab.postMotion>=8&&xformStab.maxSliceDiff===0&&xformStab.badColorCount===0,xformStab);
+
+      await page.evaluate(()=>{if(window.__origSubmit){frameEngine.renderer.device.queue.submit=window.__origSubmit;delete window.__origSubmit;}});
+    }finally{
+      await page.evaluate(()=>{if(window.__origSubmit){frameEngine.renderer.device.queue.submit=window.__origSubmit;delete window.__origSubmit;}}).catch(()=>{});
+      if(prevViewport)await page.setViewportSize(prevViewport);
+    }
+
     await call('scene.new');
     const gpu=await page.evaluate(async()=>{
       await frameEngine.renderer.device.queue.onSubmittedWorkDone();
