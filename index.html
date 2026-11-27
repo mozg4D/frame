@@ -27604,8 +27604,48 @@ fn materialShade(input:MaterialOutput,front:bool)->vec4f{
 @fragment fn materialFS(input:MaterialOutput,@builtin(front_facing) front:bool)->@location(0) vec4f{let color=materialShade(input,front);if(color.a<.999){discard;}return color;}
 struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:f32}
 @fragment fn materialTransparentFS(input:MaterialOutput,@builtin(front_facing) front:bool)->MaterialTransparency{let color=materialShade(input,front);let alpha=clamp(color.a,0.,1.);if(alpha<=0.||alpha>=.999){discard;}let weight=clamp(.03/(.01+pow(input.position.z,4.)),.03,8.);return MaterialTransparency(vec4f(color.rgb*alpha*weight,alpha*weight),alpha);}
+fn materialOverlayAlpha(input:MaterialOutput)->vec2f{
+ if(input.material==0u){return vec2f(1.,1.);}
+ let m=materialLibrary[input.material];var texAlpha=1.;
+ if(materialMaps){
+  let sharedAlpha=m.maps.y==m.maps.x&&m.channels.x==3.;
+  if(m.maps.x>0.&&(m.options.y!=1.||sharedAlpha)){texAlpha*=mappedImage(input,m.maps.x).a;}
+  if(m.maps.y>0.&&!sharedAlpha){texAlpha*=mapChannel(mappedImage(input,m.maps.y),m.channels.x);}
+ }
+ var alpha=m.surface.z*texAlpha;
+ if(m.options.y==2.){alpha=select(0.,1.,alpha>=m.options.z);}
+ let transmissive=select(0.,texAlpha,m.options.y==0.&&m.surface.z<.999);
+ return vec2f(alpha,max(alpha,transmissive));
+}
+fn materialOverlayColor(input:MaterialOutput)->vec4f{
+ var out=vec4f(0);
+ if(params.modes.y>=2.){out=renderOverlayWire(input.bary,input.position.w,input.wireEdges);}
+ if(!plainSurfaceWire&&!materialWireOverlay&&(input.wireEdges&7u)!=0u){
+  let cov=surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,params.modes.y==3.);
+  if(cov.y>0.){
+   let c=surfaceCageColor(vec3f(0),input.bary,input.wireEdges,input.position.w,(input.triangleID-faceBase.x)*3u);
+   out=vec4f(c+out.rgb*(1.-cov.y),cov.y+out.a*(1.-cov.y));
+  }
+ }
+ return out;
+}
+@fragment fn materialRenderOverlayFS(input:MaterialOutput)->WireSurfaceOutput{
+ if(materialOverlayAlpha(input).x<.999){discard;}
+ let color=materialOverlayColor(input);
+ if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}
+ return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));
+}
+@fragment fn materialRenderOverlayIdFS(input:MaterialOutput)->@location(0) u32{
+ if(materialOverlayAlpha(input).x<.999){discard;}
+ return select(input.triangleID,0u,objectFrame.flags.y!=0u);
+}
+@fragment fn materialRenderOverlayTransparentFS(input:MaterialOutput)->@location(0) vec4f{
+ let alpha=materialOverlayAlpha(input);if(alpha.x>=.999||alpha.y<=0.){discard;}
+ let out=materialOverlayColor(input);if(out.a<=0.){discard;}
+ return out;
+}
 `;const module=d.createShaderModule({label:'native material editor shader',code:source}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),meshLayout,libraryLayout]});
-      return r.materialProgram={source,module,layout,meshLayout,libraryLayout,pipelines:new Map(),pending:new Map(),sampler:d.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear'})};
+      return r.materialProgram={source,module,layout,meshLayout,libraryLayout,pipelines:new Map(),pending:new Map(),overlayPipelines:new Map(),overlayPending:new Map(),sampler:d.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear'})};
     }
     function polygonWire(mesh){return shadingMode==='solid-wire'||shadingMode==='solid-isoparms'||shadingMode==='render-wire'||shadingMode==='render-isoparms';}
     function classifiedSurfaceWire(mesh){return mesh.parts?mesh.parts.some(part=>!!part.splineWireEdges):!!mesh.splineWireEdges;}
@@ -27634,6 +27674,23 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         state.pending.set(key,pending);
       }
       return wait?state.pending.get(key):null;
+    }
+    function materialOverlayPipeline(r,mesh,mode){
+      const state=ensureMaterialState(r),classified=mode!=='id'&&classifiedSurfaceWire(mesh);
+      return requestMaterialOverlayPipeline(r,state,{orthographic:!!frameViewKind(viewIndex),grouped:!!mesh.materialBindings?.grouped,uv:!!importedUV(mesh),mode,classified,mapped:meshUsesMaterialMaps(state,mesh)});
+    }
+    function requestMaterialOverlayPipeline(r,state,{orthographic=!!frameViewKind(viewIndex),grouped,uv,mode,classified=false,mapped},wait=false){
+      const posed=true,wire=mode!=='id',transparent=mode==='transparent',plain=!classified,key=[orthographic,grouped,uv,mode,classified,!!mapped].join(':');
+      if(state.overlayPipelines.has(key))return state.overlayPipelines.get(key);
+      if(!state.overlayPending.has(key)){
+        const constants={orthographic,posed,materialGroups:grouped,materialUV:uv,materialWire:true,materialWireOverlay:false,plainSurfaceWire:plain,materialMaps:!!mapped};
+        const targets=transparent?[{format:r.format,blend:{color:{srcFactor:'one',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]:wire?r.wireTargets:[{format:'r32uint'}];
+        const entryPoint=transparent?'materialRenderOverlayTransparentFS':wire?'materialRenderOverlayFS':'materialRenderOverlayIdFS';
+        const pending=r.device.createRenderPipelineAsync({label:'native material overlay '+key,layout:state.layout,vertex:{module:state.module,entryPoint:'materialVS',constants},fragment:{module:state.module,entryPoint,targets,constants},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:!transparent,depthCompare:transparent?'less-equal':'less'}})
+          .then(p=>{if(renderer===r&&!r.dead){state.overlayPipelines.set(key,p);draw();}return p;}).catch(editError).finally(()=>state.overlayPending.delete(key));
+        state.overlayPending.set(key,pending);
+      }
+      return wait?state.overlayPending.get(key):null;
     }
     function materialLibraryBindings(r,state){
       if(!state.group||state.groupData!==state.data||state.groupAtlas!==state.atlas||state.groupSampler!==state.sampler||state.groupLayout!==state.libraryLayout){
@@ -29255,17 +29312,16 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           fragment:{module:compMod,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'one',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},
           primitive:{topology:'triangle-list'}
         });
-        const wirePipelines=new Map(),transPipelines=new Map(),jobs=[];
+        const wirePipelines=new Map(),jobs=[];
         for(const ortho of [false,true])for(const posed of [false,true])for(const plain of [false,true]){
           const key=+ortho+':'+(+posed)+':'+(+plain),constants={orthographic:ortho,posed,plainSurfaceWire:plain};
           jobs.push(
-            d.createRenderPipelineAsync({label:'render overlay wire '+key,layout:r.surfaceLayout,vertex:{module,entryPoint:'wireSurfaceVS',constants},fragment:{module,entryPoint:'renderOverlayFS',constants,targets:r.wireTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(p=>wirePipelines.set(key,p)),
-            d.createRenderPipelineAsync({label:'render overlay trans '+key,layout:r.surfaceLayout,vertex:{module,entryPoint:'wireSurfaceVS',constants},fragment:{module,entryPoint:'renderOverlayTransparentFS',constants,targets:[{format:r.format,blend:{color:{srcFactor:'one',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>transPipelines.set(key,p))
+            d.createRenderPipelineAsync({label:'render overlay wire '+key,layout:r.surfaceLayout,vertex:{module,entryPoint:'wireSurfaceVS',constants},fragment:{module,entryPoint:'renderOverlayFS',constants,targets:r.wireTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(p=>wirePipelines.set(key,p))
           );
         }
         await Promise.all(jobs);
         if(renderer!==r||r.dead)return null;
-        r.renderOverlayState={composite,wirePipelines,transPipelines,groups:new WeakMap()};
+        r.renderOverlayState={composite,wirePipelines,groups:new WeakMap()};
         draw(true,true);
         return r.renderOverlayState;
       })().catch(error=>{r.renderOverlayInit=null;editError(error);});
@@ -29281,6 +29337,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     function encodeRenderOverlay(r,encoder,overlayTex,depthTex,idsTex,planesTex,width,height){
       const st=ensureRenderOverlay(r);if(!st)return false;
       const ortho=!!frameViewKind(viewIndex),wire=polygonWire(),hasTransparent=[];
+      let incomplete=false;
       if(wire){
         const pass=encoder.beginRenderPass({
           colorAttachments:[
@@ -29293,11 +29350,18 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         pass.setBindGroup(0,r.bindGroup);
         for(const mesh of scene.meshes){
           if(!meshVisible(mesh)||pluginSurfaceStyle(mesh))continue;
-          if(materialTransparent(mesh)){hasTransparent.push(mesh);continue;}
-          const key=+ortho+':'+(+!!mesh.posed)+':'+(+!classifiedSurfaceWire(mesh));
-          const pipe=st.wirePipelines.get(key);if(!pipe)continue;
           const parts=mesh.parts||[mesh];
           if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
+          if(materialTransparent(mesh)){
+            if(materialTransparent(mesh,true))hasTransparent.push(mesh);
+            const material=materialMeshGPU(r,mesh),pipe=material?.state.group?materialOverlayPipeline(r,mesh,'wire'):null;
+            if(!pipe){incomplete=true;continue;}
+            pass.setPipeline(pipe);pass.setBindGroup(2,material.state.group);
+            for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,material.bindings.groups.get(part).group);pass.draw(part.count);}
+            continue;
+          }
+          const key=+ortho+':'+(+!!mesh.posed)+':'+(+!classifiedSurfaceWire(mesh));
+          const pipe=st.wirePipelines.get(key);if(!pipe){incomplete=true;continue;}
           pass.setPipeline(pipe);
           for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.draw(part.count);}
         }
@@ -29311,9 +29375,16 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         });
         idPass.setBindGroup(0,r.bindGroup);
         for(const mesh of scene.meshes){
-          if(!meshVisible(mesh)||materialTransparent(mesh)||pluginSurfaceStyle(mesh))continue;
+          if(!meshVisible(mesh)||pluginSurfaceStyle(mesh))continue;
           const parts=mesh.parts||[mesh];
           if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
+          if(materialTransparent(mesh)){
+            const material=materialMeshGPU(r,mesh),pipe=material?.state.group?materialOverlayPipeline(r,mesh,'id'):null;
+            if(!pipe){incomplete=true;continue;}
+            idPass.setPipeline(pipe);idPass.setBindGroup(2,material.state.group);
+            for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;idPass.setBindGroup(1,material.bindings.groups.get(part).group);idPass.draw(part.count);}
+            continue;
+          }
           idPass.setPipeline(meshPipelines(r,mesh).idPipeline);
           for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;idPass.setBindGroup(1,part.shadingBindGroup);idPass.draw(part.count);}
         }
@@ -29330,25 +29401,26 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const tPass=encoder.beginRenderPass({colorAttachments:[{view:overlayTex.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthReadOnly:true}});
         tPass.setBindGroup(0,r.bindGroup);
         for(const mesh of hasTransparent){
-          const key=+ortho+':'+(+!!mesh.posed)+':'+(+!classifiedSurfaceWire(mesh));
-          const pipe=st.transPipelines.get(key);if(!pipe)continue;
           const parts=mesh.parts||[mesh];
           if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
-          tPass.setPipeline(pipe);
-          for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;tPass.setBindGroup(1,part.shadingBindGroup);tPass.draw(part.count);}
+          const material=materialMeshGPU(r,mesh),pipe=material?.state.group?materialOverlayPipeline(r,mesh,'transparent'):null;
+          if(!pipe){incomplete=true;continue;}
+          tPass.setPipeline(pipe);tPass.setBindGroup(2,material.state.group);
+          for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;tPass.setBindGroup(1,material.bindings.groups.get(part).group);tPass.draw(part.count);}
         }
         tPass.end();
       }
       renderPluginSurfaceStyles(r,encoder,overlayTex,depthTex);
       renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,overlayTex,depthTex));
       renderPluginSurfaceStyles(r,encoder,overlayTex,depthTex,true);
-      return true;
+      return !incomplete;
     }
     function compositePassiveRenderOverlay(i,r,v,c,color,width,height){
       const activeCanvas=canvas,activeIndex=viewIndex,savedCam=captureCamera(),activeShading=shadingMode,d=r.device;
       try{
         canvas=c;viewIndex=i;shadingMode=viewShadings[i];restoreCamera(viewStates[i]||defaultCamera(i));
-        const state=viewStates[i]||defaultCamera(i),overlayKey=[viewRevision,poseEpoch,selectionGeneration,width,height,shadingMode,elementMode,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0,...state].join(':');
+        const matState=materialLibraryGPU(r);
+        const state=viewStates[i]||defaultCamera(i),overlayKey=[viewRevision,poseEpoch,selectionGeneration,appearanceRevision,matState.signature,width,height,shadingMode,elementMode,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0,...state].join(':');
         if(!v.depth||v.width!==width||v.height!==height){
           releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);
           v.wireIds=v.wirePlanes=v.pluginDepth=v.renderOverlay=null;v.width=width;v.height=height;
@@ -29594,20 +29666,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           }
           @fragment fn renderOverlayFS(input:Output)->WireSurfaceOutput{
             let color=select(vec4f(0),renderOverlayWire(input.bary,input.position.w,input.wireEdges),params.modes.y>=2.);
-            let id=select(input.triangleID,0u,objectFrame.flags.y!=0u);
-            if(plainSurfaceWire){return WireSurfaceOutput(color,id,fragmentSurfacePlane(input.viewPosition));}
-            return WireSurfaceOutput(color,id,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));
-          }
-          @fragment fn renderOverlayTransparentFS(input:Output)->@location(0) vec4f{
-            var out=vec4f(0);
-            if(params.modes.y>=2.){out=renderOverlayWire(input.bary,input.position.w,input.wireEdges);}
-            if(!plainSurfaceWire){
-              let cov=surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,params.modes.y==3.);
-              let c=surfaceCageColor(vec3f(0),input.bary,input.wireEdges,input.position.w,(input.triangleID-faceBase.x)*3u);
-              if((input.wireEdges&8u)!=0u&&cov.y>0.){out=vec4f(c,cov.y);}
-            }
-            if(out.a<=0.){discard;}
-            return out;
+            if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}
+            return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));
           }
           fn projectWorld(point:vec3f)->vec4f {
             let p=frameCameraRelative(params.rotation)*vec4f((point-params.centerScale.xyz)*params.centerScale.w,1);
@@ -29976,7 +30036,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         const cam=cameraConfig(),cfg=pathTracerSettings(cam),pt=ensurePathTracer(r),state=materialLibraryGPU(r);
         const interactive=isViewInteractiveMotion(viewIndex);
         const surfaceKey=elementMode!=='object'||r.surfaceRequested||r.surfaceScene===scene||ptWithOverlays?[perspectiveFov,cameraRoll,viewIndex,zoom,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':'):null;
-        const overlayKey=ptWithOverlays?[viewIndex,width,height,shadingMode,elementMode,viewRevision,poseEpoch,selectionGeneration,surfaceKey,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0].join(':'):'';
+        const overlayKey=ptWithOverlays?[viewIndex,width,height,shadingMode,elementMode,viewRevision,poseEpoch,selectionGeneration,appearanceRevision,state.signature,surfaceKey,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0].join(':'):'';
         const full=sceneFrameDirty||r.cachedScene!==scene;
         const overlayDirty=ptWithOverlays&&(full||!r.renderOverlay||r.renderOverlayScene!==scene||r.renderOverlayKey!==overlayKey);
         const vi=pt.viewInfo(viewIndex);
@@ -33898,6 +33958,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const grouped of [true,false])for(const wire of [false,true])for(const orthographic of [false,true]){
         const options={orthographic,wire,grouped,uv:true};
         requestMaterialPipeline(r,materialProgram(r),{...options,mapped:true});
+        requestMaterialOverlayPipeline(r,materialProgram(r),{orthographic,grouped,uv:true,mode:wire?'wire':'id',mapped:true});
         requestMaterialReplicaPipeline(r,{...options,plain:true});
         if(!wire)requestMaterialReplicaPipeline(r,{...options,plain:true,preview:true});
       }

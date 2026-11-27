@@ -556,6 +556,147 @@ export async function cameraPathTracerChecks(page){
       if(prevViewport)await page.setViewportSize(prevViewport);
     }
 
+    // 13. Render shading overlays honor binary alpha cutout & mixed opaque/transparent materials (Tree, Car, glass).
+    {
+    await call('scene.new');
+    const oak=await call('scene.create',{type:'tree',name:'OverlayOak'});
+    const behindBox=await call('scene.create',{type:'cube',name:'BehindBox',params:{'size x':5000,'size y':8000,'size z':5000}});
+    await call('scene.select',{ids:[behindBox.hash]});
+    await call('transform.set',{channel:'position',axis:0,value:-3500});
+    await call('transform.set',{channel:'position',axis:2,value:1500});
+    // Dense polygon wall behind the tree so polygon wireframe crosses behind trunk & crown.
+    const behindWall=await call('mesh.create',{name:'BehindWall',vertices:[-1200,0,1200,-600,0,1200,0,0,1200,600,0,1200,-1200,2500,1200,-600,2500,1200,0,2500,1200,600,2500,1200,-1200,5000,1200,-600,5000,1200,0,5000,1200,600,5000,1200],indices:[0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,4,5,9,4,9,8,5,6,10,5,10,9,6,7,11,6,11,10]});
+    const behindSpline=await call('scene.create',{type:'circle',name:'BehindSpline',params:{diameter:6000}});
+    await call('scene.select',{ids:[behindSpline.hash]});
+    await call('transform.set',{channel:'position',axis:0,value:-1500});
+    await call('transform.set',{channel:'position',axis:1,value:1200});
+    await call('transform.set',{channel:'position',axis:2,value:1500});
+    await call('scene.create',{type:'render',name:'TreeCam',params:{renderer:'Path tracer',realtime:'on',samples:4}});
+    await call('scene.select',{ids:[]});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid-wire',focus:oak.hash});
+    await call('diagnostics.frame',{frames:2});
+
+    const readOverlayIds=hashes=>page.evaluate(async list=>{
+      const r=frameEngine.renderer,rb=Math.ceil(r.width*4/256)*256,stride=rb/4;
+      const buf=r.device.createBuffer({size:rb*r.height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+      const enc=r.device.createCommandEncoder();
+      enc.copyTextureToBuffer({texture:r.triangleIds},{buffer:buf,bytesPerRow:rb},[r.width,r.height]);
+      r.device.queue.submit([enc.finish()]);await buf.mapAsync(GPUMapMode.READ);
+      const ids=new Uint32Array(buf.getMappedRange()),out={};
+      const meshes=list.map(h=>frameEngine.scene.meshes.find(m=>m.hashId===h));
+      for(const h of list)out[h]=0;
+      for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++){
+        const id=ids[y*stride+x];if(!id)continue;
+        for(let k=0;k<meshes.length;k++){const m=meshes[k];if(m&&id>m.faceBase&&id<=m.faceBase+m.triangleCount){out[list[k]]++;break;}}
+      }
+      buf.unmap();buf.destroy();return out;
+    },hashes);
+
+    const solidTreeIds=await readOverlayIds([oak.hash,behindBox.hash,behindWall.hash]);
+    const treeProbes=await page.evaluate(async treeHash=>{
+      const r=frameEngine.renderer,tm=frameEngine.scene.meshes.find(m=>m.hashId===treeHash);
+      const rb=Math.ceil(r.width*4/256)*256,stride=rb/4;
+      const buf=r.device.createBuffer({size:rb*r.height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+      const enc=r.device.createCommandEncoder();
+      enc.copyTextureToBuffer({texture:r.triangleIds},{buffer:buf,bytesPerRow:rb},[r.width,r.height]);
+      r.device.queue.submit([enc.finish()]);await buf.mapAsync(GPUMapMode.READ);
+      const ids=new Uint32Array(buf.getMappedRange());
+      let minY=r.height,maxY=0;
+      for(let y=2;y<r.height-2;y++)for(let x=2;x<r.width-2;x++){
+        const id=ids[y*stride+x];if(id>tm.faceBase&&id<=tm.faceBase+tm.triangleCount){if(y<minY)minY=y;if(y>maxY)maxY=y;}
+      }
+      const trunkMin=maxY-(maxY-minY)*.28,trunkMax=maxY-(maxY-minY)*.08,crownMax=minY+(maxY-minY)*.45;
+      const trunkInt=[],crownInt=[],trunkEdge=[];
+      for(let y=3;y<r.height-3;y++)for(let x=3;x<r.width-3;x++){
+        const id=ids[y*stride+x];if(!(id>tm.faceBase&&id<=tm.faceBase+tm.triangleCount))continue;
+        let same=true;
+        for(let dy=-2;dy<=2&&same;dy++)for(let dx=-2;dx<=2;dx++)if(ids[(y+dy)*stride+(x+dx)]!==id){same=false;break;}
+        if(same){
+          if(y>=trunkMin&&y<=trunkMax)trunkInt.push([x,y]);
+          else if(y<=crownMax)crownInt.push([x,y]);
+        }else if(y>=trunkMin&&y<=trunkMax){
+          const right=ids[y*stride+x+1];
+          if(right>tm.faceBase&&right<=tm.faceBase+tm.triangleCount&&right!==id)trunkEdge.push([x,y]);
+        }
+      }
+      buf.unmap();buf.destroy();
+      const rect=r.context.canvas.getBoundingClientRect();
+      const toCss=([x,y])=>[rect.left+(x+.5)*rect.width/r.width,rect.top+(y+.5)*rect.height/r.height];
+      const pick=(arr,n)=>Array.from({length:Math.min(n,arr.length)},(_,i)=>toCss(arr[Math.floor(i*arr.length/Math.min(n,arr.length))]));
+      return {trunk:pick(trunkInt,20),crown:pick(crownInt,10),edge:pick(trunkEdge,16)};
+    },oak.hash);
+
+    await call('view.set',{shading:'render'});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const treePts=[...treeProbes.trunk,...treeProbes.crown,...treeProbes.edge];
+    const renderPlainPx=(await call('diagnostics.pixels',{points:treePts})).colors;
+    await call('view.set',{shading:'render-wire'});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const renderWireTreeIds=await readOverlayIds([oak.hash,behindBox.hash,behindWall.hash]);
+    const renderWirePx=(await call('diagnostics.pixels',{points:treePts})).colors;
+    await call('view.set',{shading:'render-isoparms'});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const renderIsoTreeIds=await readOverlayIds([oak.hash,behindBox.hash,behindWall.hash]);
+    const renderIsoPx=(await call('diagnostics.pixels',{points:treePts})).colors;
+
+    const interiorCount=treeProbes.trunk.length+treeProbes.crown.length;
+    const maxPxDiff=(a,b,s,e)=>Math.max(0,...a.slice(s,e).map((c,i)=>Math.max(Math.abs(c[0]-b[s+i][0]),Math.abs(c[1]-b[s+i][1]),Math.abs(c[2]-b[s+i][2]))));
+    const treeIntWireDiff=maxPxDiff(renderPlainPx,renderWirePx,0,interiorCount);
+    const treeIntIsoDiff=maxPxDiff(renderPlainPx,renderIsoPx,0,interiorCount);
+    const treeEdgeWireDiff=maxPxDiff(renderPlainPx,renderWirePx,interiorCount,treePts.length);
+    const treeEdgeIsoDiff=maxPxDiff(renderPlainPx,renderIsoPx,interiorCount,treePts.length);
+    check('Render+Wire and Render+Isoparms occlude behind-tree and back-side tree wireframes identically to Solid',
+      interiorCount>=15&&treeProbes.edge.length>=8&&
+      solidTreeIds[oak.hash]>1000&&renderWireTreeIds[oak.hash]===solidTreeIds[oak.hash]&&renderIsoTreeIds[oak.hash]===solidTreeIds[oak.hash]&&
+      renderWireTreeIds[behindBox.hash]===solidTreeIds[behindBox.hash]&&renderWireTreeIds[behindWall.hash]===solidTreeIds[behindWall.hash]&&
+      treeIntWireDiff===0&&treeIntIsoDiff===0&&treeEdgeWireDiff>8&&treeEdgeIsoDiff>8,
+      {solidTreeIds,renderWireTreeIds,renderIsoTreeIds,treeIntWireDiff,treeIntIsoDiff,treeEdgeWireDiff,treeEdgeIsoDiff});
+
+    // Seasonal foliage update refreshes cached Render overlay cutout mask
+    const summerTreeIds=renderIsoTreeIds[oak.hash];
+    await call('scene.update',{id:oak.hash,params:{'day of year':16}});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const winterTreeIds=(await readOverlayIds([oak.hash]))[oak.hash];
+    // Orthographic Render+Wire also writes alpha-tested Tree IDs
+    await call('view.set',{index:1,single:true,mode:'object',shading:'render-wire',focus:oak.hash});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const orthoTreeIds=(await readOverlayIds([oak.hash]))[oak.hash];
+    check('Render overlay refreshes cutout mask on Tree seasonal change and works in Orthographic projection',
+      winterTreeIds>0&&winterTreeIds<summerTreeIds*0.75&&orthoTreeIds>500,
+      {summerTreeIds,winterTreeIds,orthoTreeIds});
+
+    // Mixed opaque+glass Stock Car and pure refractive glass Cube in Render+Wire
+    await call('scene.new');
+    const stockCar=await call('scene.create',{type:'car',name:'OverlayCar'});
+    const glassCube=await call('scene.create',{type:'cube',name:'GlassCube',params:{'size x':1200,'size y':1200,'size z':1200}});
+    await call('scene.select',{ids:[glassCube.hash]});
+    await call('transform.set',{channel:'position',axis:0,value:3200});
+    const glassMat=await call('material.create',{name:'ClearGlass',params:{opac:100,rough:5,ior:1.5}});
+    await call('material.assign',{id:glassCube.hash,material:glassMat.uid});
+    await call('scene.create',{type:'render',name:'CarCam',params:{renderer:'Path tracer',realtime:'on',samples:4}});
+    await call('scene.select',{ids:[]});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid-wire',focus:stockCar.hash});
+    await call('diagnostics.frame',{frames:2});
+    const carSolidIds=await readOverlayIds([stockCar.hash,glassCube.hash]);
+    await call('view.set',{shading:'render-wire'});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const carRenderIds=await readOverlayIds([stockCar.hash,glassCube.hash]);
+    // Verify refractive glass cube still gets wireframe overlay in render-wire despite 0 opaque IDs
+    await call('view.set',{index:0,single:true,mode:'object',shading:'render',focus:glassCube.hash});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const glassEdgeScreen=(await call('view.project',{id:glassCube.hash,point:[600,1200,1200]})).screen;
+    const glassRing=[-1,0,1].flatMap(dx=>[-1,0,1].map(dy=>[glassEdgeScreen[0]+dx,glassEdgeScreen[1]+dy]));
+    const glassPlainPx=(await call('diagnostics.pixels',{points:glassRing})).colors;
+    await call('view.set',{shading:'render-wire'});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=4,{},{timeout:15000});
+    const glassWirePx=(await call('diagnostics.pixels',{points:glassRing})).colors;
+    const glassWireDiff=maxPxDiff(glassPlainPx,glassWirePx,0,glassRing.length);
+    check('Mixed opaque+glass Car occludes identically to Solid while pure refractive glass keeps Render+Wire lines',
+      carSolidIds[stockCar.hash]>5000&&carRenderIds[stockCar.hash]===carSolidIds[stockCar.hash]&&
+      carRenderIds[glassCube.hash]===0&&glassWireDiff>8,
+      {carSolidIds,carRenderIds,glassWireDiff});
+    }
+
     await call('scene.new');
     const gpu=await page.evaluate(async()=>{
       await frameEngine.renderer.device.queue.onSubmittedWorkDone();
