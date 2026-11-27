@@ -9,10 +9,10 @@ export async function filePlaybackChecks(page){
   await call('scene.new');
   check('Incremental toolbar icon is removed',await page.locator('#btnSaveInc').count()===0);
   await menu();const labels=await page.locator('#menu button').allTextContents();
-  check('Incremental Save is the second dropdown row',labels.length===7&&labels[0]==='Frame scene (.hash)'&&labels[1]==='Save incremental (+1)',labels);
+  check('Save menu lists HASH, HTML player and Incremental before the mesh formats',labels.length===8&&labels[0]==='Frame scene (.hash)'&&labels[1]==='HTML player (.html)'&&labels[2]==='Save incremental (+1)',labels);
   const current=page.locator('#menu button[aria-current=true]');
   check('Save hover highlights its actual HASH format',await current.count()===1&&await current.textContent()==='Frame scene (.hash)'&&await current.evaluate(e=>getComputedStyle(e).backgroundColor==='rgb(58, 58, 58)'));
-  await page.keyboard.press('Escape');await page.locator('#btnSave').focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Escape');await page.locator('#btnSave').focus();for(let i=0;i<=labels.indexOf('Save incremental (+1)');i++)await page.keyboard.press('ArrowDown');
   check('Incremental menu remains keyboard accessible',await page.evaluate(()=>document.activeElement.textContent==='Save incremental (+1)'));await page.keyboard.press('Escape');
   await page.evaluate(installTestSavePicker);
   await timed('First HASH Save to completed write',1500,async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__saves.length===1&&__saves[0].closed);});

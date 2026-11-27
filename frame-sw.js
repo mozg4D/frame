@@ -1,5 +1,5 @@
 // Bump with the visible application version for each published runtime release.
-const VERSION='2026 27 nov 03:00',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
+const VERSION='2026 27 nov 10:56',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
 const CORE=["index.html","manifest.webmanifest","frame-icon.svg","frame-icon-192.png","frame-icon-512.png","frame-icon-maskable-512.png","frame-hash-256.png","frame.ico"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};
@@ -30,7 +30,9 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
   // Installation is atomic: an offline client retains its previous complete shell.
   const response=await download(SHELL),html=await response.clone().text();
   if(!html.includes('name="frame-version" content="'+VERSION+'"')||!/<\/html>\s*$/i.test(html))throw Error('Frame release mismatch');
-  for(const path of CORE.filter(p=>p!=='index.html'))await cache.put(local(path),await download(local(path)));
+  await Promise.all(CORE.filter(path=>path!=='index.html').map(async path=>{
+    const url=local(path);await cache.put(url,await download(url));
+  }));
   await cache.put(SHELL,response);await self.skipWaiting();
 })()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{

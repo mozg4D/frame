@@ -10,7 +10,7 @@ export async function booleanThreadingChecks(page){
     const native=window.Worker,descriptor=Object.getOwnPropertyDescriptor(navigator,'hardwareConcurrency');
     const vertices=Float32Array.from(mesh.vertices),indices=Uint32Array.from(mesh.indices);
     const tetraPos=Float32Array.of(0,0,0,2,0,0,0,2,0,0,0,2),tetraIx=Uint32Array.of(0,2,1,0,1,3,1,2,3,2,0,3);
-    const rows=[];let cores=3,fail='',active=0,peak=0,helpers=0,created=0,side=null;
+    const rows=[];let cores=3,fail='',active=0,peak=0,helpers=0,created=0,side=null,onSceneRun;
     Object.defineProperty(navigator,'hardwareConcurrency',{configurable:true,get:()=>cores});
     window.Worker=class extends native{
       constructor(url,options){
@@ -28,6 +28,9 @@ export async function booleanThreadingChecks(page){
             setTimeout(()=>this.dispatchEvent(new ErrorEvent('error',{cancelable:true,message:'Injected helper failure'})),0);
             return;
           }
+        }
+        if(onSceneRun&&this.tracked&&!this.helper&&data.cmd==='run'){
+          onSceneRun(()=>super.postMessage(data,...rest));return;
         }
         super.postMessage(data,...rest);
       }
@@ -98,8 +101,18 @@ export async function booleanThreadingChecks(page){
       FrameGeometry.worker.clearBooleanPool();
       peak=0;created=0;
       for(const s of FrameSpline.states.values())s.signature=null;
-      FrameSpline.request();await FrameSpline.flush();
-      const sceneBatch={peak,created,pooled:active,valid:owners.every(o=>frameEngine.scene.meshes.some(m=>m.hashId===o.hash&&m.triangleCount>0))};
+      // Hold each real job until all independent owners have submitted theirs.
+      // A serial scheduler is released by the timeout and fails the overlap assertion.
+      const pending=[];let overlap=0;
+      const release=()=>{
+        if(!onSceneRun)return;
+        onSceneRun=null;overlap=pending.length;
+        for(const post of pending.splice(0))post();
+      };
+      onSceneRun=post=>{pending.push(post);if(pending.length===owners.length)release();};
+      const timeout=setTimeout(release,3000);
+      try{FrameSpline.request();await FrameSpline.flush();}finally{clearTimeout(timeout);release();}
+      const sceneBatch={overlap,peak,created,pooled:active,valid:owners.every(o=>frameEngine.scene.meshes.some(m=>m.hashId===o.hash&&m.triangleCount>0))};
       await frameAI.call('scene.new');
       return {rows,batches,mixed,idle,sceneBatch};
     }finally{
@@ -130,7 +143,7 @@ export async function booleanThreadingChecks(page){
   checks.push({name:'Dense and small jobs share the same two pooled worker slots on three logical CPUs',pass:true});
   assert.deepEqual(results.idle,{coldWorkers:2,warmWorkers:2,coldCreated:2,warmCreated:0,warmHelpers:1,warmActive:2,beforeIdleActive:2,afterIdleActive:0});
   checks.push({name:'Warm Boolean worker pool reuses coordinator and helper workers and retires them after the idle timer',pass:true});
-  assert.deepEqual(results.sceneBatch,{peak:3,created:3,pooled:3,valid:true});
+  assert.deepEqual(results.sceneBatch,{overlap:3,peak:3,created:3,pooled:3,valid:true});
   checks.push({name:'Multi-Boolean scene evaluates independent Boolean owners concurrently across available CPU cores',pass:true});
   return {pass:true,checks};
 }

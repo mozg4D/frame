@@ -12,16 +12,21 @@ export async function heavyPerformanceChecks(page,state){
  try{
   check('Heavy fixture contains exactly 100548288 triangles',state.stats.triangles===100548288,state.stats.triangles);
   const roots=state.objects.filter(n=>!n.parent).map(n=>n.hash);await call('view.set',{index:0,single:true,mode:'object'});await call('scene.select',{ids:roots});await page.evaluate(()=>frameEngine.focusSelection());await call('scene.select',{ids:[]});const camera=(await call('scene.inspect')).view.camera,rect=await page.locator('#frame-engine-canvas').boundingBox(),centers=await page.evaluate(async points=>{const out=[];for(const point of points)out.push((await frameAI.call('view.project',{point})).screen);return out;},state.objects.filter(n=>n.mesh&&n.bounds).map(n=>n.bounds.center));check('100M benchmark frames the centers of every independent mesh',centers.length===64&&centers.every(p=>p[0]>=rect.x&&p[0]<=rect.x+rect.width&&p[1]>=rect.y&&p[1]<=rect.y+rect.height),{objects:centers.length,rect});
-  // Preserve cold/warm frames in the report; steady budgets start after GPU clock/pipeline warmup.
+  // Retain enough completed frames for the upper five percent to span multiple samples.
+  // Record transitions separately, including their worst GPU frame and completion time.
+  const steadyFrames=96;
   for(const shading of ['solid','solid-wire','wireframe','isoparms','solid-isoparms']){
    console.log('[tests] 100M '+shading+' warmup, steady frames, navigation and components');
-   await call('view.set',{camera,index:0,single:true,mode:'object',shading});const warmup=await call('diagnostics.frame',{frames:60});const frames=await call('diagnostics.frame',{frames:32}),gpu=stats(frames.frames.map(f=>f.gpuMs)),cpu=stats(frames.frames.map(f=>f.cpuMs));modes[shading]={...frames,gpu,cpu,warmup,camera:(await call('scene.inspect')).view.camera};
-   check(shading+' 100M steady frame p95 avoids sporadic stalls',gpu.p95<gpu.median*1.6+5&&cpu.p95<50,{gpu,cpu});
-   // Eight samples turn p95 into the maximum. Use the same 32-frame window as
-   // steady rendering, retaining every sample and a separate worst-frame guard.
-   const original=(await call('scene.inspect')).view.camera,changed=[...original];changed[0]+=.27;changed[1]-=.12;await call('view.set',{camera:changed});const navigation=await call('diagnostics.frame',{frames:32});modes[shading].navigation=navigation;const navigationGPU=stats(navigation.frames.map(f=>f.gpuMs));check(shading+' remains stable after camera rotation',navigationGPU.p95<navigationGPU.median*1.6+5&&navigationGPU.max<100,navigationGPU);
+   await call('view.set',{camera,index:0,single:true,mode:'object',shading});const warmup=await call('diagnostics.frame',{frames:60});const frames=await call('diagnostics.frame',{frames:steadyFrames}),gpu=stats(frames.frames.map(f=>f.gpuMs)),cpu=stats(frames.frames.map(f=>f.cpuMs));modes[shading]={...frames,gpu,cpu,warmup,camera:(await call('scene.inspect')).view.camera};
+   check(shading+' 100M steady frame p95 avoids sporadic stalls',gpu.p95<gpu.median*1.6+5&&gpu.max<100&&cpu.p95<50,{gpu,cpu});
+   const original=(await call('scene.inspect')).view.camera,changed=[...original];changed[0]+=.27;changed[1]-=.12;await call('view.set',{camera:changed});const navigation=await call('diagnostics.frame',{frames:steadyFrames});modes[shading].navigation=navigation;const navigationGPU=stats(navigation.frames.map(f=>f.gpuMs));check(shading+' remains stable after camera rotation',navigationGPU.p95<navigationGPU.median*1.6+5&&navigationGPU.max<100,navigationGPU);
    const rect=await page.locator('#frame-engine-canvas').boundingBox();await page.mouse.move(rect.x+rect.width*.7,rect.y+rect.height*.3);await page.waitForTimeout(100);const before=await page.locator('#frame-engine-canvas').getAttribute('data-hover');await page.mouse.move(rect.x+rect.width*.7+15,rect.y+rect.height*.3+10);await page.waitForTimeout(50);const after=JSON.parse(await page.locator('#frame-engine-canvas').getAttribute('data-hover'));check(shading+' idle hover reuses geometry cache',after.geometryFrames===JSON.parse(before).geometryFrames,{before:JSON.parse(before),after});
-   const started=performance.now();await call('view.set',{mode:'vertex'});const elapsedMs=performance.now()-started,components=await call('diagnostics.frame',{frames:32}),componentGPU=stats(components.frames.map(f=>f.gpuMs));modes[shading].components={...components,elapsedMs,gpu:componentGPU};check(shading+' 100M component maps settle within 1 s and stay stable',elapsedMs<1000&&componentGPU.p95<componentGPU.median*1.6+5&&componentGPU.max<100,{elapsedMs,gpu:componentGPU});
+   const started=performance.now();await call('view.set',{mode:'vertex'});
+   const transition=await call('diagnostics.frame',{frames:4}),elapsedMs=performance.now()-started;
+   const components=await call('diagnostics.frame',{frames:steadyFrames}),componentGPU=stats(components.frames.map(f=>f.gpuMs));
+   const transitionGPU=stats(transition.frames.map(f=>f.gpuMs));
+   modes[shading].components={...components,transition,elapsedMs,gpu:componentGPU};
+   check(shading+' 100M component maps settle within 1 s and stay stable',elapsedMs<1000&&transitionGPU.max<100&&componentGPU.p95<componentGPU.median*1.6+5&&componentGPU.max<100,{elapsedMs,transitionGPU,gpu:componentGPU});
   }
   check('Polygon Solid Isoparms costs the same as Solid Wire without an extra edge pass',modes['solid-isoparms'].gpu.median<modes['solid-wire'].gpu.median*1.12+1,{solidWire:modes['solid-wire'].gpu,solidIsoparms:modes['solid-isoparms'].gpu});
   // Exercise the new marker pass on every logical vertex in the real 100M scene.

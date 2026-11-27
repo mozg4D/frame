@@ -30,6 +30,7 @@ export async function shaderCompileStatusChecks(page){
   await page.addInitScript(hookShaderCompile);
   await page.reload();
   await ready(page);
+  await page.waitForFunction(()=>frameEngine.shaderCompileState().active===0);
 
   await page.evaluate(()=>{
     if(frameEngine.renderer.device.adapterInfo.isFallbackAdapter)throw Error('Hardware WebGPU adapter required');

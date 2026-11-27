@@ -19,7 +19,7 @@ function fixture(html,{legacy=false,filtered=false,mode='solid-wire',classified=
   createBindGroupLayout:resource,createBindGroup:resource,createShaderModule:resource,createPipelineLayout:resource,
   createRenderPipelineAsync(descriptor){descriptors.push(descriptor);const job=Promise.resolve(resource(descriptor));pending.push(job);return job;}
  }};
- const env={renderer:r,shadingMode:mode,viewIndex:0,GPUShaderStage:{FRAGMENT:2},FrameHash:{K:{zero:'zero'}}};
+ const env={renderer:r,bendValid:()=>false,shadingMode:mode,viewIndex:0,GPUShaderStage:{FRAGMENT:2},FrameHash:{K:{zero:'zero'}}};
  const api=Function('env','ensureMaterialState','frameViewKind','importedUV','appearanceValue','polygonSet','draw','editError',`with(env){${source};return {materialPipeline,filteredSurfacePipeline,materialTransparent};}`)(env,()=>state,i=>i!==0,m=>m.uv,(uid,field)=>(field==='parameters'?parameters:maps).get(uid),id=>masks.has(id)?{}:null,()=>{},e=>errors.push(e));
  const values=(opacity=0)=>{const a=new Array(16).fill(0);a[6]=opacity;a[12]=1;return a;};
  parameters.set('opaque',values());parameters.set('mixed',values(40));maps.set('opaque',[]);maps.set('mixed',[]);

@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 27 nov 03:00">
+<meta name="frame-version" content="2026 27 nov 10:56">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -42,9 +42,10 @@ background:hsl(var(--h),var(--s),var(--l));pointer-events:none;position:relative
 .me-inp{width:100%;background:#111;border:0;border-radius:4px;height:16px;color:#aaa;font:inherit;
 padding:0 3px;outline:none;cursor:nesw-resize;user-select:none;-webkit-user-select:none;-moz-appearance:textfield;box-sizing:border-box}
 .me-inp::-webkit-outer-spin-button,.me-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.me-bottom{position:relative;margin-top:7px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;grid-template-areas:"params pal" "params tex";column-gap:1px;row-gap:6px;align-items:start;align-content:start}
+.me-bottom{position:relative;margin-top:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;grid-template-areas:"params pal" "params tex";column-gap:1px;row-gap:6px;align-items:start;align-content:start}
 .me-params{grid-area:params;display:grid;grid-template-columns:max-content 50px;column-gap:8px;row-gap:3px;align-items:center;justify-content:start;margin-top:0}
 .me-plab{white-space:nowrap}
+.me-params .me-scalar-label{grid-column:1 / 3;padding-left:0;left:0}
 .me-pal{grid-area:pal;display:grid;grid-template-columns:repeat(7,15px);grid-auto-rows:16px;width:105px;margin:0;justify-self:end}
 .me-pal .sw{width:15px;height:16px;cursor:pointer}
 .me-pal .sw:hover{outline:1px solid #fff;outline-offset:-1px}
@@ -232,10 +233,10 @@ html[data-frame-player] :is(#panel,#frame-curves,#frame-engine-handles,#frame-en
 <button class="me-tex-btn" id="btnOpacityTex" data-map="opacityMap" aria-label="Opacity texture"></button><span class="me-plab">Opacity</span><input class="me-inp" id="inpOpac" value="0.0" spellcheck="false" autocomplete="off">
 <button class="me-tex-btn" id="btnNormalTex" data-map="normalAsset" aria-label="Normal texture"></button><span class="me-plab" id="bumpLab">Normal <button id="btnNormalY" type="button" title="Normal convention: OpenGL" aria-label="Normal convention: OpenGL">+Y</button></span><input class="me-inp" id="inpBump" value="100" spellcheck="false" autocomplete="off" hidden>
 <button class="me-tex-btn" id="btnAOTex" data-map="aoAsset" aria-label="AO texture"></button><span class="me-plab" id="aoLab">AO</span><span id="aoSpace"></span>
-<span class="me-plab" style="grid-column:2" title="Index of refraction">IOR</span><input class="me-inp" id="inpIor" value="1.500" spellcheck="false" autocomplete="off">
-<span class="me-plab" style="grid-column:2" title="Diffuse transmission through a surface (%)">Translucency</span><input class="me-inp" id="inpTranslucency" value="0.0" spellcheck="false" autocomplete="off">
-<span class="me-plab" style="grid-column:2" title="Subsurface scattering weight (%)">SSS</span><input class="me-inp" id="inpSss" value="0.0" spellcheck="false" autocomplete="off">
-<span class="me-plab" style="grid-column:2" title="Mean free path in millimetres">SSS radius</span><input class="me-inp" id="inpSssRadius" value="1.00" spellcheck="false" autocomplete="off">
+<span class="me-plab me-scalar-label" title="Index of refraction">IOR</span><input class="me-inp" id="inpIor" value="1.500" spellcheck="false" autocomplete="off">
+<span class="me-plab me-scalar-label" title="Diffuse transmission through a surface (%)">Translucency</span><input class="me-inp" id="inpTranslucency" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab me-scalar-label" title="Subsurface scattering weight (%)">SSS</span><input class="me-inp" id="inpSss" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab me-scalar-label" title="Mean free path in millimetres">SSS radius</span><input class="me-inp" id="inpSssRadius" value="1.00" spellcheck="false" autocomplete="off">
 </div>
 
 </div>
@@ -1473,6 +1474,44 @@ a:r.a,b:c,ha:a?[0,0,0]:M(i[1],i[0]),hb:a?[0,0,0]:M(i[2],i[3]),sequence:r.sequenc
 t.add(r.b)):delete e.segments[n]}for(let t of e.sequences)if(t.segments=t.segments.filter(n=>e.segments[n]?.sequence===t.id),t.segments.length){let n=e.segments[t.segments[0]],r=e.segments[t.segments.at(-1)];t.first=n.a,
 t.closed=t.segments.length>=2&&r.b===n.a}else t.first=null,t.closed=!1;e.sequences=e.sequences.filter(e=>e.segments.length);for(let n of Object.keys(e.vertices))t.has(n)||delete e.vertices[n]
 ;if(e.freeHandles)for(let t of Object.keys(e.freeHandles))e.vertices[t]||delete e.freeHandles[t];return e}function Y(e,t){let n=P(e,t.id);return t.reversed?n.slice().reverse():n}
+// Authored pulley profiles fit each measured flank with fixed endpoint tangents.
+function fitPulleyFlank(points,startTangent,endTangent){
+  const start=points[0],end=points.at(-1),lengths=[0];
+  for(let i=1;i<points.length;i++)lengths.push(lengths[i-1]+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]));
+  const total=lengths.at(-1),chord=Math.hypot(end[0]-start[0],end[1]-start[1]);
+  if(total<=1e-9)return [start,start,end,end];
+  let parameters=lengths.map(length=>length/total),best=null,bestError=Infinity;
+  for(let iteration=0;iteration<6;iteration++){
+    let aa=0,ab=0,bb=0,ar=0,br=0;
+    for(let i=0;i<points.length;i++){
+      const t=parameters[i],s=1-t,u=3*s*s*t,v=3*s*t*t;
+      for(let k=0;k<2;k++){
+        const a=u*startTangent[k],b=-v*endTangent[k];
+        const residual=points[i][k]-(s*s*s+u)*start[k]-(v+t*t*t)*end[k];
+        aa+=a*a;ab+=a*b;bb+=b*b;ar+=a*residual;br+=b*residual;
+      }
+    }
+    const det=aa*bb-ab*ab,minimum=Math.max(1e-9,1e-6*chord);
+    let a=chord/3,b=chord/3;
+    if(Math.abs(det)>1e-12){a=(ar*bb-br*ab)/det;b=(aa*br-ab*ar)/det;}
+    if(a<minimum||b<minimum||a>2*total||b>2*total)a=b=chord/3;
+    const curve=[start,start.map((x,k)=>x+a*startTangent[k]),end.map((x,k)=>x-b*endTangent[k]),end];
+    const next=[0];let error=0,monotone=true;
+    for(let i=1;i+1<points.length;i++){
+      const t=parameters[i],{p,d,dd}=X.jet(curve,t),dx=p[0]-points[i][0],dy=p[1]-points[i][1];
+      error=Math.max(error,dx*dx+dy*dy);
+      const denominator=d[0]*d[0]+d[1]*d[1]+dx*dd[0]+dy*dd[1];
+      const value=Math.abs(denominator)>1e-12?t-(dx*d[0]+dy*d[1])/denominator:t;
+      const candidate=Math.max(0,Math.min(1,value));
+      if(candidate<=next.at(-1)+1e-7)monotone=false;
+      next.push(candidate);
+    }
+    if(error<bestError){best=curve;bestError=error;}
+    if(!monotone)break;
+    parameters=[...next,1];
+  }
+  return best;
+}
 const X=(()=>{
   const dot=(a,b)=>{let value=0;for(let k=0;k<a.length;k++)value+=a[k]*b[k];return value;},sub=(a,b)=>{const value=new Array(a.length);for(let k=0;k<a.length;k++)value[k]=a[k]-b[k];return value;};
   const gauss=[
@@ -2044,8 +2083,8 @@ const n=Je[t.profile]||Je.GT2,r=Math.max(8,Math.round(+t.teeth||20)),s=fe/r,o=r*
 const r=t-1-s,o=.5*(Math.abs(e[s][0])+Math.abs(e[r][0])),a=.5*(e[s][1]+e[r][1]);n[s]=[-o,a],n[r]=[o,a]}return t%2&&(n[r]=[0,+e[r][1]]),n
 }(n.points),l=Math.floor(i.length/2),c=Math.abs(i[0][0]),u=Math.sqrt(Math.max(a*a-c*c,a*a*1e-4)),h=function(e,t){const n=e.length;if(n<2)return[];const r=Math.max(...e.map(e=>e[1])),s=[0,.55,1],o=[0];for(const t of s.slice(1,-1)){
 const a=r*t;let i=1,l=1/0;for(let t=1;t<n-1;t++){const n=Math.abs(e[t][1]-a);n<l&&(l=n,i=t)}i=Math.max(o.at(-1)+1,Math.min(n-(s.length-o.length),i)),o.push(i)}o.push(n-1);const a=t=>{if(0===t||t===n-1)return[1,0]
-;let r=e[Math.max(0,t-1)],s=e[Math.min(n-1,t+1)],o=s[0]-r[0],a=s[1]-r[1],i=Math.hypot(o,a)||1;return[o/i,a/i]},i=[];for(let n=0;n+1<o.length;n++){const r=o[n],s=o[n+1],l=e.slice(r,s+1),c=a(r),u=a(s),h=Ye(l,1/0,c,[-u[0],-u[1]])
-;let f=h?.curve||[e[r].slice(),e[r].slice(),e[s].slice(),e[s].slice()];const d=Math.hypot(f[3][0]-f[0][0],f[3][1]-f[0][1]),p=Math.max(d/3,Math.min(.62*d,Math.max(.42*d,.28*t))),m=(e,t)=>{let n=t[0]-e[0],r=t[1]-e[1],s=Math.hypot(n,r)
+;let r=e[Math.max(0,t-1)],s=e[Math.min(n-1,t+1)],o=s[0]-r[0],a=s[1]-r[1],i=Math.hypot(o,a)||1;return[o/i,a/i]},i=[];for(let n=0;n+1<o.length;n++){const r=o[n],s=o[n+1],l=e.slice(r,s+1),c=a(r),u=a(s);
+let f=fitPulleyFlank(l,c,u);const d=Math.hypot(f[3][0]-f[0][0],f[3][1]-f[0][1]),p=Math.max(d/3,Math.min(.62*d,Math.max(.42*d,.28*t))),m=(e,t)=>{let n=t[0]-e[0],r=t[1]-e[1],s=Math.hypot(n,r)
 ;if(s>p&&s>1e-12){const t=p/s;return[e[0]+n*t,e[1]+r*t]}return t.slice()};f=[f[0].slice(),m(f[0],f[1]),m(f[3],f[2]),f[3].slice()],i.push(Object.assign(f,{soft:!0}))}return i
 }(i.slice(0,l+1),n.pitch),f=h.slice().reverse().map(e=>Object.assign(e.slice().reverse().map(e=>[-e[0],e[1]]),{soft:!0})),d=[...h,...f],p=[],m=(e,t)=>{const n=[Math.cos(t),Math.sin(t)],r=[-Math.sin(t),Math.cos(t)],s=u-e[1]
 ;return[n[0]*s+r[0]*e[0],n[1]*s+r[1]*e[0],0]};for(let e=0;e<r;e++){const t=e*s;for(const e of d)p.push(Object.assign(e.map(e=>m(e,t)),{soft:!0}));const n=m(i.at(-1),t),r=m(i[0],t+s);let o=Math.atan2(n[1],n[0]),l=Math.atan2(r[1],r[0])
@@ -8951,13 +8990,15 @@ fn cubeWeights(n: vec3f) -> vec3f {
   let w = smoothstep(vec3f(m - 0.025), vec3f(m), a);
   return w / max(1e-6, w.x + w.y + w.z);
 }
-fn cubeAxisUV(p: vec3f, n: vec3f, axis: u32) -> vec2f {
-  if (axis == 0u) { return vec2f(select(-p.z, p.z, n.x < 0.0), -p.y) + 0.5; }
-  if (axis == 1u) { return vec2f(p.x, select(p.z, -p.z, n.y < 0.0)) + 0.5; }
-  return vec2f(select(p.x, -p.x, n.z < 0.0), -p.y) + 0.5;
+fn cubeAxisDelta(p: vec3f, n: vec3f, axis: u32) -> vec2f {
+  if (axis == 0u) { return vec2f(select(-p.z, p.z, n.x < 0.0), -p.y); }
+  if (axis == 1u) { return vec2f(p.x, select(p.z, -p.z, n.y < 0.0)); }
+  return vec2f(select(p.x, -p.x, n.z < 0.0), -p.y);
 }
-fn projPoint(projOff: u32, p: vec3f) -> vec3f {
-  let p4 = vec4f(p, 1.0);
+fn cubeAxisUV(p: vec3f, n: vec3f, axis: u32) -> vec2f {
+  return cubeAxisDelta(p, n, axis) + 0.5;
+}
+fn projectMapping(projOff: u32, p4: vec4f) -> vec3f {
   let r0 = vec4f(bitcast<f32>(uvFaceProj[projOff]), bitcast<f32>(uvFaceProj[projOff+1u]), bitcast<f32>(uvFaceProj[projOff+2u]), bitcast<f32>(uvFaceProj[projOff+3u]));
   let r1 = vec4f(bitcast<f32>(uvFaceProj[projOff+4u]), bitcast<f32>(uvFaceProj[projOff+5u]), bitcast<f32>(uvFaceProj[projOff+6u]), bitcast<f32>(uvFaceProj[projOff+7u]));
   let r2 = vec4f(bitcast<f32>(uvFaceProj[projOff+8u]), bitcast<f32>(uvFaceProj[projOff+9u]), bitcast<f32>(uvFaceProj[projOff+10u]), bitcast<f32>(uvFaceProj[projOff+11u]));
@@ -9023,7 +9064,7 @@ fn alphaTestHit(instBase: u32, m0: vec4u, m1: vec4u, origFace: u32, localPos: ve
     var cp = localPos;
     var cn = vec3f(0.0, 1.0, 0.0);
     if (m1.z != 0xffffffffu) {
-      cp = projPoint(m1.z, localPos);
+      cp = projectMapping(m1.z, vec4f(localPos, 1.0));
       cn = projNormal(m1.z, cn);
     }
     if (maps.x > 0.0 && (opts.x != 1.0 || sharedAlpha)) {
@@ -9506,6 +9547,18 @@ struct SurfaceMat {
   flags: u32,
 };
 
+fn perturbHitNormal(n: vec3f, e1: vec3f, e2: vec3f, uv1: vec2f, uv2: vec2f, q: vec3f, strength: f32) -> vec3f {
+  let det = uv1.x * uv2.y - uv1.y * uv2.x;
+  if (abs(det) <= 1e-12) { return n; }
+  let tRaw = (e1 * uv2.y - e2 * uv1.y) / det;
+  let bRaw = (e2 * uv1.x - e1 * uv2.x) / det;
+  let ortho = tRaw - n * dot(n, tRaw);
+  if (dot(ortho, ortho) <= 1e-20) { return n; }
+  let t = normalize(ortho);
+  let b = cross(n, t) * select(-1.0, 1.0, dot(cross(n, t), bRaw) > 0.0);
+  return normalize(t * (q.x * strength) + b * (q.y * strength) + n * max(0.05, q.z));
+}
+
 fn evalSurface(hit: HitInfo, rayD: vec3f, outWorldPos: ptr<function, vec3f>, outPrevPos: ptr<function, vec3f>, outStableId: ptr<function, u32>) -> SurfaceMat {
   let ib = hit.instIdx * 11u;
   let m0 = instMeta0(ib);
@@ -9562,7 +9615,7 @@ fn evalSurface(hit: HitInfo, rayD: vec3f, outWorldPos: ptr<function, vec3f>, out
     uvArr = getTriUVs(m0.z, origFace);
     uv = uvArr[0] * (1.0 - hit.u - hit.v) + uvArr[1] * hit.u + uvArr[2] * hit.v;
   } else if (m1.z != 0xffffffffu) {
-    cp = projPoint(m1.z, localPos);
+    cp = projectMapping(m1.z, vec4f(localPos, 1.0));
     cn = projNormal(m1.z, nsLocal);
   }
 
@@ -9593,31 +9646,29 @@ fn evalSurface(hit: HitInfo, rayD: vec3f, outWorldPos: ptr<function, vec3f>, out
     }
     // Tangent-space normal map (explicit or Frame's auto-derived normal atlas layer)
     if (extra.z > 0.0 && surf.w != 0.0) {
+      let edge1 = instWorldDir(ib, e1);
+      let edge2 = instWorldDir(ib, e2);
       if (hasUV) {
         let q = (textureSampleLevel(matRawAtlas, matSampler, uv, i32(extra.z), 0.0).rgb * 2.0 - 1.0) * vec3f(1.0, nOpts.x, 1.0);
-        let duv1 = uvArr[1] - uvArr[0];
-        let duv2 = uvArr[2] - uvArr[0];
-        let detUV = duv1.x * duv2.y - duv1.y * duv2.x;
-        if (abs(detUV) > 1e-10) {
-          let e1w = instWorldDir(ib, e1);
-          let e2w = instWorldDir(ib, e2);
-          let tRaw = (e1w * duv2.y - e2w * duv1.y) / detUV;
-          let bRaw = (e2w * duv1.x - e1w * duv2.x) / detUV;
-          let tOrtho = tRaw - ns * dot(ns, tRaw);
-          if (dot(tOrtho, tOrtho) > 1e-12) {
-            let T = normalize(tOrtho);
-            let B = cross(ns, T) * select(-1.0, 1.0, dot(cross(ns, T), bRaw) > 0.0);
-            ns = normalize(T * (q.x * surf.w) + B * (q.y * surf.w) + ns * max(0.05, q.z));
+        ns = perturbHitNormal(ns, edge1, edge2, uvArr[1] - uvArr[0], uvArr[2] - uvArr[0], q, surf.w);
+      } else {
+        var mapEdge1 = e1;
+        var mapEdge2 = e2;
+        if (m1.z != 0xffffffffu) {
+          mapEdge1 = projectMapping(m1.z, vec4f(e1, 0.0));
+          mapEdge2 = projectMapping(m1.z, vec4f(e2, 0.0));
+        }
+        let weights = cubeWeights(cn);
+        var blended = vec3f(0.0);
+        for (var axis = 0u; axis < 3u; axis++) {
+          if (weights[axis] > 0.0) {
+            let uvAxis = cubeAxisUV(cp, cn, axis);
+            let q = (textureSampleLevel(matRawAtlas, matSampler, uvAxis, i32(extra.z), 0.0).rgb * 2.0 - 1.0) * vec3f(1.0, -nOpts.x, 1.0);
+            let mapped = perturbHitNormal(ns, edge1, edge2, cubeAxisDelta(mapEdge1, cn, axis), cubeAxisDelta(mapEdge2, cn, axis), q, surf.w);
+            blended += weights[axis] * mapped;
           }
         }
-      } else {
-        let w = cubeWeights(cn);
-        let onb = makeONB(ns);
-        var qSum = vec3f(0.0);
-        if (w.x > 0.0) { qSum += (textureSampleLevel(matRawAtlas, matSampler, cubeAxisUV(cp, cn, 0u), i32(extra.z), 0.0).rgb * 2.0 - 1.0) * w.x; }
-        if (w.y > 0.0) { qSum += (textureSampleLevel(matRawAtlas, matSampler, cubeAxisUV(cp, cn, 1u), i32(extra.z), 0.0).rgb * 2.0 - 1.0) * w.y; }
-        if (w.z > 0.0) { qSum += (textureSampleLevel(matRawAtlas, matSampler, cubeAxisUV(cp, cn, 2u), i32(extra.z), 0.0).rgb * 2.0 - 1.0) * w.z; }
-        ns = normalize(onb * vec3f(qSum.x * surf.w, -qSum.y * nOpts.x * surf.w, max(0.1, qSum.z)));
+        if (dot(blended, blended) > 1e-20) { ns = normalize(blended); }
       }
     }
   }
@@ -28179,12 +28230,10 @@ fn foreignVisible(input:Line,p:vec2i,depth:f32)->bool{
 }
 fn lineVisible(input:Line)->bool{let p=vec2i(input.position.xy);let depth=textureLoad(visibleDepth,p,0);let current=textureLoad(visibleFaces,p,0).x;let sameOwner=lineOwns(current,input.base,input.instance);let ndc=vec2f(input.position.x/c.frame.x*2.-1.,1.-input.position.y/c.frame.y*2.);let guard=lineGuard();if((incident(current,input.edge,input.base,true,input.instance)&&(!guard||planeVisible(current,ndc,depth,input.base,input.instance)))||(!sameOwner&&guard&&input.position.z<depth)){return true;}if(!sameOwner&&!guard){return foreignVisible(input,p,depth);}let offsets=array<vec2i,4>(vec2i(-1,0),vec2i(1,0),vec2i(0,-1),vec2i(0,1));for(var i=0;i<4;i++){let q=p+offsets[i];if(all(q>=vec2i(0))&&all(q<vec2i(c.frame.xy))){let id=textureLoad(visibleFaces,q,0).x;if(incident(id,input.edge,input.base,false,input.instance)&&select(foreignVisible(input,p,depth),planeVisible(id,ndc,depth,input.base,input.instance),guard)){return true;}}}return false;}
 `;
-    async function ensureNativeSurfaceLines(r){
+    async function createNativeSurfaceLines(device,lineTargets){
       // Keep the complete one-pixel stroke outside triangle coverage. Visible incident
       // faces certify its own surface; unrelated surfaces still occlude it at true depth.
-      if(r.nativeSurfaceLines)return r.nativeSurfaceLines;if(r.nativeSurfaceLinesInit)return r.nativeSurfaceLinesInit;
-      return r.nativeSurfaceLinesInit=(async()=>{
-        const source=`${CAMERA_RELATIVE_WGSL}${PAGED_SCALAR_WGSL}
+      const source=`${CAMERA_RELATIVE_WGSL}${PAGED_SCALAR_WGSL}
 override nativeInstances:bool=false;${NATIVE_LINE_GLOBALS}
 @group(1) @binding(0) var<storage,read> positions:array<f32>;@group(1) @binding(1) var<storage,read> lines:array<vec2u>;@group(1) @binding(2) var<uniform> f:ObjectFrame;@group(1) @binding(3) var<uniform> draw:array<vec4u,2>;@group(1) @binding(4) var pages:texture_2d_array<u32>;@group(1) @binding(5) var<storage,read> splineEdges:array<u32>;@group(1) @binding(6) var<storage,read> aliases:array<u32>;@group(1) @binding(7) var<storage,read> normals:array<vec2u>;
 @group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>;
@@ -28206,13 +28255,18 @@ fn lineGuard()->bool{return draw[1].y!=0u;}
 ${NATIVE_LINE_VISIBILITY}
 fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(input.color,1);}
 @fragment fn fs(input:Line)->@location(0) vec4f{return lineColor(input);}
-`;const module=r.device.createShaderModule({label:'native visible surface lines',code:source});
-        const info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.filter(m=>m.type==='error').map(m=>m.lineNum+': '+m.message).join('; '));
-        const globalLayout=r.device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'uint'}},{binding:2,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'depth'}},{binding:3,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'unfilterable-float'}}]}),meshLayout=r.device.createBindGroupLayout({entries:[...[0,1,5,6,7].map(binding=>({binding,visibility:binding===1||binding===5?GPUShaderStage.VERTEX:binding===6||binding===7?GPUShaderStage.FRAGMENT:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}})),...[2,3].map(binding=>({binding,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'uniform'}})),{binding:4,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}]}),instanceLayout=r.device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}}]}),layout=r.device.createPipelineLayout({bindGroupLayouts:[globalLayout,meshLayout,instanceLayout]});
-        const pipeline=await r.device.createRenderPipelineAsync({label:'native visible surface lines',layout,vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}});
-        const instancePipeline=await r.device.createRenderPipelineAsync({label:'native instanced surface lines',layout,vertex:{module,entryPoint:'vs',constants:{nativeInstances:true}},fragment:{module,entryPoint:'fs',constants:{nativeInstances:true},targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}});
-        if(renderer!==r||r.dead)return null;const emptyFrames=makeGPUBuffer(r.device,{label:'unused native line instances',size:128,usage:GPUBufferUsage.STORAGE}),emptyInstances=r.device.createBindGroup({layout:instanceLayout,entries:[{binding:0,resource:{buffer:emptyFrames}}]});return r.nativeSurfaceLines={pipeline,instancePipeline,instanceLayout,emptyFrames,emptyInstances,source,globalLayout,meshLayout,globals:new WeakMap(),filters:new WeakMap()};
-      })();
+`;const module=device.createShaderModule({label:'native visible surface lines',code:source});
+      const info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.filter(m=>m.type==='error').map(m=>m.lineNum+': '+m.message).join('; '));
+      const globalLayout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'uint'}},{binding:2,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'depth'}},{binding:3,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'unfilterable-float'}}]}),meshLayout=device.createBindGroupLayout({entries:[...[0,1,5,6,7].map(binding=>({binding,visibility:binding===1||binding===5?GPUShaderStage.VERTEX:binding===6||binding===7?GPUShaderStage.FRAGMENT:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}})),...[2,3].map(binding=>({binding,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'uniform'}})),{binding:4,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}]}),instanceLayout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}}]}),layout=device.createPipelineLayout({bindGroupLayouts:[globalLayout,meshLayout,instanceLayout]});
+      const makePipeline=(label,nativeInstances)=>device.createRenderPipelineAsync({
+        label,layout,vertex:{module,entryPoint:'vs',constants:{nativeInstances}},
+        fragment:{module,entryPoint:'fs',constants:{nativeInstances},targets:lineTargets},
+        primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'},
+      });
+      const [pipeline,instancePipeline]=await Promise.all([
+        makePipeline('native visible surface lines',false),makePipeline('native instanced surface lines',true),
+      ]);
+      const emptyFrames=makeGPUBuffer(device,{label:'unused native line instances',size:128,usage:GPUBufferUsage.STORAGE}),emptyInstances=device.createBindGroup({layout:instanceLayout,entries:[{binding:0,resource:{buffer:emptyFrames}}]});return {pipeline,instancePipeline,instanceLayout,emptyFrames,emptyInstances,source,globalLayout,meshLayout,globals:new WeakMap(),filters:new WeakMap()};
     }
     function nativeFilteredLinePipeline(r,state,filter){
       const surface=r.surfaceFilters?.get(filter);if(!surface)return null;let row=state.filters.get(filter);if(row)return row.pipeline?{pipeline:row.pipeline,group:surface.group}:null;
@@ -28253,7 +28307,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         }
         if(bundles.length)pass.executeBundles(bundles);canvas.dataset.surfaceLines=JSON.stringify({draws,instances:draws});return;
       }
-      if(!polygonWire()){canvas.dataset.surfaceLines='';return;}if(!scene.meshes.some(m=>meshVisible(m)&&classifiedSurfaceWire(m))){canvas.dataset.surfaceLines=JSON.stringify({draws:0,instances:0});return;}const state=r.nativeSurfaceLines;if(!state){ensureNativeSurfaceLines(r).then(()=>draw()).catch(editError);return;}
+      if(!polygonWire()){canvas.dataset.surfaceLines='';return;}if(!scene.meshes.some(m=>meshVisible(m)&&classifiedSurfaceWire(m))){canvas.dataset.surfaceLines=JSON.stringify({draws:0,instances:0});return;}const state=r.nativeSurfaceLines;
       const global={group:nativeLineGlobal(r,state,depth,ids,planes)};
       let draws=0,instances=0;pass.setPipeline(state.pipeline);pass.setBindGroup(0,global.group);
       state.depthGuard=deferPluginSceneLines(r);const stamp=r.nativeSurfaceLineStamp=(r.nativeSurfaceLineStamp||0)+1;let firsts=null;
@@ -28747,7 +28801,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           override pluginWarningLines:bool=false;
           override pluginWarningCagesOnly:bool=false;
           override pluginWarningWireOnly:bool=false;
-          @fragment fn pluginFS(input:Output)->@location(0) vec4f{
+          @fragment fn pluginFS(input:Output,@builtin(front_facing) front:bool)->@location(0) vec4f{
             let view=vec3f(input.viewPosition.xy-params.viewport.zw,input.viewPosition.z)-frameCameraRelative(params.rotation)[3].xyz;
             let inverseRotation=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz));
             let world=inverseRotation*view/params.centerScale.w+params.centerScale.xyz;
@@ -28757,7 +28811,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             if(!pluginWarningLines){return warning;}
             let coverage=surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,pluginWarningCagesOnly);
             if(pluginWarningWireOnly){return vec4f(warning.rgb,warning.a*(1.-smoothstep(0.,.15,coverage.x)));}
-            let color=polygonWireColor(warning,input.bary,input.position.w,input.wireEdges,dot(warning.rgb,wireLuma)<.33);
+            let base=shade(input,front);
+            let color=polygonWireLayer(warning,input.bary,input.position.w,input.wireEdges,false,dot(clamp(base.rgb,vec3f(0),vec3f(1)),wireLuma));
             return vec4f(color.rgb,color.a*(1.-smoothstep(0.,.15,coverage.y)));
           }`;
         const surfaceModule=d.createShaderModule({label:entry.manifest.id+' surface overlay',code:fragment});
@@ -28809,7 +28864,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           const helper=pluginHelper(n),warning=drawHelpers&&shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
           if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({label:entry.manifest.id+' viewport '+stage,colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
-          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','render-wire','render-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms','render-isoparms'].includes(shadingMode)?2:1;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
+          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','render-wire','render-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=shadingMode==='wireframe'?3:!classifiedSurfaceWire(mesh)?(shadingMode==='isoparms'?3:0):['isoparms','solid-isoparms','render-isoparms'].includes(shadingMode)?2:1;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
           if(drawHelpers&&helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}const render=drawCallback,renderState={camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format};if(render&&!v.independentDepth)v.render({...renderState,pass});pass.end();if(render&&v.independentDepth){const target=depth===r.depth?r:passiveViews.get(viewIndex);if(!target.pluginDepth){const width=depth.width,height=depth.height;target.pluginDepth=r.device.createTexture({label:'plugin independent overlay depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});gpuAllocations.set(target.pluginDepth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);}const ownPass=encoder.beginRenderPass({label:entry.manifest.id+' independent overlay',colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:target.pluginDepth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});v.render({...renderState,pass:ownPass});ownPass.end();}
         }
       }
@@ -29626,7 +29681,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             return vec4f(n,-dot(n,vec3f(position.xy-params.viewport.zw,position.z)));
           }
           const wireLuma=vec3f(.2126,.7152,.0722);
-          fn polygonWireColor(color:vec4f,bary:vec3f,reciprocalW:f32,cageEdges:u32,lightWire:bool)->vec4f{
+          fn polygonWireLayer(color:vec4f,bary:vec3f,reciprocalW:f32,cageEdges:u32,lightWire:bool,luma:f32)->vec4f{
             let screen=bary*reciprocalW;
             let span=max(abs(dpdx(screen)),abs(dpdy(screen)));
             // Distances and triangle spacing use the same existing physical-pixel derivatives.
@@ -29642,10 +29697,13 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             let strength=coverage*(1.-.55*clamp(1.5*frequency-.5,0.,1.));
             // The viewport already encodes light for display. A bounded mix toward
             // black or white gives roughly nine lightness points on neutral surfaces.
-            let display=clamp(color.rgb,vec3f(0),vec3f(1));let luma=dot(display,wireLuma);
+            let display=clamp(color.rgb,vec3f(0),vec3f(1));
             let ink=select(0.,1.,lightWire);let amount=(.073+.035*luma)/max(abs(ink-luma),.2);
             let stroke=mix(display,vec3f(ink),amount);
             return vec4f(mix(color.rgb,stroke,strength),color.a);
+          }
+          fn polygonWireColor(color:vec4f,bary:vec3f,reciprocalW:f32,cageEdges:u32,lightWire:bool)->vec4f{
+            return polygonWireLayer(color,bary,reciprocalW,cageEdges,lightWire,dot(clamp(color.rgb,vec3f(0),vec3f(1)),wireLuma));
           }
           struct WireSurfaceOutput{@location(0) color:vec4f,@location(1) triangleID:u32,@location(2) plane:vec4f}
           @fragment fn wireSurfaceFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}
@@ -29715,13 +29773,11 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const edgePipeline=await device.createRenderPipelineAsync({layout:edgeLayout,vertex:{module:shader,entryPoint:'meshEdgeVS'},fragment:{module:shader,entryPoint:'gridFS',targets:edgeTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
         const edgeUniforms=device.createBindGroup({layout:edgePipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:uniform}}]});
         const idPipeline=await device.createRenderPipelineAsync({label:'visible triangle IDs',layout:surfaceLayout,vertex:{module:shader,entryPoint:'idVS'},fragment:{module:shader,entryPoint:'idFS',targets:[{format:'r32uint'}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
-        const hoverPresentation=await createHoverPresentation(device,format);
-        const featureHover=await createFeatureHover(device,primitiveIndex);
+        const [hoverPresentation,featureHover,compute,connected,normalPacking,nativeSurfaceLines]=await Promise.all([
+          createHoverPresentation(device,format),createFeatureHover(device,primitiveIndex),
+          createComputePipelines(device),createConnectedPipelines(device),createNormalPacking(device),createNativeSurfaceLines(device,lineTargets),
+        ]);
         const frameMeter=createFrameMeter(device,timed);
-        const compute=await createComputePipelines(device);
-        const connected=await createConnectedPipelines(device);
-
-        const normalPacking=await createNormalPacking(device);
         const normalPackCounter=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
         const boundsAll=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
         const boundsSelected=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(boundsSelected,0,new Uint32Array([1,0,0,0]));
@@ -29733,7 +29789,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const pickPipeline=await device.createComputePipelineAsync({layout:pickLayout,compute:{module:pickShader,entryPoint:'main'}});
         const pickResolvePipeline=await device.createComputePipelineAsync({layout:pickLayout,compute:{module:pickShader,entryPoint:'resolve'}});
 
-        renderer = { environment,shader, shaderSource, surfaceLayout, edgeLayout, surfaceTargets, wireTargets, lineTargets, edgeTargets, format, epoch:++gpuEpoch,dead:false,device, context, pipeline, wireSurfacePipeline, primitiveIndex, idPipeline, hoverPresentation, featureHover, featureDraws:[], frameMeter, frameSamples:[], uniform, bindGroup, gridPipeline, gridBindGroup, edgePipeline, edgeUniforms, compute, connected, normalPacking, normalPackCounter, boundsAll, boundsSelected, pickPool:[], boundsPool:[], pickPipeline, pickResolvePipeline, depth: null, width: 0, height: 0 };
+        renderer = { environment,nativeSurfaceLines,shader, shaderSource, surfaceLayout, edgeLayout, surfaceTargets, wireTargets, lineTargets, edgeTargets, format, epoch:++gpuEpoch,dead:false,device, context, pipeline, wireSurfacePipeline, primitiveIndex, idPipeline, hoverPresentation, featureHover, featureDraws:[], frameMeter, frameSamples:[], uniform, bindGroup, gridPipeline, gridBindGroup, edgePipeline, edgeUniforms, compute, connected, normalPacking, normalPackCounter, boundsAll, boundsSelected, pickPool:[], boundsPool:[], pickPipeline, pickResolvePipeline, depth: null, width: 0, height: 0 };
         renderer.dummyBuffer=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.STORAGE});
         renderer.dummyReadBuffer=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.STORAGE});
         renderer.dummyTexture=makePagedTexture(renderer,'unused position texture',1);
@@ -29746,7 +29802,6 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           if(renderer!==session)return;
           canvas.dataset.operationError=event.error.message;
         });
-        await ensureNativeSurfaceLines(renderer);
         withBackgroundShaderWarmup(()=>{ensureRenderOverlay(session);warmPlantSurfaces(session);});
         return renderer;
       })();
@@ -34465,7 +34520,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     async function patchLineState(r){
       if(r.patchLines)return r.patchLines;
       return r.patchLinesInit??=(async()=>{
-        const native=await ensureNativeSurfaceLines(r),d=r.device,visibility=GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT;
+        const native=r.nativeSurfaceLines,d=r.device,visibility=GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT;
         const patch=d.createBindGroupLayout({entries:[0,1,2,3].map(binding=>({binding,visibility,buffer:{type:binding===3?'uniform':'read-only-storage'}}))});
         const module=d.createShaderModule({label:'connected local patch lines',code:`
           ${CAMERA_RELATIVE_WGSL}

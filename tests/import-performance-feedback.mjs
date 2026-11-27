@@ -4,15 +4,20 @@ import {launch,ready} from '../tools/browser.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+const releaseFixtures={
+ 'task5-b01ddb1d-10026344':{sha256:'b01ddb1dd9a2bf78241ec689179e2e1a5e99221a9376489be727aeb5b9c4365d',triangles:10026344},
+ 'migrated-74c23020':{sha256:'74c23020d18f86c84ce1d885d5c4c2221d239109ac66578aeb745307c5250fd8',triangles:10020280,
+  // The migrated file centers the sphere within the corner-origin cube. Verified against cd4ec063b.
+  boolean:{vertices:616,triangles:1248,volume:206977.2053184836,positions:'89b82e01b17da8bb516e6b3b4318d821c45185bc3c9b7288b15dbe9328284e26',indices:'cc3ebcebedb3b0199bf067930d8da305b2c9bb8655000431f2efc0fe44e3de60'}},
+};
 export function releaseFixtureExpectation(profile,input,check){
- check('explicit release fixture profile is supported',['legacy-10019216','task5-b01ddb1d-10026344'].includes(profile),profile);
- if(profile==='task5-b01ddb1d-10026344'){
-  const matches=v=>v.sha256==='b01ddb1dd9a2bf78241ec689179e2e1a5e99221a9376489be727aeb5b9c4365d'&&v.objects===1000&&v.triangles===10026344&&v.finger===284;
-  check('frozen Task-5 release fixture identity and topology',matches(input),input);
-  for(const [key,value]of [['sha256','0'],['objects',999],['triangles',10019216],['finger',250]])check('Task-5 fixture negative control rejects '+key,!matches({...input,[key]:value}));
-  return 10026344;
- }
- return 10019216;
+ const expected=releaseFixtures[profile];
+ check('Release fixture profile is supported',profile==='legacy-10019216'||!!expected,profile);
+ if(!expected)return 10019216;
+ const matches=v=>v.sha256===expected.sha256&&v.objects===1000&&v.triangles===expected.triangles&&v.finger===284;
+ check('Frozen release fixture identity and topology',matches(input),input);
+ for(const [key,value]of [['sha256','0'],['objects',999],['triangles',10019216],['finger',250]])check('Fixture rejects incorrect '+key,!matches({...input,[key]:value}));
+ return expected.triangles;
 }
 export async function importPerformanceChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(async([n,a])=>{const result=await frameAI.call(n,a);return n==='scene.open'?frameAI.call('scene.inspect'):result;},[n,a]),check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},measure=async(name,limit,fn)=>{const t=performance.now(),value=await fn(),ms=performance.now()-t;timings.push({name,ms,limit});check(name+' latency budget',ms<limit,{ms,limit});return value;};
@@ -27,32 +32,34 @@ export async function importPerformanceChecks(page){
   // A known constant UV samples red; cube mapping would hit the other colored texels.
   const fixture=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=2;const ctx=canvas.getContext('2d');ctx.fillStyle='#00ff00';ctx.fillRect(0,0,2,2);ctx.fillStyle='#ff0000';ctx.fillRect(0,0,1,1);const p=new Float32Array([-1,-1,0,1,-1,0,1,1,0,-1,1,0]),uv=new Float32Array(8).fill(.25),ix=new Uint32Array([0,1,2,0,2,3]),bytes=new Uint8Array(p.byteLength+uv.byteLength+ix.byteLength);bytes.set(new Uint8Array(p.buffer));bytes.set(new Uint8Array(uv.buffer),p.byteLength);bytes.set(new Uint8Array(ix.buffer),p.byteLength+uv.byteLength);return {asset:{version:'2.0'},scene:0,scenes:[{nodes:[0]}],nodes:[{mesh:0}],meshes:[{primitives:[{attributes:{POSITION:0,TEXCOORD_0:1},indices:2,material:0}]}],materials:[{emissiveFactor:[1,1,1],emissiveTexture:{index:0},pbrMetallicRoughness:{baseColorFactor:[0,0,0,1],metallicFactor:0,roughnessFactor:1}}],images:[{uri:canvas.toDataURL()}],textures:[{source:0}],buffers:[{byteLength:bytes.length,uri:'data:application/octet-stream;base64,'+btoa(String.fromCharCode(...bytes))}],bufferViews:[{buffer:0,byteLength:p.byteLength},{buffer:0,byteOffset:p.byteLength,byteLength:uv.byteLength},{buffer:0,byteOffset:p.byteLength+uv.byteLength,byteLength:ix.byteLength}],accessors:[{bufferView:0,componentType:5126,count:4,type:'VEC3'},{bufferView:1,componentType:5126,count:4,type:'VEC2'},{bufferView:2,componentType:5125,count:6,type:'SCALAR'}]};});
   const swatch=await call('scene.open',{name:'emissive-uv.gltf',base64:Buffer.from(JSON.stringify(fixture)).toString('base64')});await call('view.set',{index:0,single:true,shading:'solid',mode:'object',focus:swatch.objects[0].hash});await call('scene.create',{type:'render',params:{realtime:'off'}});const render=await measure('UV Camera export',15000,()=>call('render.export',{kind:'image',download:false})),pixels=await call('render.pixels',{points:[[.5,.5],[.48,.5],[.52,.5]]});check('Camera output samples the imported UV and emissive texture',render.bytes>0&&pixels.colors.every(c=>c[0]>c[1]*2&&c[0]>c[2]*2),{render,pixels});await call('render.stop');
-  const fixtureProfile=process.env.FRAME_RELEASE_FIXTURE_PROFILE||'legacy-10019216';
+  const sha256=createHash('sha256').update(await readFile(new URL('./scenes/release-1000-10m.hash',import.meta.url))).digest('hex');
+  const fixtureProfile=process.env.FRAME_RELEASE_FIXTURE_PROFILE??Object.keys(releaseFixtures).find(key=>releaseFixtures[key].sha256===sha256)??'legacy-10019216';
   await call('scene.open',{url:await currentReleaseFixture()});
   let state=await call('scene.inspect');
   const curvedFinger=state.objects.find(n=>n.type==='spline_patch'&&n.name==='Finger - curved spline patch');
   const stock=state.objects.filter(n=>n.type==='tree'||n.type==='car');
   const tree=stock.find(n=>n.type==='tree'),car=stock.find(n=>n.type==='car');
   const stockDetails=stock.map(({hash,type,params,mesh,buildError})=>({hash,type,params,mesh,buildError}));
+  const bushTriangles=tree?await page.evaluate(params=>FramePlants.makePlant(FramePlants.settings(params)).indices.length/3,tree.params):0;
   check('Current fixture copy rebuilds both retired stock references',
     stock.length===2&&tree?.params?.type==='bush'&&tree.params.detail==='procedural'&&
-    tree.mesh?.triangles===1998&&car?.mesh?.triangles===1744&&!tree.buildError&&!car.buildError,stockDetails);
+    bushTriangles>0&&tree.mesh?.triangles===bushTriangles&&car?.mesh?.triangles===1744&&!tree.buildError&&!car.buildError,stockDetails);
   const stockGeometry=await Promise.all(stock.map(async({hash,type})=>{
     const {finite,indicesValid}=await call('diagnostics.mesh',{id:hash,geometry:true});
     return {type,finite,indicesValid};
   }));
   check('Both rebuilt stock meshes have finite positions and valid indices',
     stockGeometry.every(o=>o.finite&&o.indicesValid),stockGeometry);
-  const sha256=fixtureProfile==='task5-b01ddb1d-10026344'?createHash('sha256').update(await readFile(new URL('./scenes/release-1000-10m.hash',import.meta.url))).digest('hex'):null;
   // The original low Bush and sedan contributed 3000 and 754 triangles.
   const triangles=state.stats.triangles-tree.mesh.triangles-car.mesh.triangles+3000+754;
   const expectedTriangles=releaseFixtureExpectation(fixtureProfile,{sha256,objects:state.objects.length,triangles,finger:curvedFinger?.mesh?.triangles},check);
   check('Stress scene retains 1000 objects and rebuilds the curved finger from its cage',
     state.objects.length===1000&&triangles===expectedTriangles&&curvedFinger?.mesh?.triangles===284,state.stats);
-  // Corner-origin Cube minus the centered diameter-120 Sphere: independently matched to main with only Cube translated by [50,50,50].
+  const expectedBoolean=releaseFixtures[fixtureProfile]?.boolean??{vertices:94,triangles:184,volume:888052.8062379193};
   const cornerBoolean=state.objects.find(n=>n.type==='boolean'&&n.params.op==='subtract'),cornerCube=state.objects.find(n=>n.type==='cube'&&n.parent===cornerBoolean?.hash),cornerOrigin=cornerCube?.worldMatrix.slice(12,15),booleanReport=cornerBoolean?.evaluation?.report;
-  check('Stress Boolean uses the current corner-origin Cube contract',cornerCube?.bounds.min.every((v,k)=>Math.abs(v-cornerOrigin[k])<1e-8)&&cornerCube.bounds.max.every((v,k)=>Math.abs(v-cornerOrigin[k]-100)<1e-8)&&cornerBoolean.mesh.triangles===184&&booleanReport?.topologyValid&&booleanReport.watertight&&!booleanReport.newDefectCount,{cube:cornerCube?.bounds,triangles:cornerBoolean?.mesh?.triangles,topologyValid:booleanReport?.topologyValid,watertight:booleanReport?.watertight,defects:booleanReport?.newDefectCount});
-  const cornerGeometry=await call('diagnostics.mesh',{id:cornerBoolean.hash,geometry:true});check('Stress Boolean matches independent translated-main geometry',cornerGeometry.finite&&cornerGeometry.indicesValid&&cornerGeometry.vertices===94&&cornerGeometry.triangles===184&&Math.abs(cornerGeometry.signedVolume-888052.8062379193)<1,cornerGeometry);
+  check('Stress Boolean uses the current corner-origin Cube contract',cornerCube?.bounds.min.every((v,k)=>Math.abs(v-cornerOrigin[k])<1e-8)&&cornerCube.bounds.max.every((v,k)=>Math.abs(v-cornerOrigin[k]-100)<1e-8)&&cornerBoolean.mesh.triangles===expectedBoolean.triangles&&booleanReport?.topologyValid&&booleanReport.watertight&&!booleanReport.newDefectCount,{cube:cornerCube?.bounds,triangles:cornerBoolean?.mesh?.triangles,topologyValid:booleanReport?.topologyValid,watertight:booleanReport?.watertight,defects:booleanReport?.newDefectCount});
+  const cornerGeometry=await call('diagnostics.mesh',{id:cornerBoolean.hash,geometry:true});check('Stress Boolean matches independently verified fixture geometry',cornerGeometry.finite&&cornerGeometry.indicesValid&&cornerGeometry.vertices===expectedBoolean.vertices&&cornerGeometry.triangles===expectedBoolean.triangles&&Math.abs(cornerGeometry.signedVolume-expectedBoolean.volume)<1,cornerGeometry);
+  if(expectedBoolean.positions)check('Migrated Boolean retains exact positions and indices',cornerGeometry.positionsSHA256===expectedBoolean.positions&&cornerGeometry.indicesSHA256===expectedBoolean.indices,cornerGeometry);
   const scrolling=await browserScrollChecks(page);checks.push(...scrolling.checks);timings.push(...scrolling.timings);
   const human=state.objects.find(n=>n.type==='human');if(!human)throw Error('Stress fixture needs the tagged Human');await call('scene.select',{ids:[human.hash]});const tagbox=page.locator(`[data-id="${human.id}"] .ob-tagbox`);await tagbox.scrollIntoViewIfNeeded();const tagRect=await tagbox.boundingBox();const treeCost=await page.evaluate(()=>{const start=performance.now();renderTree();return performance.now()-start;});check('1000 row browser rebuild stays within 120 ms',treeCost<120,{ms:treeCost});await page.evaluate(()=>{window.__panMutations=0;window.__panObserver=new MutationObserver(rows=>__panMutations+=rows.filter(r=>r.type==='childList').length);__panObserver.observe(document.getElementById('obInner'),{childList:true,subtree:true});});const panBefore=await tagbox.locator('.ob-tags').getAttribute('style'),panAt=[tagRect.x+tagRect.width/2,tagRect.y+8],panStarted=performance.now();await page.mouse.move(...panAt);await page.mouse.down({button:'middle'});for(let i=1;i<=12;i++)await page.mouse.move(panAt[0]+i*4,panAt[1]);await page.mouse.up({button:'middle'});const panMs=performance.now()-panStarted,panAfter=await tagbox.locator('.ob-tags').getAttribute('style'),mutations=await page.evaluate(()=>{__panObserver.disconnect();return __panMutations;});timings.push({name:'1000 object Human tag pan',ms:panMs,limit:700});check('Heavy tag pan changes existing spans without rebuilding the tree',mutations===0&&panBefore!==panAfter&&panMs<700,{mutations,panMs,panBefore,panAfter});
   const candidates=state.objects.filter(n=>n.type==='mesh'&&n.mesh&&n.visible),target=candidates.at(-10);check('Stress mesh objects are spread across XZ instead of clustered at origin',candidates.filter(n=>Math.abs(n.bounds.center[0])<800&&Math.abs(n.bounds.center[2])<800).length<20&&new Set(candidates.map(n=>Math.floor(n.bounds.center[0]/550))).size>=25,{center:candidates.filter(n=>Math.abs(n.bounds.center[0])<800&&Math.abs(n.bounds.center[2])<800).length});await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:target.hash});await call('scene.select',{ids:[]});await page.evaluate(()=>{for(const n of nodes)n.folded=true;renderTree();document.getElementById('obScroll').scrollTop=0;});const xy=(await call('view.project',{point:target.bounds.center})).screen;

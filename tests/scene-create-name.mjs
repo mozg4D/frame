@@ -10,7 +10,7 @@ function harness(html){
  const defaultsStart=html.indexOf('const defaults = fields =>');
  const definitionSource=html.match(/^const boltLabels = .*$/m)[0]+'\n'+html.slice(html.indexOf('const approximation ='),html.indexOf('const generatorTypes'))+'\n'+html.slice(defaultsStart,html.indexOf('\n\n',defaultsStart));
  const factorySource=html.slice(html.indexOf('function hardwareName('),html.indexOf('function demo()'));
- const parameterSource=html.slice(html.indexOf('      function parameters('),html.indexOf('\n',html.indexOf('      function parameters(')));
+ const parameterSource=html.slice(html.indexOf('      function parameters('),html.indexOf("      register('scene.catalogue'",html.indexOf('      function parameters(')));
  const handlerSource=html.slice(html.indexOf("      register('scene.create'"),html.indexOf("      register('morph.edit'"));
  const schemaSource=html.slice(html.indexOf('      const fail=(code,message)=>'),html.indexOf('      const register=(name,description,inputSchema,'));
  const anyParamsSource=html.match(/^      const anyParams=.*$/m)[0];

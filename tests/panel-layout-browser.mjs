@@ -33,6 +33,7 @@ async function checkCameraLayout(page,check,timings){
   await viewport.waitFor();
   const name='Add Camera with '+(touch?'touch':'mouse'),ms=performance.now()-start;
   timings.push({name,ms,budget:2500});check(name+' opens Attributes within 2500 ms',ms<2500,{ms});
+  await press(viewport);
   await press(target.locator('[data-field="realtime"][data-value="off"]'));
   await press(target.locator('[data-field="realtime during navigation"][data-value="false"]'));
   check(name+' shows the native Viewport',await viewport.getAttribute('aria-pressed')==='true');
@@ -48,9 +49,9 @@ async function checkCameraLayout(page,check,timings){
   await openCamera(phone,true);
   for(const [width,height] of [[390,844],[844,390],[844,286],[320,568],[768,1024]]){
    await phone.setViewportSize({width,height});
-   const realtime=phone.locator('[data-field="realtime"][data-value="on"]');
+   const realtime=phone.locator('button[data-field="realtime"]');
    await realtime.tap({timeout:2500});check('Camera choice receives taps at '+width+'x'+height,await realtime.getAttribute('aria-pressed')==='true');
-   await phone.locator('[data-field="realtime"][data-value="off"]').tap();
+   await realtime.tap();
    const layout=await phone.evaluate(attributeButtonLayout);
    const same=layout.buttons.length===desktop.buttons.length&&layout.buttons.every((button,i)=>{
     const reference=desktop.buttons[i];return button.caption===reference.caption&&button.box.every((v,k)=>Math.abs(v-reference.box[k])<1);
@@ -58,7 +59,7 @@ async function checkCameraLayout(page,check,timings){
    check('Camera captions and bounds match desktop at '+width+'x'+height,!layout.issues.length&&same,same?layout.issues:{desktop,layout});
   }
   // Give an existing choice group captions that genuinely exceed the available line.
-  await phone.locator('button[data-field="realtime"]').evaluateAll(buttons=>{
+  await phone.locator('button[data-field="renderer"]').evaluateAll(buttons=>{
    buttons[0].textContent='First rendering method';buttons[1].textContent='Second rendering method';
   });
   const long=await phone.evaluate(attributeButtonLayout),choices=long.buttons.filter(b=>b.caption.endsWith('rendering method'));

@@ -5,8 +5,8 @@
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 20413,
-      "sha256": "9610cee194fedb1a7012cd6f6f82fb3e5dcdbcb1fb7c6cb58ea1186f02d0636e",
+      "bytes": 34490,
+      "sha256": "7f53b9afbed84098ecbfb160324a8c349e4e8115348f1565cd41fc0b43947699",
       "change": {
         "reason": "Native binary value records, history snapshots and bounded file readers are verified by the HASH and file gates.",
         "baseCommit": "0f18ab1",
@@ -34,6 +34,10 @@
         "reason": "The published HASH reader caches aligned pages during large range reads.",
         "previousBytes": 20088,
         "previousSHA256": "554eeffa6c2fe8346e4119453d5394e3c1729c2dd5640d92d37064d85f518a2c"
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Chunked HASH encoding, streaming reads and record addressing."
       }
     },
     {
@@ -107,8 +111,8 @@
     {
       "prefix": "async function frameUndoUI(",
       "nextPrefix": "function history(back){",
-      "bytes": 1344,
-      "sha256": "5429ccdf42898d954917ea3a4a8b08842854969fd5e715af1f45992ba8c4d27e",
+      "bytes": 1550,
+      "sha256": "c7920520383b9482af8fd3ecbae96f0de25e28c01db3744e69366919e0cbc50d",
       "change": {
         "reason": "UI Undo/Redo decode native binary snapshot records.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
@@ -126,6 +130,10 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Undo opens packed HASH snapshots and repacks history changes."
       }
     },
     {
@@ -151,8 +159,12 @@
     {
       "prefix": "function copySelectedMaterials(",
       "nextPrefix": "function frameMaterialInLibrary(m,i){",
-      "bytes": 1222,
-      "sha256": "3c4a66cb7d72177077694905e52f10307c442109de093a1b87946b5e16ac5bee"
+      "bytes": 1574,
+      "sha256": "dfece33052ad90de0496c3ff8b1ae6a1dd3c8a72edcea83a78febb6c8aa33420",
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Material deletion removes animation channels owned by the deleted materials."
+      }
     },
     {
       "prefix": "    function appearanceLibrary(records=scene.records){",
@@ -190,8 +202,8 @@
     {
       "prefix": "    async function undoObjectCopy(action){",
       "nextPrefix": "    async function redoObjectCopy(action){",
-      "bytes": 1659,
-      "sha256": "ad4e2cd9516b2845d612f8d81329f40cda19aa1aedd8647612f2a0ec891eed9d",
+      "bytes": 1691,
+      "sha256": "aa4492f6d2de8ef45902a35febf03b00b2c4d7397bba84f272170b5da00bbdeb",
       "sourceBindingUpdate": {
         "reason": "The existing HEAD source already preserves navigated camera frames during object-copy history. This corrects its stale source binding without changing that source or importing separate working-tree historical proof. Source identity only; historical change metadata and native qualifications remain separate.",
         "previousBytes": 1644,
@@ -200,13 +212,17 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Object-copy Undo retains per-mesh crease settings."
       }
     },
     {
       "prefix": "    async function redoObjectCopy(action){",
       "nextPrefix": "    function releaseRedo(){",
-      "bytes": 1691,
-      "sha256": "01becf149a6af4b247da8d10be16f244f4ef786fba14c9198f2fcbc287bed9ed",
+      "bytes": 1703,
+      "sha256": "7215eff960cddb3c93799a9c1821d4a6e3eeb54742e3691e40dacaaf1670bbc0",
       "sourceBindingUpdate": {
         "reason": "The existing HEAD source already preserves navigated camera frames during object-copy history. This corrects its stale source binding without changing that source or importing separate working-tree historical proof. Source identity only; historical change metadata and native qualifications remain separate.",
         "previousBytes": 1661,
@@ -215,13 +231,17 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Object-copy Redo restores the recorded crease settings."
       }
     },
     {
       "prefix": "    async function decodeAppearancePlan(",
       "nextPrefix": "    function validatePolygonSets(plan,o,input){",
-      "bytes": 3047,
-      "sha256": "731d585151edb2f8d651ae8790ae8d37bd5bf20f22ee3ec9593ec1be474c698a",
+      "bytes": 3865,
+      "sha256": "4cf9ee39fa17976cc1cbdac3ddede90aa29d4a370963a578e2eaca54b0b4bc61",
       "sourceBindingUpdate": {
         "reason": "The current main baseline validates the foliage translucency material attribute.",
         "previousBytes": 3041,
@@ -229,13 +249,17 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Material parameter ranges, owner addressing and deferred polygon mask validation."
       }
     },
     {
       "prefix": "    async function saveHash(",
       "nextPrefix": "    async function nativeDecodePlan(file){",
-      "bytes": 3870,
-      "sha256": "235922f7fd4d844265b0b9d144463a9b203d3810ccceeec0d907c0b0c489620b",
+      "bytes": 6511,
+      "sha256": "83c1935bcdf7fb6be94bae5be8143460c5454a41ebdfb0b65de93b72c8227e7c",
       "change": {
         "reason": "Bounded ordered HASH writes and elapsed-work yielding remove per-record host/timer latency; native bytes, IO errors and large-file budgets are checked separately.",
         "beforeBytes": 3248,
@@ -255,13 +279,17 @@
         "reason": "Native saves serialize portable project paths and index the packed records.",
         "previousBytes": 3774,
         "previousSHA256": "abaf2e24ee89d54cbe7a0f04ffb771ac6c3646cfd8f9eefbf0ae8e40fdf86cd1"
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Chunked native planning, streaming writes and explicit buffers."
       }
     },
     {
       "prefix": "async function saveSceneFile(",
       "nextPrefix": "function showSaveFormats(focus=false){",
-      "bytes": 3723,
-      "sha256": "4e485bd040742b6ae098d06f7bbd1593f1faed36f1500e473ff2047eec4c933b",
+      "bytes": 4318,
+      "sha256": "f6784ef27fc57baa23d69fcdaba479b82dc520571a026f52a8255dcc7f722c8f",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 3101,
@@ -273,13 +301,17 @@
         "reason": "Bound HASH saves use project revisions and file handles, including Save As.",
         "previousBytes": 3119,
         "previousSHA256": "abe6d76bc5c7077f4db745c592be970f3fdfb8fddcdd6d9ea3ce7e808b8fe106"
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Save As supports the self-contained HTML player and its MIME type."
       }
     },
     {
       "prefix": "async function frameSaveBoundFile(",
       "nextPrefix": "function frameCancelFileRequest(){",
-      "bytes": 31371,
-      "sha256": "104fe09ce1c050882e38efe1d5f630dc4423e6d36b0e914e367bb01798700408",
+      "bytes": 34888,
+      "sha256": "d65c79a7650bb6ccdaba9013b560f80db80b749cc649bdfece49ca744631709b",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 1122,
@@ -299,6 +331,10 @@
         "reason": "Linked model file handles and project saves persist portable references.",
         "previousBytes": 18493,
         "previousSHA256": "fdc9ab09b83563a6bb65a8c848aaa7df821193476d98f4269339629828fb7cb0"
+      },
+      "reviewedSource": {
+        "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
+        "reason": "Linked project files can be captured and resolved inside a self-contained HTML player."
       }
     }
   ],

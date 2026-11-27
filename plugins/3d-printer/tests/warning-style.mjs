@@ -24,8 +24,12 @@ export async function warningStyleChecks(page){
     check(kind+' '+mode+' retains a soft warning inside the face',after[0][0]-after[0][1]>40&&after[0][0]<240,after[0]);
     const linePixels=before.map((c,i)=>i&&(['wireframe','isoparms'].includes(mode)?distance(c,[16,16,16])>8:distance(c,solid[i])>5)?i:0).filter(Boolean);
     check(kind+' '+mode+' samples visible native lines',linePixels.length>=2,{count:linePixels.length});
-    let errors;if(kind!=='generated'&&mode.startsWith('solid'))errors=linePixels.map(i=>distance(after[i],tinted[i].slice(0,3).map((v,c)=>v*before[i][c]/Math.max(1,solid[i][c]))));
-    else errors=linePixels.map(i=>distance(after[i],before[i]));
+    const errors=linePixels.map(i=>{
+     // The same generated mesh can display both dark triangle edges and fixed-color cage strokes.
+     const pixel=before[i],darkEdge=mode.startsWith('solid')&&pixel[0]<solid[i][0]&&Math.max(...pixel.slice(0,3))-Math.min(...pixel.slice(0,3))<=2;
+     const expected=darkEdge?tinted[i].slice(0,3).map((v,c)=>v*pixel[c]/Math.max(1,solid[i][c])):pixel;
+     return distance(after[i],expected);
+    });
     check(kind+' '+mode+' keeps warning beneath native lines',Math.max(...errors)<=3,{count:linePixels.length,maxError:Math.max(...errors),pixels:linePixels.map(i=>({i,before:before[i],after:after[i]}))});
    }
   }

@@ -704,7 +704,7 @@ export async function cameraPathTracerChecks(page){
     });
     check('Zero WebGPU validation or uncaptured errors',!gpu.validation&&!gpu.uncaptured.length,gpu);
     check('Zero JavaScript errors',!errors.length,errors);
-    return {pass:true,adapter,checks:checks.length,timings,gpu};
+    return {pass:true,adapter,checks,timings,gpu};
   }finally{
     page.off('pageerror',onPageErr);page.off('console',onConsole);
   }

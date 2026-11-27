@@ -8,6 +8,13 @@ export async function creationSanityCPUChecks(){
  const check=(name,fn)=>{fn();checks.push({name,pass:true});};
  try{
   const K=Function('return ('+html.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1]+')')()();
+  // Reference flank handles from the last working catalogue before the text fitter was removed.
+  const flanks={GT2:[.170912322608,.137184018241,-.066731016709],GT3:[.291404400392,.202727689542,-.085288995661],GT5:[.549893187533,.399630604923,-.185752152822],H3M:[.327103268490,.220075309013,-.080043011169],H5M:[.603756502856,.392293008188,-.142576267574]};
+  for(const [profile,expected] of Object.entries(flanks))check(profile+' pulley retains its fitted tooth flank',()=>{
+   const cage=K.primitive('pulley',{profile,teeth:20}),edge=Object.values(cage.segments)[0];
+   const actual=[edge.ha[1],edge.hb[0],edge.hb[1]];
+   assert.ok(edge.soft&&actual.every((value,i)=>Math.abs(value-expected[i])<1e-9),profile);
+  });
   const FM=Function('return '+html.slice(html.indexOf('const FM=')+9,html.indexOf('\n    })();',html.indexOf('const FM='))+11))();
   const start=html.indexOf('    function splineCreationFrame('),end=html.indexOf('    function splinePlanePoint(',start),functions=html.slice(start,end);
   const make=view=>Function('FM','frameViewKind','activeView',functions+';return {frame:splineCreationFrame,pivot:splineCreationPivot,initialize:initializeSplineCreation};')(FM,x=>x,view);
@@ -71,8 +78,10 @@ export async function creationSanityCPUChecks(){
   check('Imported mesh and generator pivots retain measured behavior',()=>{for(const type of ['mesh','extrude','sweep','lathe','spline_patch','group'])assert.equal(K.primitivePivot(type,{}),null);});
   check('Native crease uniforms preserve strict polygon thresholds and route Patch seams independently',()=>{
    const count=(source,pattern)=>[...source.matchAll(pattern)].length;
-   assert.equal(count(html,/dot\(a\.xyz,b\.xyz\)\s*<\s*creaseSettings\.x/g),3);
-   assert.equal(count(html,/\belse\s+if\s*\(creaseSettings\.y\s*==\s*2\.0\)\s*\{\s*if\(patchHard\(/g),3);
+   const creaseKernels=html.split('${PATCH_HARD_WGSL}').slice(1);
+   assert.equal(creaseKernels.length,3);
+   for(const kernel of creaseKernels)assert.match(kernel.split('`')[0],/\bclassifyEdgeCrease\(/);
+   assert.match(html,/if\(creaseSettings\.y==2\.0\)\{return select\(0u,1u,patchHard\(u,v\)\);\}return select\(0u,1u,dot\(a\.xyz,b\.xyz\)<creaseSettings\.x\);/);
    assert.equal(count(html,/0\.7193398/g),1);
    assert.ok(!html.includes('0.6946584'));
    const start=html.indexOf('    function writeCreaseSettings('),end=html.indexOf('\n    }',start);
