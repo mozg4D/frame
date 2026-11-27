@@ -34,8 +34,15 @@ export async function verifyModeledTimeShape(){
         const range=await op('shape-gradient',{occurrence:0,firstVertex:i,count:Math.min(128,base.mesh.vertices.length/3-i)});
         g.push(...range.vertices.flatMap(v=>v.gradientWorldNPerMm));
       }
-      const probe=await op('probe',{occurrence:0,triangle:0});
-      record.triangleDensity=probe.shapeDensityNPerM3;record.available=r.surfaceFields.available;
+      const tris=r.surfaceFields.occurrences[0].triangles;
+      const sampleIds=[...new Set([0,1,Math.floor(tris/3),Math.floor(2*tris/3),tris-1].filter(t=>t>=0&&t<tris))];
+      const probes=[];for(const triangle of sampleIds)probes.push(await op('probe',{occurrence:0,triangle}));
+      record.triangleDensity=probes[0].shapeDensityNPerM3;
+      record.probedDensities=probes.map(p=>p.shapeDensityNPerM3);
+      record.probedPatches=probes.map(p=>p.shapePatchNPerMm);
+      record.shapeScale=r.surfaceColorScale?.shapeNPerM3??null;
+      record.shapeRegions=r.shapeSensitivitySummary?.length??0;
+      record.available=r.surfaceFields.available;
       record.derivative=g.reduce((s,x,k)=>s+x*(unit.mesh.vertices[k]-base.mesh.vertices[k]),0);
     }
     console.log('CFD live modeled time force '+JSON.stringify(record));return record;
@@ -54,7 +61,9 @@ export async function verifyModeledTimeShape(){
   return {pass:s.method==='finite-time-discrete-sst'&&s.valueN===reference.dragN&&s.iterations===reference.steps&&
     s.averagedSteps===reference.averagedSteps&&s.timeRangeS[0]===(reference.steps-reference.averagedSteps)*reference.dtS&&
     s.timeRangeS[1]===reference.physicalTimeS&&reference.Re>=200&&reference.available.includes('Shape')&&
-    Number.isFinite(reference.triangleDensity)&&s.replayedSteps>0&&reference.mass<1e-6&&estimates.every(x=>x.same&&x.relativeError<.05),
+    Number.isFinite(reference.triangleDensity)&&reference.probedDensities?.every(Number.isFinite)&&
+    reference.probedPatches?.every(Number.isFinite)&&new Set(reference.probedDensities).size>1&&
+    reference.shapeScale>0&&s.replayedSteps>0&&reference.mass<1e-6&&estimates.every(x=>x.same&&x.relativeError<.05),
     reference,estimates};
 }
 

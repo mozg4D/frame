@@ -20,7 +20,7 @@ if(saveFixture&&!nativeSphere&&!nativeAhmed&&!nativeRotor)throw Error('Saving re
 if(scenePath&&(nativeSphere||nativeAhmed||nativeRotor||resolve(scenePath)===reportPath))throw Error('Use a separate report path for a saved scene');
 if(saveFixture&&resolve(saveFixture)===reportPath)throw Error('Use separate paths for the reference scene and its report');
 const sceneBytes=scenePath?await readFile(scenePath):null;
-const experimentalWebNN=args.includes('--experimental-webnn');
+const headless=args.includes('--headless');
 if(args.includes('--uniform')&&args.includes('--graded'))throw Error('Choose a single Cartesian spacing');
 const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),
   graded:args.includes('--graded')||Boolean(scenePath&&!args.includes('--uniform')&&!args.includes('--solver=mr-lbm'))};
@@ -118,7 +118,7 @@ if(scenePath&&selection.solver==='sdf-graph')throw Error('Saved-scene graph qual
 const focused=Boolean(selection.fixture||selection.solver);
 const tier=Number(args.find(s=>s.startsWith('--tier='))?.slice(7)??1);
 if(![1,2].includes(tier))throw Error('Use --tier=1 or --tier=2');
-const report={scope:'Isolated CFD M0 qualification',fp32Only,experimentalWebNN,tier,shape:verifyShape(),goalRefinement:verifyGoalRefinement(),thinWalls:verifyThinWalls()};
+const report={scope:'Isolated CFD M0 qualification',fp32Only,tier,shape:verifyShape(),goalRefinement:verifyGoalRefinement(),thinWalls:verifyThinWalls()};
 if(sceneBytes)report.inputScene={name:basename(scenePath),bytes:sceneBytes.length,sha256:createHash('sha256').update(sceneBytes).digest('hex')};
 const sourceNames=['../../../index.html','../../../tools/browser.mjs','../../index.json','../plugin.json','../plugin.js','m0-browser.mjs',
   ...(await readdir(new URL('m0/',import.meta.url))).filter(n=>n.endsWith('.mjs')).sort().map(n=>'m0/'+n)];
@@ -129,14 +129,12 @@ let browser;
 try{
   if(!report.shape.pass||!report.goalRefinement.pass||!report.thinWalls.pass)throw Error('Shape, refinement or crossing reference failed');
   console.log('Shape: annular force, analytic uniform derivative and 24 paired wall perturbations passed');
-  browser=await chromium.launch({headless:true,channel:'chromium',executablePath:process.env.FRAME_BROWSER||undefined,
-    args:['--enable-unsafe-webgpu','--disable-background-timer-throttling','--disable-renderer-backgrounding',
-      ...experimentalWebNN?['--enable-features=WebMachineLearningNeuralNetwork']:[]]});
+  browser=await chromium.launch({headless,channel:'chromium',executablePath:process.env.FRAME_BROWSER||undefined,
+    args:['--enable-unsafe-webgpu','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
   const context=await browser.newContext({viewport:{width:1280,height:900},deviceScaleFactor:1,serviceWorkers:'block'});
   // The optional-feature trial opts in at the single native device request.
-  // The fallback trial leaves Frame's descriptor unchanged and removes WebNN.
+  // The fallback trial leaves Frame's descriptor unchanged without shader-f16.
   await context.addInitScript(forceFp32=>{
-    if(forceFp32)Object.defineProperty(navigator,'ml',{get:()=>undefined,configurable:true});
     if(!globalThis.GPUAdapter)return;
     const request=GPUAdapter.prototype.requestDevice;
     window.cfdDeviceRequests=0;
@@ -237,7 +235,7 @@ try{
     if(sheet&&!sheet.pass)throw Error('A displaced pressure segment disagrees with an exact sheet crossing: '+JSON.stringify(sheet));
     await window.cfdProgress('Body impulse agrees with an independent fluid momentum balance on every axis');
     const {benchmarkPressure}=await import('./plugins/cfd/tests/m0/pressure.mjs');
-    const pressure=wallOnly||nativeSphere||nativeAhmed||nativeRotor||savedScene||graphOnly||focused?null:await benchmarkPressure(device,navigator.ml,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
+    const pressure=wallOnly||nativeSphere||nativeAhmed||nativeRotor||savedScene||graphOnly||focused?null:await benchmarkPressure(device,s=>window.cfdProgress(s),tier===2?[64,32,32]:[32,16,16]);
     const progress=s=>window.cfdProgress(s);
     const nativeGraphLinks=selection.solver==='sdf-graph'&&(nativeSphere||nativeAhmed)?
       await (await import('./plugins/cfd/tests/m0/graph-contact-check.mjs')).verifyNativeGraphLinks(device):null;
@@ -256,12 +254,12 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,surfaceLoss,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,steadyShape,region,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,surfaceLoss,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,steadyShape,region,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
   if(result.deviceRequests!==1 || result.errors.length || result.lost || errors.length)throw Error('Unexpected device count, loss, browser or GPU errors');
-  if(fp32Only && (result.webnn||result.features.includes('shader-f16')))throw Error('Optional backends were enabled in the fallback trial');
+  if(fp32Only && result.features.includes('shader-f16'))throw Error('Optional shader-f16 backend was enabled in the fallback trial');
   if(saveFixture){await mkdir(dirname(resolve(saveFixture)),{recursive:true});await writeFile(resolve(saveFixture),Buffer.from(fixture.base64,'base64'),{flag:'wx'});}
   if(sceneBytes){report.sceneStudyCompleted=result.flow.cases.every(c=>c.forceWorldN?.every(Number.isFinite)&&(c.kind==='uniform-equilibrium'?
       c.completedSteps===0&&c.stable&&c.massPassed&&c.forceWorldN.every(v=>v===0):

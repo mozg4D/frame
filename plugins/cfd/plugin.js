@@ -657,27 +657,33 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
       solver.forceRegion?.angle(angle);
     }
     submit(e=>{
-      copy(e,solver.pressure,endpoint);
       if(t===steps-1||shaftDirection&&t>=first){
         if(shaftDirection)solver.forceRegion?.encode(e);
         gpu.dispatch(e,directional,bindForce,[Math.ceil(n/128)]);
       }
       if(t===first-1)e.clearBuffer(seed.force);
     });
-    let defect=Infinity;
-    for(let iterations=nextIterations;;iterations=Math.min(128,2*iterations)){
-      if(iterations!==nextIterations)submit(e=>copy(e,endpoint,solver.pressure));
-      if(op.reverseStep)await op.reverseStep(t,previous,iterations,scheduler,check,livePredictor);
-      else await scheduler.perform(op.reverseStages(previous,iterations,livePredictor),check);
-      check();
-      const residual=await op.projection.relative();
-      defect=residual.relative;maxPressureAdjoint=Math.max(maxPressureAdjoint,residual.magnitude);krylovIterations+=iterations;
-      if(!Number.isFinite(defect)||defect<=tolerance||iterations===128){
-        nextIterations=defect<tolerance*.1&&t%8===0?Math.max(8,iterations-4):iterations;break;
+    let defect=Infinity,neededRefine=false;
+    await op.beginReverse(t,previous,nextIterations,scheduler,check,livePredictor);check();
+    let residual=await op.projection.relative();
+    defect=residual.relative;maxPressureAdjoint=Math.max(maxPressureAdjoint,residual.magnitude);krylovIterations+=nextIterations;
+    if(Number.isFinite(defect)&&defect>tolerance){
+      neededRefine=true;
+      for(const extra of [12,16,24,32,48,64]){
+        await scheduler.perform(op.projection.refineStages(extra),check);check();
+        residual=await op.projection.relative();
+        defect=residual.relative;maxPressureAdjoint=Math.max(maxPressureAdjoint,residual.magnitude);krylovIterations+=extra;
+        if(!Number.isFinite(defect)||defect<=tolerance)break;
       }
     }
     pressureDefect=Math.max(pressureDefect,defect);
-    if(!(defect<=tolerance)){failureReason={operator:'physical pressure transpose',step:t};return;}
+    if(!(defect<=tolerance)){
+      await op.abortReverse(scheduler,check);
+      failureReason={operator:'physical pressure transpose',step:t};return;
+    }
+    if(neededRefine)nextIterations=Math.min(24,nextIterations+4);
+    else if(defect<tolerance*.1&&t%8===0)nextIterations=Math.max(8,nextIterations-4);
+    await op.finishReverse(t,previous,scheduler,check,livePredictor);check();
     await scheduler.perform([phase('accumulate temporal shape and spatial error weights',e=>{
       integrate(e);indicator.encode(e);gpu.dispatch(e,peakVelocity,velBind,[Math.ceil(n/128)]);
       copy(e,op.old,seed.state);copy(e,op.face,seed.face);
@@ -727,11 +733,15 @@ export async function modeledTimeShape(gpu,f,solver,force,cut,record,result,sour
       await scheduler.perform([phase('transpose initial shaft-relative discharge',e=>{op.initialDischarge(e);integrate(e);})],check);
     }else if(!failureReason){
       const inlet=await op.projectedInlet();check();
-      for(const it of [8,24,64,128]){
-        await scheduler.perform(inlet.stages(it),check);inletDefect=(await inlet.relative()).relative;krylovIterations+=it;
-        if(!Number.isFinite(inletDefect)||inletDefect<=tolerance)break;
+      await scheduler.perform(inlet.beginStages(12),check);inletDefect=(await inlet.relative()).relative;krylovIterations+=12;
+      if(Number.isFinite(inletDefect)&&inletDefect>tolerance){
+        for(const it of [12,16,24,32,48,64]){
+          await scheduler.perform(inlet.refineStages(it),check);inletDefect=(await inlet.relative()).relative;krylovIterations+=it;
+          if(!Number.isFinite(inletDefect)||inletDefect<=tolerance)break;
+        }
       }
-      if(inletDefect<=tolerance)submit(integrate);else failureReason={operator:'initial pressure transpose',step:0};
+      if(inletDefect<=tolerance){await scheduler.perform(inlet.finishStages(),check);submit(integrate);}
+      else{await scheduler.perform([inlet.restorePrimal()],check);failureReason={operator:'initial pressure transpose',step:0};}
     }
     let gradient=null;
     if(!failureReason){
@@ -1025,10 +1035,16 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     }
     if(!(dt>0&&Number.isFinite(dt)))throw failure('INVALID_TIMESTEP','The evaluated fluid domain has no positive stable timestep.');
     const force=gpu.buffer('CFD integrated axial wall reaction',4*count);
-    const fields=await nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response,domain);
-    const profiles=fields.profiles=await nativeLoadProfiles(gpu,f,domain,diameter,source.basis);
-    display.draw=await nativeFieldOverlay(ctx,display);check();
-    const solver=await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,null,fields);check();
+    const [fields,profiles]=await Promise.all([
+      nativeSurfaceFields(gpu,display,f,geom.skin.chunks,dt,geom.response,domain),
+      nativeLoadProfiles(gpu,f,domain,diameter,source.basis)
+    ]);
+    fields.profiles=profiles;
+    const [draw,solver]=await Promise.all([
+      nativeFieldOverlay(ctx,display),
+      cartesianSolver(gpu,f,dt,geom.wall,force,geom.response,groups,geom.centers,null,fields)
+    ]);
+    display.draw=draw;check();
     const roi=f.regionalLoads?await controlVolumeRegion(gpu,f,domain.region):null;
     const regional=roi?await regionalWallLoads(gpu,f,force,solver.loads,roi,profiles):null;
     profiles.bind(force,regional?.sum??solver.loads);
@@ -1368,8 +1384,12 @@ export async function activate(context){
         }catch{discardArchive(hash);}
       }
     }
-    if(job&&!job.stopped&&job.state!=='stale'&&job.state!=='failed'){
-      try{verify(job);}catch(e){discardArchive(hash);job.state='stale';job.result=null;job.error={code:e.code,message:e.message};release(job);}
+    if(job&&!job.stopped&&job.state!=='stale'){
+      try{verify(job);}catch(e){
+        const wasFailed=job.state==='failed';
+        discardArchive(hash);job.state='stale';job.result=null;
+        job.error=wasFailed?null:{code:e.code,message:e.message};release(job);
+      }
     }
     return job;
   }
@@ -1699,21 +1719,35 @@ export async function activate(context){
       const live=new Set(context.document.nodes.filter(n=>n.type==='cfd').map(n=>n.nativeHash));
       for(const hash of new Set([...jobs.keys(),...archives.keys(),...sweeps.keys(),...metrics.keys()]))if(!live.has(hash))retire(hash);
     }
-    sync();
+    let cleared=false;
+    for(const [hash,b] of sweeps)if(b.state==='failed'){sweeps.delete(hash);cleared=true;}
+    sync();if(cleared)refresh();
+  }
+  function errorLabel(err){
+    if(!err)return '';
+    if(err.code==='FLOW_REGIME')return 'Mach > 0.25';
+    if(err.code==='UNSUPPORTED_MOTION')return 'Unsupported motion';
+    if(err.code==='MASS_RESIDUAL')return 'Mass residual';
+    if(err.code==='NONFINITE_LOAD'||err.code==='NONFINITE_SURFACE'||err.code==='NONFINITE_REGIME')return 'Nonfinite field';
+    return 'Solve failed';
   }
   context.editor.register({documentChanged,frames:sync,flush:flushOutput,animation:frame=>{
     if(activeSweep&&frame!==activeSweep.expected)activeSweep.moved=true;sync();
-  },parameters:(n,changes)=>{if(n.type!=='cfd')return null;validateParameters({...n.params,...changes});return {};}});
+  },parameters:(n,changes)=>{if(n.type!=='cfd')return null;validateParameters({...n.params,...changes});return {};},
+    rowColor:n=>n.type==='cfd'&&(current(n.nativeHash)?.state==='failed'||sweeps.get(n.nativeHash)?.state==='failed')?'#ee554b':null});
   context.attributes.register(hash=>{
     const n=find(hash),j=current(hash),result=j?.result,b=sweeps.get(hash),sweeping=sweepBusy(b);
     const p=j?.state==='solving'?j.progress:null;
     const progress=p?.stage==='shape'?'Shape '+p.iterations:p?.stage==='flow'?p.steps+' steps':
-      p?.stage==='geometry'?'Geometry':p?.stage==='surface-results'?'Surface fields':'';
+      p?.stage==='geometry'?'Geometry':p?.stage==='surface-results'?'Surface fields':
+      j?.state==='failed'?errorLabel(j.error):'';
+    const animProgress=sweeping?b.completed+'/'+(b.last-b.first+1)+(progress?' · '+progress:''):
+      b?.state==='failed'?errorLabel(b.error):'';
     return {hiddenFields:n.params.Medium==='Water'?['Ground','Altitude']:[],actions:[
       {id:'solve-frame',row:'Solve',label:'Frame',cancel:'stop',busy:!sweeping&&['queued','solving'].includes(j?.state),disabled:sweeping,
         progress:sweeping?'':progress},
       {id:'solve-animation',row:'Solve',label:'Animation',cancel:'stop',busy:sweeping,
-        progress:sweeping?b.completed+'/'+(b.last-b.first+1)+(progress?' · '+progress:''):''},
+        progress:animProgress},
       ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',row:'Result',label:mode,hidden:!result?.surfaceFields?.available.includes(mode),
         disabled:!result?.surfaceFields?.available.includes(mode),active:!!result?.surfaceFields&&j.display.mode===mode}))],
       numbers:[{id:'flow-lines',label:'Flow lines',visible:!!result?.surfaceFields&&!!j?.display?.flow,value:lineDensities.get(hash)??0,
@@ -2589,15 +2623,6 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const stage=gpu.staging('CFD pressure adjoint residual readback',20);
     const types='struct Wrench{velocity:vec4f,force:vec4f,moment:vec4f} struct Node{velocity:vec4f,traction:vec4f}';
     const geometryRow='struct Geometry{v:array<vec4f,3>}';
-    const prepare=await gpu.kernel('CFD gather cell and wall pressure objectives',base+types+
-      decl(0,'z','Cell')+decl(1,'forceSeed','vec4f')+decl(2,'momentSeed','vec4f')+decl(3,'mu','vec4f')+
-      decl(4,'wall','vec4f')+decl(5,'wrench','Wrench',true)+decl(6,'node','Node',true)+main(`
-        let fluid=mu[i].w>0.;let vel=z[i].uk.xyz;let arm=vec3f(${f.origin.join(',')})+cellCenters(p)*${f.h};
-        wrench[i]=Wrench(vec4f(vel,0),forceSeed[i],momentSeed[i]);
-        let traction=forceSeed[i].xyz+cross(momentSeed[i].xyz,arm);
-        let ratio=select(1.,wall[i].w,fluid);
-        node[i]=Node(vec4f(select(vec3f(0),.5*vel/ratio,fluid),0),vec4f(select(vec3f(0),traction,fluid),0));`));
-    const prepareBind=gpu.bind(prepare,[cell,seed.force,seed.moment,mobility,wall,wrench,node],coords);
     const faceData=types+decl(0,'mu','vec4f')+decl(1,'node','Node')+decl(2,'zq','Flux')+`
       struct FaceWork{bar:f32,open:f32,inverse:f32}
       fn faceWork(i:u32,p:vec3i,a:u32,s:i32,area:f32,width:f32)->FaceWork{
@@ -2607,67 +2632,108 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           return FaceWork(v,mu[select(j,i,s>0)][a],spacingInv(a,p[a],s));}
         return FaceWork(v,1.,select(0.,2./width,openFace(a,s)));
       }`;
-    const source=await gpu.kernel('CFD transpose velocity, shared flux and wall force to pressure',base+faceData+
-      decl(3,'objective','f32')+decl(4,'linearBar','f32')+decl(5,'rhs','f32',true)+main(`
-        let w=cellWidths(p);let area=faceAreas(w);var diagonal=0.;var b=objective[i]+linearBar[i];
-        for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
-          let t=faceWork(i,p,a,s,area[a],w[a]);let conductance=area[a]*t.open*t.inverse;diagonal+=conductance;
-          b+=f32(s)*conductance*t.bar;var q=p;q[a]+=s;
-          if(inside(q)){b+=f32(s)*area[a]*(1.-t.open)*node[i].traction[a];}
-        }}rhs[i]=select(0.,b,diagonal>0.);`));
-    const sourceBind=gpu.bind(source,[mobility,node,seed.face,seed.pressure,geometry.pressure,mg.rhs],coords);
-    const face=await gpu.kernel('CFD pull pressure work back to conductance and tentative discharges',base+faceData+geometryRow+
-      decl(3,'primal','f32')+decl(4,'lambda','f32')+decl(5,'geometry','Geometry',true)+decl(6,'out','Flux',true)+main(`
-        let w=cellWidths(p);let area=faceAreas(w);let z=lambda[i];var geom=geometry[i];
-        for(var a=0u;a<3u;a++){
-          var q=p;q[a]++;if(inside(q)){let j=index(q);let t=faceWork(i,p,a,1,area[a],w[a]);
-            let effective=t.bar-(z-lambda[j]);
-            geom.v[a].x+=area[a]*(t.inverse*(primal[i]-primal[j])*effective+
-              node[j].traction[a]*primal[j]-node[i].traction[a]*primal[i]);
-          }
-        }
-        geometry[i]=geom;out[i]=Flux(vec4f(zq[i].hi.xyz-vec3f(z),0.),vec4f(zq[i].lo.xyz+vec3f(z),0.));`));
-    const faceBind=gpu.bind(face,[mobility,node,seed.face,p0,mg.p,geometry.geometry,faces],coords);
-    const state=await gpu.kernel('CFD transpose the fractional predicted momentum and pressure impulse',base+geometryRow+
-      decl(0,'mu','vec4f')+decl(1,'wall','vec4f')+decl(2,'z','Cell')+decl(3,'pred','Cell')+decl(4,'primal','f32')+
-      decl(5,'geom','Geometry',true)+decl(6,'out','Cell',true)+main(`
-        let bar=z[i];var result=bar;var derivative=geom[i];let ratio=wall[i].w;let theta=mu[i].w;
-        if(theta>0.){
-          let share=theta/ratio;let v=pred[i];let shareBar=dot(bar.uk,v.uk)+dot(bar.wt,v.wt);
-          let w=cellWidths(p);var dv=vec3f(0);
+    const rhsAdj=gpu.buffer('CFD saved transpose pressure source',4*count);
+    const pAccum=gpu.buffer('CFD accumulated transpose pressure iterate',4*count);
+    const [prepare,source,face,state,defect,defectRhs]=await Promise.all([
+      gpu.kernel('CFD gather cell and wall pressure objectives',base+types+
+        decl(0,'z','Cell')+decl(1,'forceSeed','vec4f')+decl(2,'momentSeed','vec4f')+decl(3,'mu','vec4f')+
+        decl(4,'wall','vec4f')+decl(5,'wrench','Wrench',true)+decl(6,'node','Node',true)+main(`
+          let fluid=mu[i].w>0.;let vel=z[i].uk.xyz;let arm=vec3f(${f.origin.join(',')})+cellCenters(p)*${f.h};
+          wrench[i]=Wrench(vec4f(vel,0),forceSeed[i],momentSeed[i]);
+          let traction=forceSeed[i].xyz+cross(momentSeed[i].xyz,arm);
+          let ratio=select(1.,wall[i].w,fluid);
+          node[i]=Node(vec4f(select(vec3f(0),.5*vel/ratio,fluid),0),vec4f(select(vec3f(0),traction,fluid),0));`)),
+      gpu.kernel('CFD transpose velocity, shared flux and wall force to pressure',base+faceData+
+        decl(3,'objective','f32')+decl(4,'linearBar','f32')+decl(5,'rhs','f32',true)+main(`
+          let w=cellWidths(p);let area=faceAreas(w);var diagonal=0.;var b=objective[i]+linearBar[i];
           for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
-            var q=p;q[a]+=s;var corr=0.;
-            if(inside(q)){let j=index(q);let m=mu[select(j,i,s>0)][a];corr=m*(primal[i]-primal[j])*spacingInv(a,p[a],s);}
-            else if(openFace(a,s)){corr=2.*primal[i]/w[a];}
-            dv[a]+=.5*f32(s)*corr;
-          }}
-          result.uk*=share;result.wt*=share;derivative.v[0].w+=shareBar/ratio;
-          derivative.v[1].w-=(share*shareBar+dot(bar.uk.xyz,dv)/ratio)/ratio;
-        }
-        geom[i]=derivative;out[i]=result;`));
+            let t=faceWork(i,p,a,s,area[a],w[a]);let conductance=area[a]*t.open*t.inverse;diagonal+=conductance;
+            b+=f32(s)*conductance*t.bar;var q=p;q[a]+=s;
+            if(inside(q)){b+=f32(s)*area[a]*(1.-t.open)*node[i].traction[a];}
+          }}rhs[i]=select(0.,b,diagonal>0.);`)),
+      gpu.kernel('CFD pull pressure work back to conductance and tentative discharges',base+faceData+geometryRow+
+        decl(3,'primal','f32')+decl(4,'lambda','f32')+decl(5,'geometry','Geometry',true)+decl(6,'out','Flux',true)+main(`
+          let w=cellWidths(p);let area=faceAreas(w);let z=lambda[i];var geom=geometry[i];
+          for(var a=0u;a<3u;a++){
+            var q=p;q[a]++;if(inside(q)){let j=index(q);let t=faceWork(i,p,a,1,area[a],w[a]);
+              let effective=t.bar-(z-lambda[j]);
+              geom.v[a].x+=area[a]*(t.inverse*(primal[i]-primal[j])*effective+
+                node[j].traction[a]*primal[j]-node[i].traction[a]*primal[i]);
+            }
+          }
+          geometry[i]=geom;out[i]=Flux(vec4f(zq[i].hi.xyz-vec3f(z),0.),vec4f(zq[i].lo.xyz+vec3f(z),0.));`)),
+      gpu.kernel('CFD transpose the fractional predicted momentum and pressure impulse',base+geometryRow+
+        decl(0,'mu','vec4f')+decl(1,'wall','vec4f')+decl(2,'z','Cell')+decl(3,'pred','Cell')+decl(4,'primal','f32')+
+        decl(5,'geom','Geometry',true)+decl(6,'out','Cell',true)+main(`
+          let bar=z[i];var result=bar;var derivative=geom[i];let ratio=wall[i].w;let theta=mu[i].w;
+          if(theta>0.){
+            let share=theta/ratio;let v=pred[i];let shareBar=dot(bar.uk,v.uk)+dot(bar.wt,v.wt);
+            let w=cellWidths(p);var dv=vec3f(0);
+            for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){
+              var q=p;q[a]+=s;var corr=0.;
+              if(inside(q)){let j=index(q);let m=mu[select(j,i,s>0)][a];corr=m*(primal[i]-primal[j])*spacingInv(a,p[a],s);}
+              else if(openFace(a,s)){corr=2.*primal[i]/w[a];}
+              dv[a]+=.5*f32(s)*corr;
+            }}
+            result.uk*=share;result.wt*=share;derivative.v[0].w+=shareBar/ratio;
+            derivative.v[1].w-=(share*shareBar+dot(bar.uk.xyz,dv)/ratio)/ratio;
+          }
+          geom[i]=derivative;out[i]=result;`)),
+      gpu.kernel('CFD check the solved transpose pressure equation',base+decl(0,'mu','vec4f')+
+        decl(1,'lambda','f32')+decl(2,'rhs','f32')+'@group(0) @binding(3) var<storage,read_write> peak:array<atomic<u32>,5>;'+residualSample+main(`
+          let w=cellWidths(p);let area=faceAreas(w);var d=0.;var v=0.;
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
+            if(inside(q)){let j=index(q);c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);other=lambda[j];}
+            else if(openFace(a,s)){c=2.*area[a]/w[a];}
+            d+=c;v+=c*(lambda[i]-other);
+          }}sampleResidual(rhs[i],v,d,lambda[i]);`)),
+      gpu.kernel('CFD transpose pressure true residual for iterative refinement',base+decl(0,'mu','vec4f')+
+        decl(1,'lambda','f32')+decl(2,'rhs','f32')+decl(3,'out','f32',true)+main(`
+          let w=cellWidths(p);let area=faceAreas(w);var d=0.;var v=0.;
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
+            if(inside(q)){let j=index(q);c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);other=lambda[j];}
+            else if(openFace(a,s)){c=2.*area[a]/w[a];}
+            d+=c;v+=c*(lambda[i]-other);
+          }}out[i]=select(0.,rhs[i]-v,d>0.);`))
+    ]);
+    const prepareBind=gpu.bind(prepare,[cell,seed.force,seed.moment,mobility,wall,wrench,node],coords);
+    const sourceBind=gpu.bind(source,[mobility,node,seed.face,seed.pressure,geometry.pressure,mg.rhs],coords);
+    const faceBind=gpu.bind(face,[mobility,node,seed.face,p0,mg.p,geometry.geometry,faces],coords);
     const stateBind=gpu.bind(state,[mobility,wall,cell,pred,p0,geometry.geometry,predicted],coords);
-    const defect=await gpu.kernel('CFD check the solved transpose pressure equation',base+decl(0,'mu','vec4f')+
-      decl(1,'lambda','f32')+decl(2,'rhs','f32')+'@group(0) @binding(3) var<storage,read_write> peak:array<atomic<u32>,5>;'+residualSample+main(`
-        let w=cellWidths(p);let area=faceAreas(w);var d=0.;var v=0.;
-        for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
-          if(inside(q)){let j=index(q);c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);other=lambda[j];}
-          else if(openFace(a,s)){c=2.*area[a]/w[a];}
-          d+=c;v+=c*(lambda[i]-other);
-        }}sampleResidual(rhs[i],v,d,lambda[i]);`));
     const defectBind=gpu.bind(defect,[mobility,mg.p,mg.rhs,residual],coords);
-    function stages(iterations=24){
+    const defectRhsBind=gpu.bind(defectRhs,[mobility,pAccum,rhsAdj,mg.rhs],coords);
+    const addAccum=gpu.bind(accumulate,[pAccum,mg.p]);
+    function beginStages(iterations=16){
       return [phase('assemble transposed cut pressure',e=>{
         e.copyBufferToBuffer(seed.state,0,cell,0,cell.size);sumGroups(e);
         e.copyBufferToBuffer(mg.p,0,p0,0,p0.size);e.copyBufferToBuffer(mg.rhs,0,rhs0,0,rhs0.size);
         gpu.dispatch(e,prepare,prepareBind,grid);geometry.encode(e);
-        gpu.dispatch(e,source,sourceBind,grid);e.clearBuffer(mg.p);
-      }),...projection(iterations),phase('recover cut pressure derivatives',e=>{
+        gpu.dispatch(e,source,sourceBind,grid);mg.projectRhs?.(e);e.copyBufferToBuffer(mg.rhs,0,rhsAdj,0,rhsAdj.size);e.clearBuffer(mg.p);
+      }),...projection(iterations),phase('check transposed cut pressure defect',e=>{
         e.clearBuffer(residual);gpu.dispatch(e,defect,defectBind,grid);
+      })];
+    }
+    function refineStages(iterations=16){
+      return [phase('assemble cut pressure transpose defect',e=>{
+        e.copyBufferToBuffer(mg.p,0,pAccum,0,pAccum.size);
+        gpu.dispatch(e,defectRhs,defectRhsBind,grid);e.clearBuffer(mg.p);
+      }),...projection(iterations),phase('accumulate cut pressure transpose correction',e=>{
+        gpu.dispatch(e,accumulate,addAccum,grid);e.copyBufferToBuffer(rhsAdj,0,mg.rhs,0,mg.rhs.size);
+        e.clearBuffer(residual);gpu.dispatch(e,defect,defectBind,grid);
+      })];
+    }
+    function finishStages(){
+      return [phase('recover cut pressure derivatives',e=>{
         gpu.dispatch(e,face,faceBind,grid);gpu.dispatch(e,state,stateBind,grid);
         e.copyBufferToBuffer(p0,0,mg.p,0,p0.size);e.copyBufferToBuffer(rhs0,0,mg.rhs,0,rhs0.size);
       })];
     }
-    return {predicted,faces,geometry:geometry.geometry,defects:()=>gpu.read(residual,stage,2),relative:()=>relativeResidual(residual,stage),stages,
+    const restorePrimal=()=>phase('restore primal pressure after transpose failure',e=>{
+      e.copyBufferToBuffer(p0,0,mg.p,0,p0.size);e.copyBufferToBuffer(rhs0,0,mg.rhs,0,rhs0.size);
+    });
+    function stages(iterations=24){return [...beginStages(iterations),...finishStages()];}
+    return {predicted,faces,geometry:geometry.geometry,defects:()=>gpu.read(residual,stage,2),relative:()=>relativeResidual(residual,stage),
+      beginStages,refineStages,finishStages,restorePrimal,stages,
       encode(e,iterations){for(const part of stages(iterations))part.encode(e);},
       // Qualification starts at the same tentative momentum and stored flows
       // as a physical advance. Use the production operators through group merge.
@@ -2797,33 +2863,36 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     if(!transport||!groups||momentumSeed.size!==16*count)throw Error('A reconstructed cut-cell momentum objective is required.');
     const roots=gpu.buffer('CFD aggregated momentum and face-diagonal cotangents',16*count);
     const members=gpu.buffer('CFD extensive predictor objective for each cut cell',16*count);
-    const sum=await gpu.kernel('CFD transpose group scatter of momentum and face diagonal',decl(0,'links','u32')+
-      decl(1,'seed','vec4f')+decl(2,'root','vec4f',true)+`
-      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-        let i=g.x;if(i>=arrayLength(&seed)||links[3u*i]!=i){return;}
-        var v=seed[i];var j=links[3u*i+1u];while(j!=0xffffffffu){v+=seed[j];j=links[3u*j+2u];}root[i]=v;
-      }`);
-    const distribute=await gpu.kernel('CFD transpose extensive cut-group summation',decl(0,'links','u32')+
-      decl(1,'root','vec4f')+decl(2,'member','vec4f',true)+`
-      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-        let i=g.x;if(i<arrayLength(&member)){member[i]=root[links[3u*i]];}
-      }`);
-    const reduceGroup=gpu.bind(sum,[groups.links,momentumSeed,roots]),spread=gpu.bind(distribute,[groups.links,roots,members]);
-    const raw=await rawCutMomentumAdjoint(members,bodyForce,bodyMoment),shared=await transport.adjoint(members);
-    const turbulence=await modeledTurbulenceAdjoint(turbulenceSeed);
     const old=gpu.buffer('CFD modeled predictor cotangent of the old cell state',32*count);
     const face=gpu.buffer('CFD modeled predictor cotangent of each stored face incidence',32*count);
-    const combine=await gpu.kernel('CFD assemble the coupled momentum and SST predictor transpose',`
-      struct Cell{uk:vec4f,wt:vec2f,pad:vec2f} struct Flux{hi:vec4f,lo:vec4f}
-      struct MomentumPull{state:vec4f,discharge:Flux,mu:vec4f,wall:vec4f}
-      struct Direct{flowNu:vec4f,geometry:array<vec4f,3>}`+
-      decl(0,'raw','MomentumPull')+decl(1,'stress','vec4f')+decl(2,'faceStress','Direct')+decl(3,'sst','Cell')+
-      decl(4,'faceSst','Flux')+decl(5,'old','Cell',true)+decl(6,'flow','Flux',true)+`
+    const [sum,distribute,raw,shared,turbulence,combine]=await Promise.all([
+      gpu.kernel('CFD transpose group scatter of momentum and face diagonal',decl(0,'links','u32')+
+        decl(1,'seed','vec4f')+decl(2,'root','vec4f',true)+`
         @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-          let i=g.x;if(i>=arrayLength(&old)){return;}let m=raw[i];let u=m.state+stress[i];let v=sst[i];
-          old[i]=Cell(vec4f(v.uk.xyz+u.xyz,v.uk.w),v.wt+vec2f(0.,u.w),vec2f(0));
-          flow[i]=Flux(m.discharge.hi+faceSst[i].hi+vec4f(faceStress[i].flowNu.xyz,0.),m.discharge.lo+faceSst[i].lo);
-        }`);
+          let i=g.x;if(i>=arrayLength(&seed)||links[3u*i]!=i){return;}
+          var v=seed[i];var j=links[3u*i+1u];while(j!=0xffffffffu){v+=seed[j];j=links[3u*j+2u];}root[i]=v;
+        }`),
+      gpu.kernel('CFD transpose extensive cut-group summation',decl(0,'links','u32')+
+        decl(1,'root','vec4f')+decl(2,'member','vec4f',true)+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i<arrayLength(&member)){member[i]=root[links[3u*i]];}
+        }`),
+      rawCutMomentumAdjoint(members,bodyForce,bodyMoment),
+      transport.adjoint(members),
+      modeledTurbulenceAdjoint(turbulenceSeed),
+      gpu.kernel('CFD assemble the coupled momentum and SST predictor transpose',`
+        struct Cell{uk:vec4f,wt:vec2f,pad:vec2f} struct Flux{hi:vec4f,lo:vec4f}
+        struct MomentumPull{state:vec4f,discharge:Flux,mu:vec4f,wall:vec4f}
+        struct Direct{flowNu:vec4f,geometry:array<vec4f,3>}`+
+        decl(0,'raw','MomentumPull')+decl(1,'stress','vec4f')+decl(2,'faceStress','Direct')+decl(3,'sst','Cell')+
+        decl(4,'faceSst','Flux')+decl(5,'old','Cell',true)+decl(6,'flow','Flux',true)+`
+          @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+            let i=g.x;if(i>=arrayLength(&old)){return;}let m=raw[i];let u=m.state+stress[i];let v=sst[i];
+            old[i]=Cell(vec4f(v.uk.xyz+u.xyz,v.uk.w),v.wt+vec2f(0.,u.w),vec2f(0));
+            flow[i]=Flux(m.discharge.hi+faceSst[i].hi+vec4f(faceStress[i].flowNu.xyz,0.),m.discharge.lo+faceSst[i].lo);
+          }`)
+    ]);
+    const reduceGroup=gpu.bind(sum,[groups.links,momentumSeed,roots]),spread=gpu.bind(distribute,[groups.links,roots,members]);
     const join=gpu.bind(combine,[raw.out,shared.state,shared.direct,turbulence.old,turbulence.face,old,face]);
     return {old,face,raw:raw.out,shared:shared.direct,transport:shared,wallSites:turbulence.sites,turbulenceParameters:turbulence.local,bulkGeometry:turbulence.bulkGeometry,wallGeometry:turbulence.wallGeometry,
       encode(e){
@@ -2841,62 +2910,104 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
     const data=gpu.buffer('CFD inlet flux objective and reconstructed speed sensitivities',48*count);
     const shapeType='struct Geometry{v:array<vec4f,3>}';
     const inletType='struct Inlet{face:Flux,opening:vec4f}';
-    const setup=await gpu.kernel('CFD differentiate the initial open-face reconstruction',base+shapeType+inletType+
-      decl(0,'mu','vec4f')+decl(1,'wall','vec4f')+decl(2,'flux','Flux')+decl(3,'tail','Flux')+
-      decl(4,'z','Cell')+decl(5,'zq','Flux')+decl(6,'data','Inlet',true)+decl(7,'geometry','Geometry',true)+main(`
-        var result:Inlet;result.face=zq[i];var geo:Geometry;let ratio=wall[i].w;let theta=mu[i].w;
-        if(theta>0.){let share=theta/ratio;let area=faceAreas(cellWidths(p));var velocity=vec3f(0);
-          for(var a=0u;a<3u;a++){var l=p;l[a]--;var r=p;r[a]++;
-            let open=select(1.,mu[bounded(l)][a],inside(l))+select(1.,mu[i][a],inside(r));
-            if(open>0.){let farFlow=flux[i].hi[a]+flux[i].lo[a];let low=tail[i].hi[a]+tail[i].lo[a];
-              velocity[a]=(farFlow+low)/(area[a]*open);let d=share*z[i].uk[a]/(area[a]*open);
-              result.face.hi[a]+=d;result.face.lo[a]+=d;result.opening[a]=-share*z[i].uk[a]*velocity[a]/open;
-            }
-          }let u=far(p);let shareBar=dot(velocity,z[i].uk.xyz)+u.uk.w*z[i].uk.w+dot(u.wt,z[i].wt);
-          geo.v[0].w=shareBar/ratio;geo.v[2].w=-shareBar*share/ratio;
-        }data[i]=result;geometry[i]=geo;`));
-    const setupBind=gpu.bind(setup,[mobility,wall,flux,fluxTail,cell,seed.face,data,geometry],coords);
     const eq=base+inletType+decl(0,'mu','vec4f')+decl(1,'data','Inlet');
-    const source=await gpu.kernel('CFD inlet impulse pressure objective',eq+decl(2,'rhs','f32',true)+main(`
-      let w=cellWidths(p);let area=faceAreas(w);var b=0.;var diagonal=0.;
-      for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;
-        var v=select(data[i].face.lo[a],data[i].face.hi[a],s>0);var c=0.;
-        if(inside(q)){let j=index(q);v+=select(data[j].face.hi[a],data[j].face.lo[a],s>0);
-          c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);}
-        else if(openFace(a,s)){c=2.*area[a]/w[a];}diagonal+=c;b+=f32(s)*c*v;
-      }}rhs[i]=select(0.,b,diagonal>0.);`));
+    const [setup,source,evaluate,checkDefect,defectRhs]=await Promise.all([
+      gpu.kernel('CFD differentiate the initial open-face reconstruction',base+shapeType+inletType+
+        decl(0,'mu','vec4f')+decl(1,'wall','vec4f')+decl(2,'flux','Flux')+decl(3,'tail','Flux')+
+        decl(4,'z','Cell')+decl(5,'zq','Flux')+decl(6,'data','Inlet',true)+decl(7,'geometry','Geometry',true)+main(`
+          var result:Inlet;result.face=zq[i];var geo:Geometry;let ratio=wall[i].w;let theta=mu[i].w;
+          if(theta>0.){let share=theta/ratio;let area=faceAreas(cellWidths(p));var velocity=vec3f(0);
+            for(var a=0u;a<3u;a++){var l=p;l[a]--;var r=p;r[a]++;
+              let open=select(1.,mu[bounded(l)][a],inside(l))+select(1.,mu[i][a],inside(r));
+              if(open>0.){let farFlow=flux[i].hi[a]+flux[i].lo[a];let low=tail[i].hi[a]+tail[i].lo[a];
+                velocity[a]=(farFlow+low)/(area[a]*open);let d=share*z[i].uk[a]/(area[a]*open);
+                result.face.hi[a]+=d;result.face.lo[a]+=d;result.opening[a]=-share*z[i].uk[a]*velocity[a]/open;
+              }
+            }let u=far(p);let shareBar=dot(velocity,z[i].uk.xyz)+u.uk.w*z[i].uk.w+dot(u.wt,z[i].wt);
+            geo.v[0].w=shareBar/ratio;geo.v[2].w=-shareBar*share/ratio;
+          }data[i]=result;geometry[i]=geo;`)),
+      gpu.kernel('CFD inlet impulse pressure objective',eq+decl(2,'rhs','f32',true)+main(`
+        let w=cellWidths(p);let area=faceAreas(w);var b=0.;var diagonal=0.;
+        for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;
+          var v=select(data[i].face.lo[a],data[i].face.hi[a],s>0);var c=0.;
+          if(inside(q)){let j=index(q);v+=select(data[j].face.hi[a],data[j].face.lo[a],s>0);
+            c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);}
+          else if(openFace(a,s)){c=2.*area[a]/w[a];}diagonal+=c;b+=f32(s)*c*v;
+        }}rhs[i]=select(0.,b,diagonal>0.);`)),
+      gpu.kernel('CFD signed shape work of the initial compatible free stream',eq+shapeType+
+        decl(2,'potential','f32')+decl(3,'lambda','f32')+decl(4,'geom','Geometry',true)+decl(5,'rhs','f32')+
+        '@group(0) @binding(6) var<storage,read_write> peak:array<atomic<u32>,5>;'+residualSample+main(`
+          let w=cellWidths(p);let area=faceAreas(w);let z=lambda[i];let here=data[i];var d=geom[i];
+          var value=0.;var diagonal=0.;
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
+            if(inside(q)){let j=index(q);let inv=spacingInv(a,p[a],s);let t=data[j];other=lambda[j];
+              c=area[a]*mu[select(j,i,s>0)][a]*inv;
+              if(s>0){
+                let left=here.face.hi[a]-z;let right=t.face.lo[a]+other;
+                d.v[a].x+=here.opening[a]+t.opening[a]+area[a]*(far(p).uk[a]*left+far(q).uk[a]*right+
+                  inv*(potential[i]-potential[j])*(left+right));
+              }
+            }else if(openFace(a,s)){c=2.*area[a]/w[a];}diagonal+=c;value+=c*(z-other);
+          }}geom[i]=d;
+          sampleResidual(rhs[i],value,diagonal,z);`)),
+      gpu.kernel('CFD check the solved transpose pressure equation',base+decl(0,'mu','vec4f')+
+        decl(1,'lambda','f32')+decl(2,'rhs','f32')+'@group(0) @binding(3) var<storage,read_write> peak:array<atomic<u32>,5>;'+residualSample+main(`
+          let w=cellWidths(p);let area=faceAreas(w);var d=0.;var v=0.;
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
+            if(inside(q)){let j=index(q);c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);other=lambda[j];}
+            else if(openFace(a,s)){c=2.*area[a]/w[a];}
+            d+=c;v+=c*(lambda[i]-other);
+          }}sampleResidual(rhs[i],v,d,lambda[i]);`)),
+      gpu.kernel('CFD transpose pressure true residual for iterative refinement',base+decl(0,'mu','vec4f')+
+        decl(1,'lambda','f32')+decl(2,'rhs','f32')+decl(3,'out','f32',true)+main(`
+          let w=cellWidths(p);let area=faceAreas(w);var d=0.;var v=0.;
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
+            if(inside(q)){let j=index(q);c=area[a]*mu[select(j,i,s>0)][a]*spacingInv(a,p[a],s);other=lambda[j];}
+            else if(openFace(a,s)){c=2.*area[a]/w[a];}
+            d+=c;v+=c*(lambda[i]-other);
+          }}out[i]=select(0.,rhs[i]-v,d>0.);`))
+    ]);
+    const setupBind=gpu.bind(setup,[mobility,wall,flux,fluxTail,cell,seed.face,data,geometry],coords);
     const sourceBind=gpu.bind(source,[mobility,data,mg.rhs],coords);
-    const evaluate=await gpu.kernel('CFD signed shape work of the initial compatible free stream',eq+shapeType+
-      decl(2,'potential','f32')+decl(3,'lambda','f32')+decl(4,'geom','Geometry',true)+decl(5,'rhs','f32')+
-      '@group(0) @binding(6) var<storage,read_write> peak:array<atomic<u32>,5>;'+residualSample+main(`
-        let w=cellWidths(p);let area=faceAreas(w);let z=lambda[i];let here=data[i];var d=geom[i];
-        var value=0.;var diagonal=0.;
-        for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;var c=0.;var other=0.;
-          if(inside(q)){let j=index(q);let inv=spacingInv(a,p[a],s);let t=data[j];other=lambda[j];
-            c=area[a]*mu[select(j,i,s>0)][a]*inv;
-            if(s>0){
-              let left=here.face.hi[a]-z;let right=t.face.lo[a]+other;
-              d.v[a].x+=here.opening[a]+t.opening[a]+area[a]*(far(p).uk[a]*left+far(q).uk[a]*right+
-                inv*(potential[i]-potential[j])*(left+right));
-            }
-          }else if(openFace(a,s)){c=2.*area[a]/w[a];}diagonal+=c;value+=c*(z-other);
-        }}geom[i]=d;
-        sampleResidual(rhs[i],value,diagonal,z);`));
     const peak=gpu.buffer('CFD initial pressure adjoint residual',20),stage=gpu.staging('CFD inlet adjoint residual',20);
     const evaluateBind=gpu.bind(evaluate,[mobility,data,initialImpulse,mg.p,geometry,mg.rhs,peak],coords);
+    const checkBind=gpu.bind(checkDefect,[mobility,mg.p,mg.rhs,peak],coords);
     const original=gpu.buffer('CFD restore pressure after differentiating initial impulse',8*count);
-    function stages(iterations=24){
+    const rhsAdj=gpu.buffer('CFD saved inlet transpose pressure source',4*count);
+    const pAccum=gpu.buffer('CFD accumulated inlet transpose pressure',4*count);
+    const defectRhsBind=gpu.bind(defectRhs,[mobility,pAccum,rhsAdj,mg.rhs],coords);
+    const addAccum=gpu.bind(accumulate,[pAccum,mg.p]);
+    function beginStages(iterations=16){
       return [phase('assemble inlet pressure transpose',e=>{
-      e.copyBufferToBuffer(seed.state,0,cell,0,cell.size);merge(e);
-      gpu.dispatch(e,setup,setupBind,grid);
-      e.copyBufferToBuffer(mg.p,0,original,0,mg.p.size);e.copyBufferToBuffer(mg.rhs,0,original,mg.p.size,mg.rhs.size);
-      gpu.dispatch(e,source,sourceBind,grid);e.clearBuffer(mg.p);
-      }),...projection(iterations),phase('recover inlet geometry derivatives',e=>{
-      e.clearBuffer(peak);gpu.dispatch(e,evaluate,evaluateBind,grid);
-      e.copyBufferToBuffer(original,0,mg.p,0,mg.p.size);e.copyBufferToBuffer(original,mg.p.size,mg.rhs,0,mg.rhs.size);
+        e.copyBufferToBuffer(seed.state,0,cell,0,cell.size);merge(e);
+        gpu.dispatch(e,setup,setupBind,grid);
+        e.copyBufferToBuffer(mg.p,0,original,0,mg.p.size);e.copyBufferToBuffer(mg.rhs,0,original,mg.p.size,mg.rhs.size);
+        gpu.dispatch(e,source,sourceBind,grid);mg.projectRhs?.(e);e.copyBufferToBuffer(mg.rhs,0,rhsAdj,0,rhsAdj.size);e.clearBuffer(mg.p);
+      }),...projection(iterations),phase('check inlet pressure transpose defect',e=>{
+        e.clearBuffer(peak);gpu.dispatch(e,checkDefect,checkBind,grid);
       })];
     }
-    return {defect:async()=>(await gpu.read(peak,stage,2))[1],relative:()=>relativeResidual(peak,stage),stages,
+    function refineStages(iterations=16){
+      return [phase('assemble inlet transpose defect',e=>{
+        e.copyBufferToBuffer(mg.p,0,pAccum,0,pAccum.size);
+        gpu.dispatch(e,defectRhs,defectRhsBind,grid);e.clearBuffer(mg.p);
+      }),...projection(iterations),phase('accumulate inlet transpose correction',e=>{
+        gpu.dispatch(e,accumulate,addAccum,grid);e.copyBufferToBuffer(rhsAdj,0,mg.rhs,0,mg.rhs.size);
+        e.clearBuffer(peak);gpu.dispatch(e,checkDefect,checkBind,grid);
+      })];
+    }
+    function finishStages(){
+      return [phase('recover inlet geometry derivatives',e=>{
+        e.clearBuffer(peak);gpu.dispatch(e,evaluate,evaluateBind,grid);
+        e.copyBufferToBuffer(original,0,mg.p,0,mg.p.size);e.copyBufferToBuffer(original,mg.p.size,mg.rhs,0,mg.rhs.size);
+      })];
+    }
+    const restorePrimal=()=>phase('restore primal pressure after inlet transpose failure',e=>{
+      e.copyBufferToBuffer(original,0,mg.p,0,mg.p.size);e.copyBufferToBuffer(original,mg.p.size,mg.rhs,0,mg.rhs.size);
+    });
+    function stages(iterations=24){return [...beginStages(iterations),...finishStages()];}
+    return {defect:async()=>(await gpu.read(peak,stage,2))[1],relative:()=>relativeResidual(peak,stage),
+      beginStages,refineStages,finishStages,restorePrimal,stages,
       encode(e,iterations){for(const part of stages(iterations))part.encode(e);}};
   }
 
@@ -2923,57 +3034,60 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   // end state. Walking backwards leaves the primal positioned at the old
   // checkpoint. Pressure is an implicit constraint at each time level.
   async function modeledStepAdjoint(seed){
-    const shaft=!!(apertures&&grouped&&f.rotatingFrame),projection=await cutProjectionAdjoint(seed);
-    const history=shaft?await apertures.adjoint(projection.faces):await cutFaceHistoryAdjoint(projection.faces);
+    const shaft=!!(apertures&&grouped&&f.rotatingFrame);
     const momentum=gpu.buffer('CFD combined tentative velocity and diagonal objective',16*count);
     const turbulence=gpu.buffer('CFD coupled predicted SST objective',16*count);
-    const model=await modeledPredictorAdjoint(momentum,turbulence,seed.force,seed.moment);
     const historyType='struct History{old:vec4f,pred:vec4f,q:Flux,mu:vec4f} struct States{old:vec4f,pred:vec4f} struct Material{q:Flux,geom:array<vec4f,3>}';
+    const faceGeometry='struct Geometry{v:array<vec4f,3>}';
     const groupObjective=shaft?gpu.buffer('CFD projected objectives on transported rotor states',32*count):null;
-    const donor=shaft?await grouped.adjoint(groupObjective):null;
-    const prepare=await gpu.kernel('CFD collect predictor paths from pressure and face history',base+historyType+(shaft?
-      decl(0,'projected','Cell')+decl(1,'history','States')+decl(2,'out','Cell',true)+main(`
-        var a=projected[i];let z=history[i].pred;a.uk+=vec4f(z.xyz,0.);a.padding.x+=z.w;out[i]=a;`):
-      decl(0,'projected','Cell')+decl(1,'history','History')+decl(2,'momentum','vec4f',true)+decl(3,'turb','vec4f',true)+main(`
-        let a=projected[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x)+history[i].pred;
-        turb[i]=vec4f(a.uk.w,a.wt,0.);
-      `)));
-    const before=gpu.bind(prepare,shaft?[projection.predicted,history.state,groupObjective]:[projection.predicted,history.out,momentum,turbulence]);
-    const split=shaft?await gpu.kernel('CFD pass transposed donor right hand side to extensive predictors',base+
-      decl(0,'z','Cell')+decl(1,'momentum','vec4f',true)+decl(2,'sst','vec4f',true)+main(`
-        let a=z[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x);sst[i]=vec4f(a.uk.w,a.wt,a.padding.y);`)):null;
-    const splitBind=shaft?gpu.bind(split,[donor.rhs,momentum,turbulence]):null;
-    const join=await gpu.kernel('CFD couple transient flux history to the SST momentum transpose',base+historyType+
-      decl(0,'history',shaft?'States':'History')+decl(1,'old','Cell',true)+decl(2,'q','Flux',true)+
-      (shaft?decl(3,'material','Material')+decl(4,'donor','Flux'):'')+main(`
-        let h=history[i];old[i].uk+=vec4f(h.old.xyz,0.);
-        ${shaft?'q[i].hi+=material[i].q.hi+donor[i].hi;q[i].lo+=material[i].q.lo+donor[i].lo;':'q[i].hi+=h.q.hi;q[i].lo+=h.q.lo;'}`));
-    const after=gpu.bind(join,shaft?[history.state,model.old,model.face,history.material,donor.faces]:[history.out,model.old,model.face]);
     const cutGeometry=gpu.buffer('CFD aperture, centroid, fluid fraction and wall-distance derivatives',48*count);
     const volumeBar=gpu.buffer('CFD objective derivative per merged physical volume',4*count);
-    const faceGeometry='struct Geometry{v:array<vec4f,3>}';
-    const collect=await gpu.kernel('CFD combine physical geometry derivatives across the time step',base+faceGeometry+historyType+
-      'struct Momentum{state:vec4f,q:Flux,mu:vec4f,wall:vec4f} struct Stress{flowNu:vec4f,geometry:array<vec4f,3>} struct Sst{mu:vec4f,wall:vec4f}'+
-      decl(0,'raw','Momentum')+decl(1,'stress','Stress')+decl(2,'history',shaft?'Material':'History')+decl(3,'projection','Geometry')+
-      decl(4,'bulk','Sst')+decl(5,'out','Geometry',true)+(shaft?'':decl(6,'boundary','Sst'))+main(`
-        let b=bulk[i];var w:Sst;${shaft?'':'w=boundary[i];'}let m=raw[i];let face=stress[i];var d=projection[i];
-        let aperture=b.mu+w.mu+m.mu${shaft?'':'+history[i].mu'};
-        for(var a=0u;a<3u;a++){d.v[a]+=vec4f(vec3f(aperture[a],0.,0.)+face.geometry[a].xyz${shaft?'+history[i].geom[a].xyz':''},0.);}
-        let ratio=d.v[1].w+b.wall.y+m.wall.y+face.geometry[0].w;
-        d.v[0].w+=aperture.w;d.v[1].w=b.wall.x+w.wall.x+m.wall.x;d.v[2].w=ratio;out[i]=d;`));
+    const [projection,model,donor,prepare,split,join,collect,ratio,scatter]=await Promise.all([
+      cutProjectionAdjoint(seed),
+      modeledPredictorAdjoint(momentum,turbulence,seed.force,seed.moment),
+      shaft?grouped.adjoint(groupObjective):null,
+      gpu.kernel('CFD collect predictor paths from pressure and face history',base+historyType+(shaft?
+        decl(0,'projected','Cell')+decl(1,'history','States')+decl(2,'out','Cell',true)+main(`
+          var a=projected[i];let z=history[i].pred;a.uk+=vec4f(z.xyz,0.);a.padding.x+=z.w;out[i]=a;`):
+        decl(0,'projected','Cell')+decl(1,'history','History')+decl(2,'momentum','vec4f',true)+decl(3,'turb','vec4f',true)+main(`
+          let a=projected[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x)+history[i].pred;
+          turb[i]=vec4f(a.uk.w,a.wt,0.);
+        `))),
+      shaft?gpu.kernel('CFD pass transposed donor right hand side to extensive predictors',base+
+        decl(0,'z','Cell')+decl(1,'momentum','vec4f',true)+decl(2,'sst','vec4f',true)+main(`
+          let a=z[i];momentum[i]=vec4f(a.uk.xyz,a.padding.x);sst[i]=vec4f(a.uk.w,a.wt,a.padding.y);`)):null,
+      gpu.kernel('CFD couple transient flux history to the SST momentum transpose',base+historyType+
+        decl(0,'history',shaft?'States':'History')+decl(1,'old','Cell',true)+decl(2,'q','Flux',true)+
+        (shaft?decl(3,'material','Material')+decl(4,'donor','Flux'):'')+main(`
+          let h=history[i];old[i].uk+=vec4f(h.old.xyz,0.);
+          ${shaft?'q[i].hi+=material[i].q.hi+donor[i].hi;q[i].lo+=material[i].q.lo+donor[i].lo;':'q[i].hi+=h.q.hi;q[i].lo+=h.q.lo;'}`)),
+      gpu.kernel('CFD combine physical geometry derivatives across the time step',base+faceGeometry+historyType+
+        'struct Momentum{state:vec4f,q:Flux,mu:vec4f,wall:vec4f} struct Stress{flowNu:vec4f,geometry:array<vec4f,3>} struct Sst{mu:vec4f,wall:vec4f}'+
+        decl(0,'raw','Momentum')+decl(1,'stress','Stress')+decl(2,'history',shaft?'Material':'History')+decl(3,'projection','Geometry')+
+        decl(4,'bulk','Sst')+decl(5,'out','Geometry',true)+(shaft?'':decl(6,'boundary','Sst'))+main(`
+          let b=bulk[i];var w:Sst;${shaft?'':'w=boundary[i];'}let m=raw[i];let face=stress[i];var d=projection[i];
+          let aperture=b.mu+w.mu+m.mu${shaft?'':'+history[i].mu'};
+          for(var a=0u;a<3u;a++){d.v[a]+=vec4f(vec3f(aperture[a],0.,0.)+face.geometry[a].xyz${shaft?'+history[i].geom[a].xyz':''},0.);}
+          let ratio=d.v[1].w+b.wall.y+m.wall.y+face.geometry[0].w;
+          d.v[0].w+=aperture.w;d.v[1].w=b.wall.x+w.wall.x+m.wall.x;d.v[2].w=ratio;out[i]=d;`)),
+      // Every group member uses the same physical group volume divided by
+      // its own uncut volume. Each member fraction contributes its cell volume.
+      gpu.kernel('CFD transpose common cut-group volume to its members',base+faceGeometry+
+        decl(0,'links','u32')+decl(1,'geometry','Geometry')+decl(2,'root','f32',true)+(shaft?decl(3,'donor','f32'):'')+main(`
+          if(links[3u*i]!=i){return;}var j=i;var total=${shaft?'donor[i]':'0.'};
+          loop{let w=cellWidths(point(j));total+=geometry[j].v[2].w/(w.x*w.y*w.z);
+            j=select(links[3u*j+2u],links[3u*i+1u],j==i);if(j==0xffffffffu){break;}}
+          root[i]=total;`)),
+      gpu.kernel('CFD gradient of the constituent fluid volumes',base+faceGeometry+
+        decl(0,'links','u32')+decl(1,'root','f32')+decl(2,'geometry','Geometry',true)+main(`
+          let w=cellWidths(p);geometry[i].v[0].w+=root[links[3u*i]]*w.x*w.y*w.z;`))
+    ]);
+    const history=shaft?await apertures.adjoint(projection.faces):await cutFaceHistoryAdjoint(projection.faces);
+    const before=gpu.bind(prepare,shaft?[projection.predicted,history.state,groupObjective]:[projection.predicted,history.out,momentum,turbulence]);
+    const splitBind=shaft?gpu.bind(split,[donor.rhs,momentum,turbulence]):null;
+    const after=gpu.bind(join,shaft?[history.state,model.old,model.face,history.material,donor.faces]:[history.out,model.old,model.face]);
     const collectBind=gpu.bind(collect,[model.raw,model.shared,shaft?history.material:history.out,projection.geometry,
       model.bulkGeometry,cutGeometry,...shaft?[]:[model.wallGeometry]]);
-    // Every group member uses the same physical group volume divided by
-    // its own uncut volume. Each member fraction contributes its cell volume.
-    const ratio=await gpu.kernel('CFD transpose common cut-group volume to its members',base+faceGeometry+
-      decl(0,'links','u32')+decl(1,'geometry','Geometry')+decl(2,'root','f32',true)+(shaft?decl(3,'donor','f32'):'')+main(`
-        if(links[3u*i]!=i){return;}var j=i;var total=${shaft?'donor[i]':'0.'};
-        loop{let w=cellWidths(point(j));total+=geometry[j].v[2].w/(w.x*w.y*w.z);
-          j=select(links[3u*j+2u],links[3u*i+1u],j==i);if(j==0xffffffffu){break;}}
-        root[i]=total;`));
-    const scatter=await gpu.kernel('CFD gradient of the constituent fluid volumes',base+faceGeometry+
-      decl(0,'links','u32')+decl(1,'root','f32')+decl(2,'geometry','Geometry',true)+main(`
-        let w=cellWidths(p);geometry[i].v[0].w+=root[links[3u*i]]*w.x*w.y*w.z;`));
     const reduceRatio=gpu.bind(ratio,[groups.links,cutGeometry,volumeBar,...shaft?[donor.volume]:[]],coords),spreadRatio=gpu.bind(scatter,[groups.links,volumeBar,cutGeometry],coords);
     const volumes=phase('combine group volume derivatives',e=>{
       gpu.dispatch(e,ratio,reduceRatio,grid);gpu.dispatch(e,scatter,spreadRatio,grid);
@@ -3001,6 +3115,16 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           e.copyBufferToBuffer(seed.face,0,projection.faces,0,seed.face.size);history.initial(e);
           gpu.dispatch(e,initialGeometry,initialBind,grid);
         },
+        async beginReverse(t,previous,iterations,scheduler,check,live=false){
+          await scheduler.perform([restorePredictor(previous,live),...grouped.stages(recordedGroupSweeps?.[t]),...projection.beginStages(iterations)],check);
+        },
+        async finishReverse(t,previous,scheduler,check,live=false){
+          await scheduler.perform([...projection.finishStages(),
+            phase('transpose relative aperture flows',e=>{history.predict(e,t===0);gpu.dispatch(e,prepare,before,grid);})],check);
+          await donor.solve(scheduler,check);
+          await scheduler.perform([phase('restore predictor objective',e=>gpu.dispatch(e,split,splitBind,grid)),...finish(previous,live)],check);
+        },
+        async abortReverse(scheduler,check){await scheduler.perform([projection.restorePrimal()],check);},
         async reverseStep(t,previous,iterations,scheduler,check,live=false){
           await scheduler.perform([restorePredictor(previous,live),...grouped.stages(recordedGroupSweeps?.[t]),...projection.stages(iterations),
             phase('transpose relative aperture flows',e=>{history.predict(e,t===0);gpu.dispatch(e,prepare,before,grid);})],check);
@@ -3009,10 +3133,21 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         }};
     }
     return {...fields,reverseStages,
+      async beginReverse(t,previous,iterations,scheduler,check,live=false){
+        await scheduler.perform([restorePredictor(previous,live),...projection.beginStages(iterations)],check);
+      },
+      async finishReverse(t,previous,scheduler,check,live=false){
+        await scheduler.perform([...projection.finishStages(),phase('transpose stored face history',e=>{
+          history.encode(e);gpu.dispatch(e,prepare,before,grid);
+        }),...finish(previous,live)],check);
+      },
+      async abortReverse(scheduler,check){await scheduler.perform([projection.restorePrimal()],check);},
       async projectedInlet(){
         const inlet=await cutInletAdjoint(seed,cutGeometry);
         const stages=iterations=>[...inlet.stages(iterations),volumes];
-        return {defect:inlet.defect,relative:inlet.relative,stages,encode(e,iterations){for(const part of stages(iterations))part.encode(e);}};
+        return {defect:inlet.defect,relative:inlet.relative,beginStages:inlet.beginStages,refineStages:inlet.refineStages,
+          finishStages:()=>[...inlet.finishStages(),volumes],restorePrimal:inlet.restorePrimal,
+          stages,encode(e,iterations){for(const part of stages(iterations))part.encode(e);}};
       },
       reverse(e,previous,iterations){for(const part of reverseStages(previous,iterations))part.encode(e);}};
   }
@@ -3561,6 +3696,199 @@ const boundaryWeight=`fn boundaryWeight(p:vec3i,width:vec3f,area:vec3f)->f32{
     if((p[a]==0&&openFace(a,-1))||(p[a]+1==DIMS[a]&&openFace(a,1))){diagonal+=2.*area[a]/width[a];}
   }return diagonal;}`;
 
+// Identify closed fluid pockets disconnected from every open pressure boundary.
+// Projecting residuals and preconditioned directions onto the zero-mean subspace
+// of each sealed component keeps PCG strictly SPD on Range(A) under FP32 roundoff.
+async function sealedPressureProjector(gpu,f,coeff){
+  const device=gpu.device,n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)];
+  const anyOpen=pressureBoundarySides(f).some(Boolean);
+  const head=gridWGSL(f)+`const NONE=0xffffffffu;`;
+  const diagFn=`
+    fn activeDiagonal(i:u32,p:vec3i)->bool{
+      var ok=c[i].w>0.;
+      for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;if(inside(q)){
+        ok=ok||c[select(index(q),i,s>0)][a]>0.;}}}
+      return ok;
+    }`;
+  const scratch=gpuScope(device);
+  try{
+    const reached=[0,1].map(()=>scratch.buffer('CFD open-pressure reachability',4*n));
+    const flag=scratch.buffer('CFD sealed projector flag',16),read=scratch.staging('CFD sealed projector readback',16);
+    const [seed,flood,countOp]=await Promise.all([
+      gpu.kernel('CFD seed open pressure boundary reachability',head+`
+        @group(0) @binding(0) var<storage,read> c:array<vec4f>;
+        @group(0) @binding(1) var<storage,read_write> dst:array<u32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i<CELLS){dst[i]=u32(c[i].w>0.);}}`),
+      gpu.kernel('CFD flood open pressure connectivity',head+`
+        @group(0) @binding(0) var<storage,read> c:array<vec4f>;
+        @group(0) @binding(1) var<storage,read> src:array<u32>;
+        @group(0) @binding(2) var<storage,read_write> dst:array<u32>;
+        @group(0) @binding(3) var<storage,read_write> changed:array<atomic<u32>>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i>=CELLS){return;}var v=src[i];
+          if(v==0u){let p=point(i);for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;if(inside(q)){
+            let j=index(q);if(src[j]!=0u&&c[select(j,i,s>0)][a]>0.){v=1u;}}}}
+            if(v!=0u){atomicOr(&changed[0],1u);}}
+          dst[i]=v;}`),
+      gpu.kernel('CFD count sealed active pressure cells',head+`
+        @group(0) @binding(0) var<storage,read> c:array<vec4f>;
+        @group(0) @binding(1) var<storage,read> reach:array<u32>;
+        @group(0) @binding(2) var<storage,read_write> out:array<atomic<u32>>;
+        ${diagFn}
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i<CELLS&&reach[i]==0u&&activeDiagonal(i,point(i))){atomicAdd(&out[0],1u);}}`)
+    ]);
+    let slot=0;
+    if(anyOpen){
+      gpu.run(seed,[coeff,reached[0]],grid);
+      const floodBinds=[gpu.bind(flood,[coeff,reached[0],reached[1],flag]),gpu.bind(flood,[coeff,reached[1],reached[0],flag])];
+      let changed;
+      do{
+        const e=device.createCommandEncoder();e.clearBuffer(flag,0,4);
+        for(let k=0;k<8;k++){gpu.dispatch(e,flood,floodBinds[slot],grid);slot=1-slot;}
+        e.copyBufferToBuffer(flag,0,read,0,4);device.queue.submit([e.finish()]);
+        await read.mapAsync(GPUMapMode.READ,0,4);
+        try{changed=new Uint32Array(read.getMappedRange(0,4))[0];}finally{read.unmap();}
+      }while(changed);
+    }
+    const enc=device.createCommandEncoder();enc.clearBuffer(flag,0,4);
+    gpu.dispatch(enc,countOp,gpu.bind(countOp,[coeff,reached[slot],flag]),grid);
+    enc.copyBufferToBuffer(flag,0,read,0,4);device.queue.submit([enc.finish()]);
+    await read.mapAsync(GPUMapMode.READ,0,4);
+    let sealedCount;try{sealedCount=new Uint32Array(read.getMappedRange(0,4))[0];}finally{read.unmap();}
+    if(!sealedCount)return null;
+
+    const ids=gpu.buffer('CFD sealed pressure cell indices',4*sealedCount);
+    const comp=gpu.buffer('CFD sealed pressure component id',4*sealedCount);
+    const cellSlot=scratch.buffer('CFD sealed cell compact map',4*n);
+    const labels=[0,1].map(()=>scratch.buffer('CFD sealed component labels',4*sealedCount));
+    const rootMap=scratch.buffer('CFD sealed root to component',4*sealedCount);
+    const compact=[Math.ceil(sealedCount/128)];
+    const [pack,relax,markRoots,assign]=await Promise.all([
+      gpu.kernel('CFD compact sealed pressure cells',head+`
+        @group(0) @binding(0) var<storage,read> c:array<vec4f>;
+        @group(0) @binding(1) var<storage,read> reach:array<u32>;
+        @group(0) @binding(2) var<storage,read_write> counter:array<atomic<u32>>;
+        @group(0) @binding(3) var<storage,read_write> ids:array<u32>;
+        @group(0) @binding(4) var<storage,read_write> map:array<u32>;
+        @group(0) @binding(5) var<storage,read_write> label:array<u32>;
+        ${diagFn}
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i>=CELLS){return;}var k=NONE;
+          if(reach[i]==0u&&activeDiagonal(i,point(i))){k=atomicAdd(&counter[0],1u);ids[k]=i;label[k]=k;}
+          map[i]=k;}`),
+      gpu.kernel('CFD connect sealed pressure components',head+`
+        @group(0) @binding(0) var<storage,read> c:array<vec4f>;
+        @group(0) @binding(1) var<storage,read> ids:array<u32>;
+        @group(0) @binding(2) var<storage,read> map:array<u32>;
+        @group(0) @binding(3) var<storage,read> src:array<u32>;
+        @group(0) @binding(4) var<storage,read_write> dst:array<u32>;
+        @group(0) @binding(5) var<storage,read_write> changed:array<atomic<u32>>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k>=arrayLength(&ids)){return;}let i=ids[k];let p=point(i);var best=src[k];
+          for(var a=0u;a<3u;a++){for(var s=-1;s<=1;s+=2){var q=p;q[a]+=s;if(!inside(q)){continue;}
+            let j=index(q);let m=map[j];if(m!=NONE&&c[select(j,i,s>0)][a]>0.){best=min(best,src[m]);}}}
+          dst[k]=best;if(best!=src[k]){atomicOr(&changed[0],1u);}}`),
+      gpu.kernel('CFD enumerate sealed pressure component roots',`
+        @group(0) @binding(0) var<storage,read> label:array<u32>;
+        @group(0) @binding(1) var<storage,read_write> rootMap:array<u32>;
+        @group(0) @binding(2) var<storage,read_write> counter:array<atomic<u32>>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&label)&&label[k]==k){rootMap[k]=atomicAdd(&counter[0],1u);}}`),
+      gpu.kernel('CFD assign sealed component ids and sizes',`
+        @group(0) @binding(0) var<storage,read> label:array<u32>;
+        @group(0) @binding(1) var<storage,read> rootMap:array<u32>;
+        @group(0) @binding(2) var<storage,read_write> comp:array<u32>;
+        @group(0) @binding(3) var<storage,read_write> sizes:array<atomic<u32>>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&label)){let id=rootMap[label[k]];comp[k]=id;atomicAdd(&sizes[id],1u);}}`)
+    ]);
+    const e1=device.createCommandEncoder();e1.clearBuffer(flag,0,4);
+    gpu.dispatch(e1,pack,gpu.bind(pack,[coeff,reached[slot],flag,ids,cellSlot,labels[0]]),grid);
+    device.queue.submit([e1.finish()]);
+    const relaxBinds=[gpu.bind(relax,[coeff,ids,cellSlot,labels[0],labels[1],flag]),gpu.bind(relax,[coeff,ids,cellSlot,labels[1],labels[0],flag])];
+    let lSlot=0,changed;
+    do{
+      const e=device.createCommandEncoder();e.clearBuffer(flag,0,4);
+      for(let k=0;k<8;k++){gpu.dispatch(e,relax,relaxBinds[lSlot],compact);lSlot=1-lSlot;}
+      e.copyBufferToBuffer(flag,0,read,0,4);device.queue.submit([e.finish()]);
+      await read.mapAsync(GPUMapMode.READ,0,4);
+      try{changed=new Uint32Array(read.getMappedRange(0,4))[0];}finally{read.unmap();}
+    }while(changed);
+    const e2=device.createCommandEncoder();e2.clearBuffer(flag,0,4);
+    gpu.dispatch(e2,markRoots,gpu.bind(markRoots,[labels[lSlot],rootMap,flag]),compact);
+    e2.copyBufferToBuffer(flag,0,read,0,4);device.queue.submit([e2.finish()]);
+    await read.mapAsync(GPUMapMode.READ,0,4);
+    let numComponents;try{numComponents=new Uint32Array(read.getMappedRange(0,4))[0];}finally{read.unmap();}
+    if(!numComponents)return null;
+
+    const sizes=scratch.buffer('CFD sealed component sizes',4*numComponents);
+    const invSize=gpu.buffer('CFD sealed component inverse sizes',4*numComponents);
+    const sums=gpu.buffer('CFD sealed component means',8*numComponents);
+    const compGrid=[Math.ceil(numComponents/128)];
+    const [invert,sumP,subP,sumR,subR,sumZ,subZ]=await Promise.all([
+      gpu.kernel('CFD invert sealed component sizes',`
+        @group(0) @binding(0) var<storage,read> sizes:array<u32>;
+        @group(0) @binding(1) var<storage,read_write> inv:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let i=g.x;if(i<arrayLength(&inv)){let n=sizes[i];inv[i]=select(0.,1./f32(n),n>0u);}}`),
+      gpu.kernel('CFD sum sealed component pressure',profileHistogram(3)+`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> p:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){addProfile(comp[k],p[ids[k]]);}}`),
+      gpu.kernel('CFD center sealed component pressure',`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> sums:array<vec2f>;@group(0) @binding(3) var<storage,read> inv:array<f32>;
+        @group(0) @binding(4) var<storage,read_write> p:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){let c=comp[k];let s=sums[c];p[ids[k]]-=(s.x+s.y)*inv[c];}}`),
+      gpu.kernel('CFD sum sealed component residual',profileHistogram(3)+`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> pair:array<vec2f>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){addProfile(comp[k],pair[ids[k]].x);}}`),
+      gpu.kernel('CFD project sealed component residual',`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> sums:array<vec2f>;@group(0) @binding(3) var<storage,read> inv:array<f32>;
+        @group(0) @binding(4) var<storage,read_write> pair:array<vec2f>;@group(0) @binding(5) var<storage,read_write> scaled:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){let i=ids[k];let c=comp[k];let s=sums[c];
+            let old=pair[i];let r=old.x-(s.x+s.y)*inv[c];pair[i]=vec2f(r,old.y);scaled[i]=r*old.y;}}`),
+      gpu.kernel('CFD sum sealed preconditioned correction',profileHistogram(4)+`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> pair:array<vec2f>;@group(0) @binding(3) var<storage,read> z:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){let i=ids[k];addProfile(comp[k],pair[i].y*z[i]);}}`),
+      gpu.kernel('CFD project sealed preconditioned correction',`
+        @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> comp:array<u32>;
+        @group(0) @binding(2) var<storage,read> sums:array<vec2f>;@group(0) @binding(3) var<storage,read> inv:array<f32>;
+        @group(0) @binding(4) var<storage,read> pair:array<vec2f>;@group(0) @binding(5) var<storage,read_write> z:array<f32>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+          let k=g.x;if(k<arrayLength(&ids)){let i=ids[k];let s=pair[i].y;if(s>0.){let c=comp[k];let m=sums[c];z[i]-=((m.x+m.y)*inv[c])/s;}}}`)
+    ]);
+    const e3=device.createCommandEncoder();
+    gpu.dispatch(e3,assign,gpu.bind(assign,[labels[lSlot],rootMap,comp,sizes]),compact);
+    gpu.dispatch(e3,invert,gpu.bind(invert,[sizes,invSize]),compGrid);
+    device.queue.submit([e3.finish()]);await device.queue.onSubmittedWorkDone();
+    const projectBuffer=buf=>{
+      const g0=gpu.bind(sumP,[ids,comp,buf,sums]),g1=gpu.bind(subP,[ids,comp,sums,invSize,buf]);
+      return e=>{e.clearBuffer(sums);gpu.dispatch(e,sumP,g0,compact);gpu.dispatch(e,subP,g1,compact);};
+    };
+    return {count:sealedCount,components:numComponents,projectBuffer,bind(p,pair,scaled,z){
+      const gp0=gpu.bind(sumP,[ids,comp,p,sums]),gp1=gpu.bind(subP,[ids,comp,sums,invSize,p]);
+      const gr0=gpu.bind(sumR,[ids,comp,pair,sums]),gr1=gpu.bind(subR,[ids,comp,sums,invSize,pair,scaled]);
+      const gz0=gpu.bind(sumZ,[ids,comp,pair,z,sums]),gz1=gpu.bind(subZ,[ids,comp,sums,invSize,pair,z]);
+      return {
+        projectP(e){e.clearBuffer(sums);gpu.dispatch(e,sumP,gp0,compact);gpu.dispatch(e,subP,gp1,compact);},
+        projectR(e){e.clearBuffer(sums);gpu.dispatch(e,sumR,gr0,compact);gpu.dispatch(e,subR,gr1,compact);},
+        projectZ(e){e.clearBuffer(sums);gpu.dispatch(e,sumZ,gz0,compact);gpu.dispatch(e,subZ,gz1,compact);}
+      };
+    }};
+  }finally{scratch.close();}
+}
+
 export async function pressureMultigrid(gpu,f,faceMobility){
   const levels=[],row=weightedRow(!!f.axes);
   let dims=f.dims,axes=f.axes,childAxes=null;
@@ -3572,8 +3900,10 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     const weight=levels.length||axes?gpu.buffer('CFD level face conductance',count*16):faceMobility;
     const group=[Math.ceil(count/128)],stencil='let row=pressureRow(i);let d=row.x;let residual=b[i]-row.y;let pi=pressure[i];';
     const buffers=head+ro(0,'b')+ro(1,'pressure')+rw(2,'out')+'@group(0) @binding(3) var<storage,read> mobility:array<vec4f>;'+row;
-    const op=await gpu.kernel('CFD immersed pressure residual',buffers+body(stencil+'out[i]=select(0.,residual,d>0.);'));
-    const smooth=await gpu.kernel('CFD immersed Jacobi',buffers+body(stencil+'if(d>0.){out[i]=pi+0.72*residual/d;}else{out[i]=0.;}'));
+    const [op,smooth]=await Promise.all([
+      gpu.kernel('CFD immersed pressure residual',buffers+body(stencil+'out[i]=select(0.,residual,d>0.);')),
+      gpu.kernel('CFD immersed Jacobi',buffers+body(stencil+'if(d>0.){out[i]=pi+0.72*residual/d;}else{out[i]=0.;}'))
+    ]);
     const residual=gpu.bind(op,[rhs,p,scratch,weight]),pair=[gpu.bind(smooth,[rhs,p,scratch,weight]),gpu.bind(smooth,[rhs,scratch,p,weight])];
     levels.push({dims,rhs,p,scratch,weight,group,metric,damp(encoder,times){
       for(let i=0;i<times;i++)for(const binding of pair)gpu.dispatch(encoder,smooth,binding,group);
@@ -3596,59 +3926,59 @@ export async function pressureMultigrid(gpu,f,faceMobility){
   }
   for(let l=0;l<levels.length-1;l++){
     const fine=levels[l],coarse=levels[l+1],[nx,ny]=fine.dims,[cx,cy,cz]=coarse.dims;
-    const geometry=await gpu.kernel('CFD coarsen face mobility',gridWGSL({dims:coarse.dims})+(f.axes?openBoundaries(f)+metricWGSL(coarse.metric)+boundaryWeight:'')+`
-      @group(0) @binding(0) var<storage,read> fine:array<vec4f>;
-      @group(0) @binding(1) var<storage,read_write> coarse:array<vec4f>;
-      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
-        let start=2*point(i);var sum=vec3f(0);
-        for(var k=0;k<8;k++){let off=vec3i(k&1,(k>>1)&1,k>>2);let p=start+off;
-          sum+=vec3f(off)*fine[u32(p.x+${nx}*(p.y+${ny}*p.z))].xyz;}
-        ${f.axes?`let p=point(i);let w=cellWidths(p);
-          let ratio=vec3f(axisMetric(0u,p.x).w,axisMetric(1u,p.y).w,axisMetric(2u,p.z).w);
-          coarse[i]=vec4f(ratio*sum,boundaryWeight(p,w,faceAreas(w)));`:'coarse[i]=vec4f(.25*sum,0.);'}}`);
+    const [geometry,restrict,prolong,inject]=await Promise.all([
+      gpu.kernel('CFD coarsen face mobility',gridWGSL({dims:coarse.dims})+(f.axes?openBoundaries(f)+metricWGSL(coarse.metric)+boundaryWeight:'')+`
+        @group(0) @binding(0) var<storage,read> fine:array<vec4f>;
+        @group(0) @binding(1) var<storage,read_write> coarse:array<vec4f>;
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+          let start=2*point(i);var sum=vec3f(0);
+          for(var k=0;k<8;k++){let off=vec3i(k&1,(k>>1)&1,k>>2);let p=start+off;
+            sum+=vec3f(off)*fine[u32(p.x+${nx}*(p.y+${ny}*p.z))].xyz;}
+          ${f.axes?`let p=point(i);let w=cellWidths(p);
+            let ratio=vec3f(axisMetric(0u,p.x).w,axisMetric(1u,p.y).w,axisMetric(2u,p.z).w);
+            coarse[i]=vec4f(ratio*sum,boundaryWeight(p,w,faceAreas(w)));`:'coarse[i]=vec4f(.25*sum,0.);'}}`),
+      gpu.kernel('CFD pressure restriction',gridWGSL({dims:coarse.dims})+ro(0,'r')+rw(1,'b')+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+        let p=2*point(i);var s=0.;for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
+          let q=p+vec3i(x,y,z);s+=r[u32(q.x+${nx}*(q.y+${ny}*q.z))];}}}b[i]=${f.axes?'s':'0.5*s'};}`),
+      gpu.kernel('CFD pressure prolongation',gridWGSL({dims:fine.dims})+(f.axes?metricWGSL(fine.metric)+`
+        fn parentCenter(a:u32,j:i32)->f32{let l=axisMetric(a,2*j);let r=axisMetric(a,2*j+1);
+          return .5*(l.x-.5*l.y+r.x+.5*r.y);}
+        fn coarsePos(p:vec3i)->vec3f{var pos=vec3f(p/2);for(var a=0u;a<3u;a++){let j=p[a]/2;
+          let x=axisMetric(a,p[a]).x;let cp=parentCenter(a,j);let k=clamp(j+select(-1,1,x>=cp),0,DIMS[a]/2-1);
+          if(k!=j){pos[a]+=f32(k-j)*(x-cp)/(parentCenter(a,k)-cp);}}return pos;}`:
+        'fn coarsePos(p:vec3i)->vec3f{return (vec3f(p)+0.5)*0.5-0.5;}')+ro(0,'c')+rw(1,'p')+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+        let pos=coarsePos(point(i));let base=vec3i(floor(pos));let t=fract(pos);var v=0.;
+        for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
+          let off=vec3i(x,y,z);let q=clamp(base+off,vec3i(0),vec3i(${cx-1},${cy-1},${cz-1}));
+          let w=select(1.-t,t,off==vec3i(1));v+=w.x*w.y*w.z*c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}}}p[i]+=v;}`),
+      f.axes&&!f.globalPressure&&l>0?gpu.kernel('CFD constant coarse correction',gridWGSL({dims:fine.dims})+ro(0,'c')+rw(1,'p')+`
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
+          let q=point(i)/2;p[i]+=c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}`):null
+    ]);
     const geometryBind=gpu.bind(geometry,[fine.weight,coarse.weight],metricBuffer(gpu,coarse.metric));
     fine.updateGeometry=e=>gpu.dispatch(e,geometry,geometryBind,coarse.group);
-    const restrict=await gpu.kernel('CFD pressure restriction',gridWGSL({dims:coarse.dims})+ro(0,'r')+rw(1,'b')+`
-      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
-      let p=2*point(i);var s=0.;for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
-        let q=p+vec3i(x,y,z);s+=r[u32(q.x+${nx}*(q.y+${ny}*q.z))];}}}b[i]=${f.axes?'s':'0.5*s'};}`);
-    const interpolation=f.axes?metricWGSL(fine.metric)+`
-      fn parentCenter(a:u32,j:i32)->f32{let l=axisMetric(a,2*j);let r=axisMetric(a,2*j+1);
-        return .5*(l.x-.5*l.y+r.x+.5*r.y);}
-      fn coarsePos(p:vec3i)->vec3f{var pos=vec3f(p/2);for(var a=0u;a<3u;a++){let j=p[a]/2;
-        let x=axisMetric(a,p[a]).x;let cp=parentCenter(a,j);let k=clamp(j+select(-1,1,x>=cp),0,DIMS[a]/2-1);
-        if(k!=j){pos[a]+=f32(k-j)*(x-cp)/(parentCenter(a,k)-cp);}}return pos;}`:
-      'fn coarsePos(p:vec3i)->vec3f{return (vec3f(p)+0.5)*0.5-0.5;}';
-    const prolong=await gpu.kernel('CFD pressure prolongation',gridWGSL({dims:fine.dims})+interpolation+ro(0,'c')+rw(1,'p')+`
-      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
-      let pos=coarsePos(point(i));let base=vec3i(floor(pos));let t=fract(pos);var v=0.;
-      for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
-        let off=vec3i(x,y,z);let q=clamp(base+off,vec3i(0),vec3i(${cx-1},${cy-1},${cz-1}));
-        let w=select(1.-t,t,off==vec3i(1));v+=w.x*w.y*w.z*c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}}}p[i]+=v;}`);
     const down=gpu.bind(restrict,[fine.scratch,coarse.rhs]),up=gpu.bind(prolong,[coarse.p,fine.p],metricBuffer(gpu,fine.metric));
     fine.down=e=>{gpu.dispatch(e,restrict,down,coarse.group);e.clearBuffer(coarse.p);};
     fine.up=e=>gpu.dispatch(e,prolong,up,fine.group);
-    if(f.axes&&!f.globalPressure&&l>0){
-      const inject=await gpu.kernel('CFD constant coarse correction',gridWGSL({dims:fine.dims})+ro(0,'c')+rw(1,'p')+`
-        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
-          let q=point(i)/2;p[i]+=c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}`);
+    if(inject){
       const group=gpu.bind(inject,[coarse.p,fine.p]);fine.inject=e=>gpu.dispatch(e,inject,group,fine.group);
     }
   }
-  const fine=levels[0],block=await gpuBlocks(gpu,8,f.dims,false);
+  const fine=levels[0];
   // One colour reads only itself and neighbours of the other colour.
   // Separate dispatches provide the global ordering between both half-sweeps.
-  const colours=[];
-  for(let colour=0;colour<2;colour++){
-    const code=gridWGSL(f)+openBoundaries(f)+ro(0,'b')+rw(1,'pressure')+
+  const [block,...colourOps]=await Promise.all([
+    gpuBlocks(gpu,8,f.dims,false),
+    ...[0,1].map(colour=>gpu.kernel('CFD local pressure defect relaxation',gridWGSL(f)+openBoundaries(f)+ro(0,'b')+rw(1,'pressure')+
       '@group(0) @binding(2) var<storage,read> mobility:array<vec4f>;'+row+`
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
         let i=g.x;if(i>=CELLS){return;}let p=point(i);if(((p.x+p.y+p.z)&1)!=${colour}){return;}
         let row=pressureRow(i);if(row.x>0.){pressure[i]+=(b[i]-row.y)/row.x;}
-      }`;
-    const op=await gpu.kernel('CFD local pressure defect relaxation',code);
-    colours.push([op,gpu.bind(op,[fine.rhs,fine.p,fine.weight])]);
-  }
+      }`))
+  ]);
+  const colours=colourOps.map(op=>[op,gpu.bind(op,[fine.rhs,fine.p,fine.weight])]);
   let cutRelax=null;
   function polish(e){
     for(let pair=0;pair<3;pair++){
@@ -3704,18 +4034,21 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     return Object.assign(e=>{for(const op of stages)op.encode(e);},{stages});
   }
   const pre=f.globalPressure?globalCorrection:f.axes&&levels.length>1?coarseCorrection:null;
-  let cut=null;
+  let cut=null,sealed=null;
   if(f.cutCells&&updateFine){
     const e=gpu.device.createCommandEncoder();updateFine(e);gpu.device.queue.submit([e.finish()]);
-    cut=await cutPressureBlocks(gpu,f,faceMobility,fine.weight);
+    const [cutRes,sealedRes]=await Promise.allSettled([cutPressureBlocks(gpu,f,faceMobility,fine.weight),sealedPressureProjector(gpu,f,fine.weight)]);
+    if(cutRes.status==='rejected')throw cutRes.reason;
+    if(sealedRes.status==='rejected')throw sealedRes.reason;
+    cut=cutRes.value;sealed=sealedRes.value;
     if(cut?.smoother)cutRelax=await cut.smoother(fine.rhs,fine.p);
   }
   const local=cut?{
     binding(r,z){return {regular:block.binding(r,z),cut:cut.binding(r,z)};},
     encode(e,b){block.encode(e,b.regular);b.cut(e);}
   }:block;
-  const refine=await devicePressureCG(gpu,fine,local,gridWGSL(f)+openBoundaries(f)+row,pre);
-  return {p:fine.p,rhs:fine.rhs,refine,polish,cutRelax,cutBlocks:cut?.count??0,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
+  const refine=await devicePressureCG(gpu,fine,local,gridWGSL(f)+openBoundaries(f)+row,pre,sealed);
+  return {p:fine.p,rhs:fine.rhs,refine,polish,cutRelax,cutBlocks:cut?.count??0,projectRhs:sealed?sealed.projectBuffer(fine.rhs):null,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
     schwarz?.(e);cycle(e,0);
   }};
 }
@@ -4129,7 +4462,7 @@ export async function cutPressureBlocks(gpu,f,faces,coeff){
 // Resident PCG on the actual immersed operator. A diagonally equilibrated
 // regular Dirichlet block inverse is SPD also on the active fluid subspace.
 // Geometry and pressure stay on Frame's device, including all scalar reductions.
-export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrection){
+export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrection,sealed=null){
   const count=level.dims.reduce((a,b)=>a*b),groups=level.group;
   const buffer=(name,bytes)=>gpu.buffer('CFD pressure CG '+name,bytes);
   const pair=buffer('residual and equilibration',8*count),d=buffer('direction',4*count),ad=buffer('operator product',4*count);
@@ -4138,57 +4471,65 @@ export async function devicePressureCG(gpu,level,block,operator,makeCoarseCorrec
   const run=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<${count}u){${body}}}`;
   const geometry=level.rowBuffers??[level.weight],next=1+geometry.length;
   const row=operator+storage(0,'pressure','f32')+(level.rowBindings??storage(1,'mobility','vec4f'));
-  const initial=await gpu.kernel('CFD true pressure residual',row+storage(next,'rhs','f32')+storage(next+1,'pair','vec2f',true)+storage(next+2,'scaled','f32',true)+run(`
-    let a=pressureRow(i);var s=0.;var r=0.;if(a.x>0.){s=${level.equilibrate===false?'1.':'sqrt(6./a.x)'};r=rhs[i]-a.y;}
-    pair[i]=vec2f(r,s);scaled[i]=r*s;`));
-  const initialGroup=gpu.bind(initial,[level.p,...geometry,level.rhs,pair,scaled]);
   const partial=(single,finish='sums[group.x]=lanes[0];')=>`var<workgroup> lanes:array<f32,128>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:vec3u){
       let i=g.x;var value=0.;${single}
       lanes[lane]=value;for(var stride=64u;stride>0u;stride/=2u){workgroupBarrier();if(lane<stride){lanes[lane]+=lanes[lane+stride];}}
       if(lane==0u){${finish}}}`;
-  const rz=await gpu.kernel('CFD preconditioned residual norm',storage(0,'pair','vec2f')+storage(1,'z','f32')+storage(2,'sums','f32',true)+
-    partial(`if(i<${count}u){let r=pair[i];value=r.x*(r.y*z[i]);}`));
+  const finite='(bitcast<u32>(sum)&0x7f800000u)!=0x7f800000u';
+  const updates=[
+    `let valid=${finite}&&sum>0.;control[0]=select(vec4f(0.),vec4f(sum,0.,0.,sum),valid);`,
+    `var alpha=0.;if(${finite}&&sum>0.&&old.x>old.w*1e-14){alpha=old.x/sum;}
+      if((bitcast<u32>(alpha)&0x7f800000u)==0x7f800000u){alpha=0.;}
+      control[0].y=alpha;`,
+    `var beta=0.;let ok=${finite}&&sum>0.&&old.y>0.&&old.x>old.w*1e-14;
+      if(ok){beta=sum/old.x;}
+      if((bitcast<u32>(beta)&0x7f800000u)==0x7f800000u){beta=0.;}
+      control[0].x=select(0.,sum,ok);control[0].z=beta;`
+  ];
+  const [initial,rz,multiply,advance,direction,...redPipes]=await Promise.all([
+    gpu.kernel('CFD true pressure residual',row+storage(next,'rhs','f32')+storage(next+1,'pair','vec2f',true)+storage(next+2,'scaled','f32',true)+run(`
+      let a=pressureRow(i);var s=0.;var r=0.;if(a.x>0.){s=${level.equilibrate===false?'1.':'sqrt(6./a.x)'};r=rhs[i]-a.y;}
+      pair[i]=vec2f(r,s);scaled[i]=r*s;`)),
+    gpu.kernel('CFD preconditioned residual norm',storage(0,'pair','vec2f')+storage(1,'z','f32')+storage(2,'sums','f32',true)+
+      partial(`if(i<${count}u){let r=pair[i];value=r.x*(r.y*z[i]);}`)),
+    gpu.kernel('CFD pressure direction product',row+storage(next,'ad','f32',true)+storage(next+1,'sums','f32',true)+
+      partial(`if(i<${count}u){let a=pressureRow(i);ad[i]=a.y;value=pressure[i]*a.y;}`)),
+    gpu.kernel('CFD immersed Krylov update',storage(0,'pressure','f32',true)+storage(1,'pair','vec2f',true)+storage(2,'d','f32')+
+      storage(3,'ad','f32')+storage(4,'scaled','f32',true)+storage(5,'control','vec4f')+run(`
+        let alpha=control[0].y;let old=pair[i];let r=old.x-alpha*ad[i];pair[i]=vec2f(r,old.y);
+        pressure[i]+=alpha*d[i];scaled[i]=r*old.y;`)),
+    gpu.kernel('CFD immersed Krylov direction',storage(0,'pair','vec2f')+storage(1,'z','f32')+storage(2,'d','f32',true)+storage(3,'control','vec4f')+
+      run('d[i]=pair[i].y*z[i]+control[0].z*d[i];')),
+    ...updates.map(update=>gpu.kernel('CFD device dot reduction',storage(0,'sums','f32')+storage(1,'control','vec4f',true)+
+      partial(`for(var j=lane;j<${groups[0]}u;j+=128u){value+=sums[j];}`,'let sum=lanes[0];let old=control[0];'+update)))
+  ]);
+  const initialGroup=gpu.bind(initial,[level.p,...geometry,level.rhs,pair,scaled]);
   const rzGroup=gpu.bind(rz,[pair,z,partials]);
-  const multiply=await gpu.kernel('CFD pressure direction product',row+storage(next,'ad','f32',true)+storage(next+1,'sums','f32',true)+
-    partial(`if(i<${count}u){let a=pressureRow(i);ad[i]=a.y;value=pressure[i]*a.y;}`));
   const productGroup=gpu.bind(multiply,[d,...geometry,ad,partials]);
-  const advance=await gpu.kernel('CFD immersed Krylov update',storage(0,'pressure','f32',true)+storage(1,'pair','vec2f',true)+storage(2,'d','f32')+
-    storage(3,'ad','f32')+storage(4,'scaled','f32',true)+storage(5,'control','vec4f')+run(`
-      let alpha=control[0].y;let old=pair[i];let r=old.x-alpha*ad[i];pair[i]=vec2f(r,old.y);
-      pressure[i]+=alpha*d[i];scaled[i]=r*old.y;`));
   const advanceGroup=gpu.bind(advance,[level.p,pair,d,ad,scaled,control]);
-  const direction=await gpu.kernel('CFD immersed Krylov direction',storage(0,'pair','vec2f')+storage(1,'z','f32')+storage(2,'d','f32',true)+storage(3,'control','vec4f')+
-    run('d[i]=pair[i].y*z[i]+control[0].z*d[i];'));
   const directionGroup=gpu.bind(direction,[pair,z,d,control]);
-  const reductions=[];
-  for(const update of [
-    'control[0]=vec4f(sum,0.,0.,sum);',
-    'var alpha=0.;if(sum>0.&&old.x>old.w*1e-14){alpha=old.x/sum;}control[0].y=alpha;',
-    'var beta=0.;if(old.x>old.w*1e-14){beta=sum/old.x;}control[0].x=sum;control[0].z=beta;'
-  ]){
-    const pipe=await gpu.kernel('CFD device dot reduction',storage(0,'sums','f32')+storage(1,'control','vec4f',true)+
-      partial(`for(var j=lane;j<${groups[0]}u;j+=128u){value+=sums[j];}`,'let sum=lanes[0];let old=control[0];'+update));
-    reductions.push([pipe,gpu.bind(pipe,[partials,control])]);
-  }
+  const reductions=redPipes.map(pipe=>[pipe,gpu.bind(pipe,[partials,control])]);
   const pre=block.binding(scaled,z),coarse=await makeCoarseCorrection?.(pair,z);
-  function applyPreconditioner(e){block.encode(e,pre);coarse?.(e);}
+  const proj=sealed?.bind(level.p,pair,scaled,z)??null;
+  function applyPreconditioner(e){block.encode(e,pre);coarse?.(e);proj?.projectZ(e);}
   const prepare=e=>{
-    gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);applyPreconditioner(e);
+    proj?.projectP(e);gpu.dispatch(e,initial,initialGroup,groups);proj?.projectR(e);e.clearBuffer(d);applyPreconditioner(e);
     gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[0],[1]);gpu.dispatch(e,direction,directionGroup,groups);
   };
   const iterate=(e,last)=>{
     gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);
-    if(!last){applyPreconditioner(e);gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[2],[1]);gpu.dispatch(e,direction,directionGroup,groups);}
+    if(!last){proj?.projectR(e);applyPreconditioner(e);gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[2],[1]);gpu.dispatch(e,direction,directionGroup,groups);}
   };
   function refine(e,iterations){prepare(e);for(let i=0;i<iterations;i++)iterate(e,i+1===iterations);}
   if(!coarse?.stages)return Object.assign(refine,{prepare,iterate});
-  const preStages=[{kind:'local pressure block',encode:e=>block.encode(e,pre)},...coarse.stages];
+  const preStages=[{kind:'local pressure block',encode:e=>block.encode(e,pre)},...coarse.stages,
+    ...proj?[{kind:'project sealed pressure correction',encode:e=>proj.projectZ(e)}]:[]];
   const inner=(e,index)=>{gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[index],[1]);gpu.dispatch(e,direction,directionGroup,groups);};
-  const prepareStages=[{kind:'true pressure residual',encode:e=>{gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);}},
+  const prepareStages=[{kind:'true pressure residual',encode:e=>{proj?.projectP(e);gpu.dispatch(e,initial,initialGroup,groups);proj?.projectR(e);e.clearBuffer(d);}},
     ...preStages,{kind:'Krylov initial direction',encode:e=>inner(e,0)}];
   const product={kind:'Krylov product and update',encode:e=>{
-    gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);
+    gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);proj?.projectR(e);
   }};
   const innerStages=[product,...preStages,{kind:'Krylov new direction',encode:e=>inner(e,2)}];
   return Object.assign(refine,{prepare,iterate,prepareStages,innerStages,lastStages:[product]});
@@ -5676,62 +6017,144 @@ export function distanceBand(f,meshes,limit,pitch=f.h/(f.subcellSurface?6:2)){
 // Gather one bounded chunk of native indexed triangles at a time on the GPU.
 // All three directional projections, signed voting, union and distance extension
 // use the editor's existing Unite kernels. No imported normals are consumed.
+const uniteRasterPipelines=new WeakMap();
 export async function rasterize(gpu,band,capture){
   const {meshes,assertCurrent}=capture,{device}=gpu,n=countOf(band.dims),U=GPUBufferUsage;
   const packed=gpu.buffer('CFD native directional solid field',4*Math.ceil(n/2));
   if(!meshes.length)return packed; // A non-positive native sample is exterior.
-  const source=document.getElementById('frame-unite-wgsl').textContent;
-  const types=['read-only-storage','storage','storage','storage','storage','uniform','storage','storage'];
-  const layout=device.createBindGroupLayout({entries:types.map((type,binding)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type}}))});
-  const module=device.createShaderModule({label:'CFD native Unite volume',code:source}),pl=device.createPipelineLayout({bindGroupLayouts:[layout]});
-  const [small,large,scan,pack]=await Promise.all(['small','large','scan','pack'].map(entryPoint=>device.createComputePipelineAsync({layout:pl,compute:{module,entryPoint}})));
-  const readers=new Map();
-  for(const storage of new Set(meshes.map(m=>m.storage))){
-    readers.set(storage,await gpu.kernel('CFD native triangle stream '+storage,meshReader(storage)+`
+  let unite=uniteRasterPipelines.get(device);
+  if(!unite){
+    unite=(async()=>{
+      const source=document.getElementById('frame-unite-wgsl').textContent;
+      const types=['read-only-storage','storage','storage','storage','storage','uniform','storage','storage'];
+      const layout=device.createBindGroupLayout({entries:types.map((type,binding)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type}}))});
+      const module=device.createShaderModule({label:'CFD native Unite volume',code:source}),pl=device.createPipelineLayout({bindGroupLayouts:[layout]});
+      const [small,large,scan,pack]=await Promise.all(['small','large','scan','pack'].map(entryPoint=>device.createComputePipelineAsync({layout:pl,compute:{module,entryPoint}})));
+      return {layout,small,large,scan,pack};
+    })().catch(e=>{uniteRasterPipelines.delete(device);throw e;});
+    uniteRasterPipelines.set(device,unite);
+  }
+  const {layout,small,large,scan,pack}=await unite;
+  const clipSpan=Math.max(...band.dims)+4;
+  const meshPlans=meshes.map(mesh=>{
+    // Frame uses signed 32-bit edge products in its fixed-point rasterizer.
+    const extent=Math.max(...mesh.bounds.max.map((v,k)=>(v-mesh.bounds.min[k])/band.h),...band.dims);
+    const span=Math.max(extent,...mesh.bounds.min.map((v,k)=>Math.abs(v-band.origin[k])/band.h),...mesh.bounds.max.map((v,k)=>Math.abs(v-band.origin[k])/band.h));
+    const rawScale=2**Math.min(8,Math.floor(Math.log2(16383/Math.max(1,span))));
+    const clipped=rawScale<1;
+    const scale=clipped?2**Math.min(8,Math.floor(Math.log2(16383/Math.max(1,clipSpan)))):rawScale;
+    if(scale<1)throw Error('Native directional raster exceeds its integer coordinate range');
+    return {mesh,clipped,scale};
+  });
+  const storages=[...new Set(meshes.map(m=>m.storage))];
+  const clipStorages=[...new Set(meshPlans.filter(p=>p.clipped).map(p=>p.mesh.storage))];
+  const readers=new Map(),clipReaders=new Map();
+  await Promise.all([
+    ...storages.map(async storage=>readers.set(storage,await gpu.kernel('CFD native triangle stream '+storage,meshReader(storage)+`
       struct Config{matrix:mat4x4f,first:u32,count:u32};@group(0) @binding(2) var<uniform> mesh:Config;
       @group(0) @binding(3) var<storage,read_write> triangles:array<f32>;
       @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
         let i=g.x;if(i>=3u*mesh.count){return;}let p=mesh.matrix*vec4f(sourcePoint(i+3u*mesh.first),1.);
-        triangles[3u*i]=p.x;triangles[3u*i+1u]=p.y;triangles[3u*i+2u]=p.z;}`));
-  }
+        triangles[3u*i]=p.x;triangles[3u*i+1u]=p.y;triangles[3u*i+2u]=p.z;}`))),
+    ...clipStorages.map(async storage=>clipReaders.set(storage,await gpu.kernel('CFD clipped native triangle stream '+storage,meshReader(storage)+`
+      struct ClipConfig{matrix:mat4x4f,originH:vec4f,dims:vec4u,info:vec4u};
+      @group(0) @binding(2) var<uniform> cfg:ClipConfig;
+      @group(0) @binding(3) var<storage,read_write> triangles:array<f32>;
+      fn clipPlane(poly:ptr<function,array<vec3f,8>>,n:u32,coord:u32,limit:f32,upper:bool)->u32{
+        if(n<3u){return 0u;}
+        var next:array<vec3f,8>;var m=0u;
+        var prev=(*poly)[n-1u];var prevD=select(prev[coord]-limit,limit-prev[coord],upper);
+        for(var k=0u;k<n;k++){
+          let cur=(*poly)[k];let curD=select(cur[coord]-limit,limit-cur[coord],upper);
+          if((prevD<0.)!=(curD<0.)&&m<8u){next[m]=mix(prev,cur,prevD/(prevD-curD));m++;}
+          if(curD>=0.&&m<8u){next[m]=cur;m++;}
+          prev=cur;prevD=curD;
+        }
+        *poly=next;return m;
+      }
+      @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3u){
+        let idx=g.x;if(idx>=cfg.info.y){return;}
+        let tri=cfg.info.x+idx;let invH=1./cfg.originH.w;
+        var poly:array<vec3f,8>;
+        for(var k=0u;k<3u;k++){poly[k]=((cfg.matrix*vec4f(sourcePoint(3u*tri+k),1.)).xyz-cfg.originH.xyz)*invH;}
+        let axis=cfg.dims.w;let u=(axis+1u)%3u;let v=(axis+2u)%3u;
+        var n=3u;
+        n=clipPlane(&poly,n,u,-1.,false);n=clipPlane(&poly,n,u,f32(cfg.dims[u])+1.,true);
+        n=clipPlane(&poly,n,v,-1.,false);n=clipPlane(&poly,n,v,f32(cfg.dims[v])+1.,true);
+        let base=45u*idx;
+        for(var k=0u;k<5u;k++){
+          let o=base+9u*k;
+          if(k+2u<n){
+            let a=cfg.originH.xyz+poly[0]*cfg.originH.w;
+            let b=cfg.originH.xyz+poly[k+1u]*cfg.originH.w;
+            let c=cfg.originH.xyz+poly[k+2u]*cfg.originH.w;
+            triangles[o]=a.x;triangles[o+1u]=a.y;triangles[o+2u]=a.z;
+            triangles[o+3u]=b.x;triangles[o+4u]=b.y;triangles[o+5u]=b.z;
+            triangles[o+6u]=c.x;triangles[o+7u]=c.y;triangles[o+8u]=c.z;
+          }else{for(var j=0u;j<9u;j++){triangles[o+j]=0.;}}
+        }
+      }`)))
+  ]);
   assertCurrent();
-  const chunk=Math.min(32768,meshes.reduce((a,m)=>Math.max(a,m.triangleCount),1));
-  const triangles=gpu.buffer('CFD bounded triangle stream',36*chunk),events=gpu.buffer('CFD directional crossings',12*n);
-  const state=gpu.buffer('CFD native volume votes',4*n),tasks=gpu.buffer('CFD large projected faces',20+4*chunk,U.STORAGE|U.INDIRECT|U.COPY_DST);
+  const maxTri=meshes.reduce((a,m)=>Math.max(a,m.triangleCount),1);
+  const chunk=Math.min(32768,maxTri),clipChunk=Math.min(6144,maxTri);
+  const triCapacity=Math.max(chunk,clipStorages.length?5*clipChunk:0);
+  const triangles=gpu.buffer('CFD bounded triangle stream',36*triCapacity),events=gpu.buffer('CFD directional crossings',12*n);
+  const state=gpu.buffer('CFD native volume votes',4*n),tasks=gpu.buffer('CFD large projected faces',20+4*triCapacity,U.STORAGE|U.INDIRECT|U.COPY_DST);
   const header=gpu.buffer('CFD empty raster task header',new Uint32Array([0,1,1,0,0]),U.COPY_DST|U.COPY_SRC);
   const hermite=gpu.buffer('CFD unused reconstruction vertices',12),counter=gpu.buffer('CFD disabled reconstruction',8);
   const cfgUsage=U.UNIFORM|U.COPY_DST;
-  for(const [m,mesh] of meshes.entries()){
-    // Frame uses signed 32-bit edge products in its fixed-point rasterizer.
-    const extent=Math.max(...mesh.bounds.max.map((v,k)=>(v-mesh.bounds.min[k])/band.h),...band.dims);
-    const span=Math.max(extent,...mesh.bounds.min.map((v,k)=>Math.abs(v-band.origin[k])/band.h),...mesh.bounds.max.map((v,k)=>Math.abs(v-band.origin[k])/band.h));
-    const scale=2**Math.min(8,Math.floor(Math.log2(16383/Math.max(1,span))));
-    if(scale<1)throw Error('Native directional raster exceeds its integer coordinate range');
-    const gather=readers.get(mesh.storage),chunks=[];
-    for(let first=0;first<mesh.triangleCount;first+=chunk){
-      const count=Math.min(chunk,mesh.triangleCount-first),data=new ArrayBuffer(80);
-      new Float32Array(data,0,16).set(mesh.matrix);new Uint32Array(data,64,2).set([first,count]);
-      const uniform=gpu.buffer('CFD triangle stream transform',new Uint8Array(data),cfgUsage);
-      const resources=[...meshResources(mesh),{buffer:uniform},{buffer:triangles}];
-      chunks.push({count,binding:device.createBindGroup({layout:gather.getBindGroupLayout(0),entries:resources.map((resource,binding)=>({binding,resource}))})});
-    }
+  for(const [m,{mesh,clipped,scale}] of meshPlans.entries()){
     const e=device.createCommandEncoder();e.clearBuffer(state);
-    for(let axis=0;axis<3;axis++){
-      e.clearBuffer(events);let group;
-      for(const c of chunks){
-        gpu.dispatch(e,gather,c.binding,workgroups(3*c.count));
-        const settings=new ArrayBuffer(48);new Uint32Array(settings).set([...band.dims,c.count]);
-        new Float32Array(settings,16,4).set([...band.origin,1/band.h]);new Uint32Array(settings,32,4).set([axis,scale,6,m===0?0:2]);
-        const uniform=gpu.buffer('CFD native directional settings',new Uint8Array(settings),cfgUsage);
-        group=device.createBindGroup({layout,entries:[triangles,events,state,tasks,packed,uniform,hermite,counter].map((buffer,binding)=>({binding,resource:{buffer}}))});
-        e.copyBufferToBuffer(header,0,tasks,0,20);gpu.dispatch(e,small,group,workgroups(c.count));
-        const pass=e.beginComputePass();pass.setPipeline(large);pass.setBindGroup(0,group);
-        // The task queue is writable in this pass. Dispatching directly avoids
-        // binding the same buffer simultaneously as writable storage and indirect.
-        pass.dispatchWorkgroups(Math.min(256,Math.ceil(c.count/64)));pass.end();
+    if(!clipped){
+      const gather=readers.get(mesh.storage),chunks=[];
+      for(let first=0;first<mesh.triangleCount;first+=chunk){
+        const count=Math.min(chunk,mesh.triangleCount-first),data=new ArrayBuffer(80);
+        new Float32Array(data,0,16).set(mesh.matrix);new Uint32Array(data,64,2).set([first,count]);
+        const uniform=gpu.buffer('CFD triangle stream transform',new Uint8Array(data),cfgUsage);
+        const resources=[...meshResources(mesh),{buffer:uniform},{buffer:triangles}];
+        chunks.push({count,binding:device.createBindGroup({layout:gather.getBindGroupLayout(0),entries:resources.map((resource,binding)=>({binding,resource}))})});
       }
-      gpu.dispatch(e,scan,group,workgroups(band.dims[(axis+1)%3]*band.dims[(axis+2)%3]));
-      if(axis===2)gpu.dispatch(e,pack,group,workgroups(Math.ceil(n/2)));
+      for(let axis=0;axis<3;axis++){
+        e.clearBuffer(events);let group;
+        for(const c of chunks){
+          gpu.dispatch(e,gather,c.binding,workgroups(3*c.count));
+          const settings=new ArrayBuffer(48);new Uint32Array(settings).set([...band.dims,c.count]);
+          new Float32Array(settings,16,4).set([...band.origin,1/band.h]);new Uint32Array(settings,32,4).set([axis,scale,6,m===0?0:2]);
+          const uniform=gpu.buffer('CFD native directional settings',new Uint8Array(settings),cfgUsage);
+          group=device.createBindGroup({layout,entries:[triangles,events,state,tasks,packed,uniform,hermite,counter].map((buffer,binding)=>({binding,resource:{buffer}}))});
+          e.copyBufferToBuffer(header,0,tasks,0,20);gpu.dispatch(e,small,group,workgroups(c.count));
+          const pass=e.beginComputePass();pass.setPipeline(large);pass.setBindGroup(0,group);
+          // The task queue is writable in this pass. Dispatching directly avoids
+          // binding the same buffer simultaneously as writable storage and indirect.
+          pass.dispatchWorkgroups(Math.min(256,Math.ceil(c.count/64)));pass.end();
+        }
+        gpu.dispatch(e,scan,group,workgroups(band.dims[(axis+1)%3]*band.dims[(axis+2)%3]));
+        if(axis===2)gpu.dispatch(e,pack,group,workgroups(Math.ceil(n/2)));
+      }
+    }else{
+      const gather=clipReaders.get(mesh.storage);
+      for(let axis=0;axis<3;axis++){
+        e.clearBuffer(events);let group;
+        for(let first=0;first<mesh.triangleCount;first+=clipChunk){
+          const count=Math.min(clipChunk,mesh.triangleCount-first),emitted=5*count,data=new ArrayBuffer(112);
+          new Float32Array(data,0,16).set(mesh.matrix);new Float32Array(data,64,4).set([...band.origin,band.h]);
+          new Uint32Array(data,80,4).set([...band.dims,axis]);new Uint32Array(data,96,4).set([first,count,0,0]);
+          const uniform=gpu.buffer('CFD clipped triangle stream transform',new Uint8Array(data),cfgUsage);
+          const resources=[...meshResources(mesh),{buffer:uniform},{buffer:triangles}];
+          const binding=device.createBindGroup({layout:gather.getBindGroupLayout(0),entries:resources.map((resource,b)=>({binding:b,resource}))});
+          gpu.dispatch(e,gather,binding,workgroups(count));
+          const settings=new ArrayBuffer(48);new Uint32Array(settings).set([...band.dims,emitted]);
+          new Float32Array(settings,16,4).set([...band.origin,1/band.h]);new Uint32Array(settings,32,4).set([axis,scale,6,m===0?0:2]);
+          const u=gpu.buffer('CFD native directional settings',new Uint8Array(settings),cfgUsage);
+          group=device.createBindGroup({layout,entries:[triangles,events,state,tasks,packed,u,hermite,counter].map((buffer,b)=>({binding:b,resource:{buffer}}))});
+          e.copyBufferToBuffer(header,0,tasks,0,20);gpu.dispatch(e,small,group,workgroups(emitted));
+          const pass=e.beginComputePass();pass.setPipeline(large);pass.setBindGroup(0,group);
+          pass.dispatchWorkgroups(Math.min(256,Math.ceil(emitted/64)));pass.end();
+        }
+        gpu.dispatch(e,scan,group,workgroups(band.dims[(axis+1)%3]*band.dims[(axis+2)%3]));
+        if(axis===2)gpu.dispatch(e,pack,group,workgroups(Math.ceil(n/2)));
+      }
     }
     assertCurrent();device.queue.submit([e.finish()]);
     await device.queue.onSubmittedWorkDone();assertCurrent();
@@ -5813,9 +6236,14 @@ export async function nativeFlowGeometry(gpu,f,capture,dt,storage=null){
 }
 
 // Each calculation owns these allocations on the renderer's device.
+// Immutable compute pipelines are cached per GPUDevice (bounded LRU) so repeated
+// solves, paired edits and animation frames avoid recompiling WGSL shaders.
+const devicePipelines=new WeakMap();
 export function gpuScope(device) {
   const owned = new Set();
   let allocatedBytes=0;
+  let cache=devicePipelines.get(device);
+  if(!cache){cache=new Map();devicePipelines.set(device,cache);}
   function buffer(label, dataOrBytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST) {
     const bytes = typeof dataOrBytes === 'number' ? dataOrBytes : dataOrBytes.byteLength;
     const b = device.createBuffer({label, size: bytes, usage});
@@ -5824,12 +6252,21 @@ export function gpuScope(device) {
     if (typeof dataOrBytes !== 'number') device.queue.writeBuffer(b, 0, dataOrBytes);
     return b;
   }
-  async function kernel(label, code, entryPoint = 'main') {
-    const module = device.createShaderModule({label, code});
-    try{return await device.createComputePipelineAsync({label, layout:'auto',compute:{module,entryPoint}});}
-    catch(error){const diagnostics=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');
-      if(diagnostics.length)throw Error(label+'\n'+diagnostics.map(m=>m.lineNum+':'+m.linePos+' '+m.message).join('\n'));
-      throw error;}
+  function kernel(label, code, entryPoint = 'main') {
+    const key=entryPoint+'\0'+code;
+    const hit=cache.get(key);
+    if(hit){cache.delete(key);cache.set(key,hit);return hit;}
+    const pending=(async()=>{
+      const module = device.createShaderModule({label, code});
+      try{return await device.createComputePipelineAsync({label, layout:'auto',compute:{module,entryPoint}});}
+      catch(error){const diagnostics=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');
+        if(diagnostics.length)throw Error(label+'\n'+diagnostics.map(m=>m.lineNum+':'+m.linePos+' '+m.message).join('\n'));
+        throw error;}
+    })();
+    cache.set(key,pending);
+    if(cache.size>512)cache.delete(cache.keys().next().value);
+    pending.catch(()=>{if(cache.get(key)===pending)cache.delete(key);});
+    return pending;
   }
   function bind(pipeline, buffers, gridMetrics) {
     const entries=buffers.map((buffer,binding)=>({binding,resource:{buffer}}));
@@ -7211,10 +7648,16 @@ async function streamlineVolume(gpu,display,f,domain,dt,chunks,loss,mobility){
       let flags=dot(vec4u(mu>vec4f(.5)),vec4u(1,2,4,8));
       out[i]=vec4f((now[i]+prior[i])*invSteps.x/max(volume,1e-32),gamma,0.,f32(flags));
     }`);
+  const adjointPeak=gpu.buffer('CFD peak momentum adjoint magnitude',4),adjointStage=gpu.staging('CFD adjoint scale readback',4);
   const storeAdjoint=await gpu.kernel('CFD resolved momentum adjoint magnitude',`
     @group(0) @binding(0) var<storage,read> lambda:array<vec4f>;@group(0) @binding(1) var<storage,read_write> out:array<vec4f>;
-    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
-      let i=g.x;if(i<arrayLength(&out)){out[i].z=length(lambda[i].xyz);}
+    @group(0) @binding(2) var<storage,read_write> peak:atomic<u32>;
+    var<workgroup> lanes:array<u32,128>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(local_invocation_index) k:u32){
+      let i=g.x;var mag=0.;if(i<arrayLength(&out)){mag=length(lambda[i].xyz);out[i].z=mag;}
+      lanes[k]=select(0u,bitcast<u32>(mag),(bitcast<u32>(mag)&0x7f800000u)!=0x7f800000u);
+      for(var s=64u;s>0u;s/=2u){workgroupBarrier();if(k<s){lanes[k]=max(lanes[k],lanes[k+s]);}}
+      if(k==0u){atomicMax(&peak,lanes[0]);}
     }`);
   const a=gpu.bind(mean,[sum,previous,macro,scale]),b=gpu.bind(summarize,[loss.current,loss.previous,mobility,loss.nearest,reversals,scalars,scale],coords);
   const groups=chunks.map((c,i)=>({group:gpu.bind(bin,[c.site,loss.siteBins[i],display.chunks[i].visible,reversals,...c.cover?[c.cover]:[]]),
@@ -7226,9 +7669,12 @@ async function streamlineVolume(gpu,display,f,domain,dt,chunks,loss,mobility){
       for(const p of groups)gpu.dispatch(e,bin,p.group,p.grid);
       gpu.dispatch(e,summarize,b,grid);if(complete)e.copyBufferToBuffer(sum,0,previous,0,bytes);flow.encode(e);
     },
-    publishAdjoint(lambda){
-      const e=gpu.device.createCommandEncoder();gpu.dispatch(e,storeAdjoint,gpu.bind(storeAdjoint,[lambda,scalars]),grid);
+    async publishAdjoint(lambda){
+      const e=gpu.device.createCommandEncoder();e.clearBuffer(adjointPeak);
+      gpu.dispatch(e,storeAdjoint,gpu.bind(storeAdjoint,[lambda,scalars,adjointPeak]),grid);
       flow.encode(e);gpu.device.queue.submit([e.finish()]);
+      const peak=(await gpu.read(adjointPeak,adjointStage,1))[0];
+      display.adjointScale=Number.isFinite(peak)&&peak>0?.35*peak:0;
     }};
 }
 
@@ -7751,7 +8197,7 @@ async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility,domain){
       visible[t]=vec4f(scale.x*v.x/max(1e-30,v.y),v.z/max(1e-30,v.w),v.y*scale.y,v.w*scale.y);
     }`);
   const uniform=gpu.buffer('CFD physical surface units and sample denominator',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  const occurrences=new Map(),work=[],emptyShape=f.immersedShape?null:display.gpu.buffer('CFD unavailable shape field',16);
+  const occurrences=new Map(),work=[],emptyShape=f.immersedShape||f.modeledShape?null:display.gpu.buffer('CFD unavailable shape field',16);
   for(const chunk of chunks){
     const {mesh,first,triangles,site}=chunk;
     if(!occurrences.has(mesh))occurrences.set(mesh,occurrences.size);
@@ -7795,10 +8241,11 @@ async function nativeSurfaceFields(gpu,display,f,chunks,dt,mobility,domain){
 async function probeSurface(device,display,occurrence,triangle){
   const part=display.chunks.find(c=>c.occurrence===occurrence&&triangle>=c.first&&triangle<c.first+c.triangles);
   if(!part)throw failure('INVALID_ARGUMENT','The occurrence or native triangle lies outside the current solution.');
-  const hasShape=!!display.shapeVertices;
+  const offset=16*(triangle-part.first);
+  const hasShape=!!display.shapeVertices&&offset+16<=part.shape.size;
   const read=device.createBuffer({label:'CFD single triangle probe',size:hasShape?48:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   try{
-    const e=device.createCommandEncoder(),offset=16*(triangle-part.first);
+    const e=device.createCommandEncoder();
     e.copyBufferToBuffer(part.visible,offset,read,0,16);e.copyBufferToBuffer(part.loss,offset,read,16,16);
     if(hasShape)e.copyBufferToBuffer(part.shape,offset,read,32,16);device.queue.submit([e.finish()]);
     await read.mapAsync(GPUMapMode.READ);
@@ -7853,7 +8300,7 @@ async function streamlineOverlay(ctx,display,cache){
         let n=lengths[trace];if(n<2u){return Out(vec4f(0.,0.,-1.,1.),vec3f(0.));}
         let v=paths[trace*${streamPoints}u+min(i,n-1u)];var value=0.;
         switch mode.x{case 0u:{let p=bitcast<f32>(mode.y);value=v.colors.x/select(region.scales.z,p,p>0.);}case 1u:{value=v.colors.z;}
-          case 2u:{value=v.colors.y/region.scales.w;}default:{value=v.colors.w;}}
+          case 2u:{value=v.colors.y/region.scales.w;}default:{let a=bitcast<f32>(mode.z);value=select(v.colors.w,v.colors.w/a,a>0.);}}
         return Out(clipField(region.inverse*v.point),fieldColor(mode.x,value));
       }
       @fragment fn fs(v:Out)->@location(0) vec4f{return vec4f(v.color,1.);}`});
@@ -7865,14 +8312,15 @@ async function streamlineOverlay(ctx,display,cache){
   })().catch(e=>{cache.lines=null;throw e;});
   const {layout,pipes}=await cache.lines;
   const config=display.gpu.buffer('CFD active streamline color field',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-  let group,previous,previousPressure;
+  let group,previous,previousPressure,previousAdjoint;
   return (pass,view,orthographic,mode)=>{
     if(!flow.density)return;
     group??=device.createBindGroup({layout,entries:[flow.vertices,flow.lengths,flow.regionBuffer,config].map((buffer,binding)=>({binding,resource:{buffer}}))});
-    const pressure=display.colorScale?.pressurePa??0;
-    if(mode!==previous||previousPressure!==pressure){
-      const words=new Uint32Array(2);words[0]=mode;new Float32Array(words.buffer)[1]=pressure;
-      device.queue.writeBuffer(config,0,words);previous=mode;previousPressure=pressure;
+    const pressure=display.colorScale?.pressurePa??0,adjoint=display.adjointScale??0;
+    if(mode!==previous||previousPressure!==pressure||previousAdjoint!==adjoint){
+      const words=new Uint32Array(4);words[0]=mode;const floats=new Float32Array(words.buffer);
+      floats[1]=pressure;floats[2]=adjoint;
+      device.queue.writeBuffer(config,0,words);previous=mode;previousPressure=pressure;previousAdjoint=adjoint;
     }
     pass.setPipeline(pipes[Number(orthographic)]);pass.setBindGroup(0,group);pass.setBindGroup(1,view);pass.draw(streamPoints,2*flow.density);
   };
@@ -7901,7 +8349,7 @@ async function nativeFieldOverlay(ctx,display){
         let local=cfg.relative*vec4f(sourcePoint(3u*cfg.first+v),1.);
         var out:Out;out.local=local.xyz;out.value=field[v/3u];let l=loss[v/3u];
         out.loss=vec2f(l.z,select(l.w,l.x/max(cfg.scale.y,1e-30),cfg.scale.y>0.));
-        if(cfg.mode==3u){let s=shape[v/3u];out.loss=vec2f(s.z,select(s.w,s.x/max(cfg.scale.z,1e-30),cfg.scale.z>0.));}
+        if(cfg.mode==3u){let idx=v/3u;let s=select(vec4f(0.),shape[min(idx,arrayLength(&shape)-1u)],idx<arrayLength(&shape));out.loss=vec2f(s.z,select(s.w,s.x/max(cfg.scale.z,1e-30),cfg.scale.z>0.));}
         out.clip=clipField(local);return out;
       }
       @fragment fn fs(input:Out)->@location(0) vec4f{

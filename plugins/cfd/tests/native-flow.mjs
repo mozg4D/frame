@@ -19,6 +19,7 @@ const cases={
   'rotating-window-perturbations':['rotating-shape-check','measureRotatingWindowPerturbations'],
   'modeled-shape':['modeled-shape-check','verifyModeledTimeShape'],
   'modeled-refinement':['modeled-shape-check','verifyModeledRefinement'],
+  'wall-modeled-hardening':['hardening-check','verifyWallModeledHardening'],
   'native-cut-vertices':['native-cut-vertices-check','verifyNativeCutVertices'],
   'native-cut-distance':['cut-distance-check','verifyNativeCutDistance'],
   'native-band-adjoint':['native-band-adjoint-check','verifyNativeBandAdjoint'],

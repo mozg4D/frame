@@ -1,4 +1,4 @@
-import {blockBasis,neuralBlocks} from './blocks.mjs';
+import {blockBasis} from '../../plugin.js';
 
 // The Dirichlet Green function G(i,j) is a sum of eight cosine transforms
 // at the sums and differences of the endpoint coordinates (product-to-sum).
@@ -70,8 +70,7 @@ async function interfaceProduct(gpu,m,blocks,matrix,half,neighbours=null){
   return (x,out)=>gpu.run(pipe,neighbours?[weights,x,out,neighbours]:[weights,x,out],[m,blocks]);
 }
 
-export async function schurPreconditioner(gpu,n,dims,kind,ml,data){
-  if(kind.startsWith('webnn'))return neuralBlocks(gpu,n,dims,ml,kind.split('-')[1],data);
+export async function schurPreconditioner(gpu,n,dims,kind,data){
   return {apply:await interfaceProduct(gpu,data.m,dims.reduce((a,b)=>a*b)/n**3,data.green,kind==='webgpu-f16')};
 }
 

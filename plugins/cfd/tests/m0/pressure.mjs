@@ -1,5 +1,5 @@
 import {gpuScope,median} from './gpu.mjs';
-import {gpuBlocks,neuralBlocks} from './blocks.mjs';
+import {gpuBlocks} from '../../plugin.js';
 import {schurGeometry,schurSystem,schurPreconditioner} from './schur.mjs';
 
 async function vectorOps(gpu,count) {
@@ -118,7 +118,7 @@ export function winningBackend(candidates){
   return eligible.sort((a,b)=>median(a.samples.map(s=>s.ms))-median(b.samples.map(s=>s.ms)))[0]??null;
 }
 
-export async function benchmarkPressure(device,ml,progress,dims=[32,16,16]) {
+export async function benchmarkPressure(device,progress,dims=[32,16,16]) {
   const gpu=gpuScope(device), backends=[], candidates=[];
   try {
     const volume=await pressureProblem(gpu,dims),volumeSolve=await krylovSolver(volume);
@@ -127,7 +127,7 @@ export async function benchmarkPressure(device,ml,progress,dims=[32,16,16]) {
       const shell=await schurSystem(gpu,n,dims,schur,volume,await vectorOps(gpu,blocks*schur.m));
       const shellSolve=await krylovSolver(shell),sharedSetupMs=performance.now()-since;
       for(const method of ['fast-diagonalization','shared-schur']){
-      for(const kind of ['webgpu-fp32','webgpu-f16','webnn-gpu-fp16','webnn-npu-fp16']){
+      for(const kind of ['webgpu-fp32','webgpu-f16']){
         const candidate={kind,block:n,method,samples:[]};candidates.push(candidate);
         const solve=method==='shared-schur'?shellSolve:volumeSolve;
         if(method==='shared-schur')Object.assign(candidate,{interfaceNodes:schur.m,outerUnknowns:blocks*schur.m,sharedSetupMs,responseAndInverseFp32Bytes:schur.s.byteLength+schur.green.byteLength});
@@ -135,12 +135,9 @@ export async function benchmarkPressure(device,ml,progress,dims=[32,16,16]) {
         let backend;
         try{
           if(kind==='webgpu-f16' && !device.features.has('shader-f16'))throw Error('shader-f16 is unavailable on this device');
-          if(kind.startsWith('webnn')&&!ml)throw Error('WebNN is unavailable');
           const since=performance.now();
-          backend=method==='shared-schur'?await schurPreconditioner(gpu,n,dims,kind,ml,schur):
-            kind.startsWith('webnn')?await neuralBlocks(gpu,n,dims,ml,kind.split('-')[1]):await gpuBlocks(gpu,n,dims,kind==='webgpu-f16');
+          backend=method==='shared-schur'?await schurPreconditioner(gpu,n,dims,kind,schur):await gpuBlocks(gpu,n,dims,kind==='webgpu-f16');
           candidate.setupMs=performance.now()-since;
-          if(backend.transport)Object.assign(candidate,{transport:backend.transport,interopReason:backend.interopReason});
           const warm=await solve(backend);
           if(!warm.qualified)throw Error('Warmup failed true residual or manufactured-solution check: '+JSON.stringify(warm));
           candidate.warmup=warm;

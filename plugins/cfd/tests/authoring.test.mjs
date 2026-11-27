@@ -24,6 +24,8 @@ test('native activation registers box authoring, wall kinematics and explicit fl
  assert.deepEqual(operations.filter(o=>!o.readOnly).map(o=>o.id),['solve-frame','solve-animation','stop','flow-lines','drag-map','pressure-map','separation-map','shape-map']);
  assert.equal(viewport.lines.length,90);assert.deepEqual(viewport.pivot,[-500,0,-500]);assert.match(viewport.shader,/discard/);
  assert.equal(attributes('a').actions.find(a=>a.id==='solve-frame').cancel,'stop');
+ assert.equal(attributes('a').actions.find(a=>a.id==='solve-frame').progress,'');
+ assert.equal(editor.rowColor(nodes[0]),null);assert.equal(editor.rowColor(nodes[2]),null);
  nodes[1].params.Medium='Water';assert.deepEqual(attributes('b').hiddenFields,['Ground','Altitude']);
  assert.equal(editor.parameters(nodes[2],{}),null);assert.throws(()=>editor.parameters(nodes[0],{Speed:-1}),e=>e.code==='INVALID_ARGUMENT');assert.equal(nodes[0].params.Speed,20);
 });

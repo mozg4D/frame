@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {blockBasis} from './m0/blocks.mjs';
+import {blockBasis} from '../plugin.js';
 import {schurGeometry} from './m0/schur.mjs';
 import {verifyShape,verifyGoalRefinement} from './m0/shape.mjs';
 import {winningBackend} from './m0/pressure.mjs';
@@ -435,8 +435,8 @@ test('Schur response and its restricted Green inverse recover independent interf
 test('inaccurate or incompletely sampled accelerators cannot win',()=>{
   const run=(ms,qualified=true)=>({ms,qualified});
   const candidates=[{kind:'wrong',samples:[run(1,false),run(1),run(1)]},{kind:'missing',samples:[]},
-    {kind:'gpu',samples:[run(9),run(10),run(10)]},{kind:'neural',samples:[run(6),run(7),run(100)]}];
-  assert.equal(winningBackend(candidates).kind,'neural');assert.equal(winningBackend(candidates.slice(0,2)),null);
+    {kind:'gpu-fp32',samples:[run(9),run(10),run(10)]},{kind:'gpu-f16',samples:[run(6),run(7),run(100)]}];
+  assert.equal(winningBackend(candidates).kind,'gpu-f16');assert.equal(winningBackend(candidates.slice(0,2)),null);
 });
 test('annular axial force and local Shape adjoint agree with analytic and displaced-wall solutions',()=>assert.ok(verifyShape().pass));
 test('dual-weighted refinement improves localized force at an equal sector budget',()=>assert.ok(verifyGoalRefinement().pass));
