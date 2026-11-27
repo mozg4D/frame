@@ -293,6 +293,160 @@ export async function cameraPathTracerChecks(page){
     await detachedPlainPage.close();
     await page.waitForFunction(i=>!FrameViewWindows.detached(i),detachedPlainIdx);
 
+    // 8. Render shading mode (#btnSolid: solid -> render -> off) works WITHOUT a Camera, in Perspective & Ortho, with full modeling overlays!
+    await call('scene.new');
+    const polyBox=await call('mesh.create',{name:'RenderBox',vertices:[-50,-50,-50,50,-50,-50,50,50,-50,-50,50,-50,-50,-50,50,50,-50,50,50,50,50,-50,50,50],indices:[0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,2,3,7,2,7,6,0,4,7,0,7,3,1,2,6,1,6,5]});
+    const curveRing=await call('scene.create',{type:'circle',name:'RenderRing',params:{diameter:180}});
+    const sunHelper=await call('scene.create',{type:'infinite',name:'RenderLight'});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid-wire',focus:polyBox.hash});
+    await call('scene.select',{ids:[]});
+    // Cycle #btnSolid: solid-wire -> render-wire -> wireframe -> solid-wire
+    await page.locator('#btnSolid').click();
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().hasImage&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const renderModeState=await call('scene.inspect');
+    const renderBtnTitle=await page.locator('#btnSolid').getAttribute('title');
+    const lightHelperVisibleInRender=await page.locator(`.frame-light-helpers[data-view="0"] .frame-infinite-direction[data-hash="${sunHelper.hash}"]`).isVisible();
+    check('Clicking #btnSolid enters Render shading without a Camera, preserves Wire, and keeps helpers visible',
+      renderModeState.view.shading==='render-wire'&&renderBtnTitle==='Render'&&lightHelperVisibleInRender,
+      {shading:renderModeState.view.shading,renderBtnTitle,lightHelperVisibleInRender});
+
+    // Verify wireframe + spline overlays are actually composited over Path tracer output
+    const boxEdgePt=(await call('view.project',{id:polyBox.hash,point:[0,50,50]})).screen;
+    const ringVert=Object.values((await call('spline.inspect',{id:curveRing.hash})).data.vertices)[0];
+    const splinePt=(await call('view.project',{id:curveRing.hash,point:ringVert})).screen;
+    const edgeRing=[-1,0,1].flatMap(dx=>[-1,0,1].map(dy=>[boxEdgePt[0]+dx,boxEdgePt[1]+dy]));
+    const splineRing=[-1,0,1].flatMap(dx=>[-1,0,1].map(dy=>[splinePt[0]+dx,splinePt[1]+dy]));
+    const wirePx=(await call('diagnostics.pixels',{points:[...edgeRing,...splineRing]})).colors;
+    await call('view.set',{shading:'render'});
+    await page.waitForFunction(()=>frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const plainRenderPx=(await call('diagnostics.pixels',{points:[...edgeRing,...splineRing]})).colors;
+    const edgeDiff=wirePx.slice(0,9).some((c,i)=>c.slice(0,3).some((v,k)=>Math.abs(v-plainRenderPx[i][k])>4));
+    const splineCyan=plainRenderPx.slice(9).some(c=>c[2]>c[0]+15);
+    check('Render+Wire composites wireframe over Path tracer and retains spline curves',
+      edgeDiff&&splineCyan,{edgeDiff,splineCyan,wireEdge:wirePx.slice(0,9),plainEdge:plainRenderPx.slice(0,9),spline:plainRenderPx.slice(9)});
+
+    // Verify Vertex & Polygon component modes (vertices, selected polygon, hover) work in Render mode!
+    await call('view.set',{shading:'render-wire'});
+    await call('scene.select',{ids:[polyBox.hash],mode:'vertex',components:[6]});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const vtxPt=(await call('view.project',{id:polyBox.hash,point:[50,50,50]})).screen;
+    const vtxColor=(await call('diagnostics.pixels',{points:[vtxPt]})).colors[0];
+    check('Selected vertex marker renders over active Path tracer in Vertex mode',
+      vtxColor[0]>180&&vtxColor[1]>80&&vtxColor[2]<70,vtxColor);
+
+    await call('scene.select',{ids:[polyBox.hash],mode:'polygon',components:[0]});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const facePt=(await call('view.project',{id:polyBox.hash,point:[15,-15,-50]})).screen;
+    const faceSelColor=(await call('diagnostics.pixels',{points:[facePt]})).colors[0];
+    await call('scene.select',{ids:[polyBox.hash],mode:'polygon',components:[]});
+    await page.waitForFunction(()=>frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const faceUnselColor=(await call('diagnostics.pixels',{points:[facePt]})).colors[0];
+    check('Selected polygon highlight renders over active Path tracer in Polygon mode',
+      faceSelColor[0]-faceSelColor[2]>(faceUnselColor[0]-faceUnselColor[2])+25,
+      {faceSelColor,faceUnselColor});
+
+    // Verify Orthographic Top view (index 1) supports Render mode & HASH persistence!
+    await call('view.set',{index:1,single:true,mode:'object',shading:'render-isoparms',focus:polyBox.hash});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const orthoPt=(await call('render.pixels',{points:[[0.5,0.5]],view:1,linear:true}));
+    const savedRenderHash=await call('scene.export',{includeData:true});
+    await call('scene.open',{name:'render-shading.hash',base64:savedRenderHash.base64});
+    const reopenedRender=(await call('scene.inspect')).view;
+    check('Orthographic view renders in Path tracer and HASH preserves render-isoparms shading',
+      orthoPt.colors[0].every(Number.isFinite)&&orthoPt.samples>=2&&reopenedRender.index===1&&reopenedRender.shading==='render-isoparms',
+      {orthoPt,reopenedRender});
+
+    // 9. Clicking objects (viewport or Objects Browser) with realtime during navigation = true NEVER restarts render!
+    await call('scene.new');
+    const objA=await call('scene.create',{type:'cube',name:'PickA'});
+    const objB=await call('scene.create',{type:'sphere',name:'PickB',params:{diameter:80}});
+    await call('scene.select',{ids:[objB.hash]});
+    await call('transform.set',{channel:'position',axis:0,value:160});
+    await call('view.set',{index:0,single:true,mode:'object',shading:'solid-isoparms',focus:objA.hash});
+    await call('scene.create',{type:'render',params:{realtime:'on',samples:64,'realtime during navigation':true}});
+    await call('scene.select',{ids:[]});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=6,{},{timeout:15000});
+    const pickScreen=(await call('view.project',{id:objA.hash,point:[50,50,50]})).screen;
+    const beforeClickSamples=await page.evaluate(()=>frameEngine.renderState().samples);
+    await page.mouse.move(pickScreen[0],pickScreen[1]);
+    await page.mouse.down({button:'left'});
+    await page.waitForTimeout(85);
+    const duringClickState=await page.evaluate(()=>({samples:frameEngine.renderState().samples,interactive:frameEngine.renderState().interactive}));
+    await page.mouse.up({button:'left'});
+    await page.waitForTimeout(85);
+    const afterClickState=await page.evaluate(()=>({samples:frameEngine.renderState().samples,interactive:frameEngine.renderState().interactive,selected:frameEngine.selectedIndices.length}));
+    const rowB=page.locator('#row-'+objB.id+' .ob-namebox');
+    await rowB.click();
+    await page.waitForTimeout(60);
+    const afterBrowserSelect=await page.evaluate(()=>({samples:frameEngine.renderState().samples,interactive:frameEngine.renderState().interactive}));
+    check('Viewport and Objects Browser selection never restart Path tracer accumulation',
+      !duringClickState.interactive&&duringClickState.samples>=beforeClickSamples&&
+      !afterClickState.interactive&&afterClickState.samples>=beforeClickSamples&&afterClickState.selected>0&&
+      !afterBrowserSelect.interactive&&afterBrowserSelect.samples>=afterClickState.samples,
+      {beforeClickSamples,duringClickState,afterClickState,afterBrowserSelect});
+
+    // 10. Finishing navigation NEVER renders/presents the previous camera position first (rtDuringNav true & false)!
+    const camFresh=(await call('scene.inspect')).objects.find(n=>n.type==='render'&&n.enabled);
+    for(const rtDuringNav of [true,false]){
+      await call('scene.update',{id:camFresh.hash,params:{'realtime during navigation':rtDuringNav,samples:24}});
+      await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+      const preNavSig=await page.evaluate(()=>frameEngine.renderState().views?.find(v=>v.index===0)?.presentedCamSig||'');
+      const cvBox=await page.locator('#frame-engine-canvas').boundingBox();
+      const nx=cvBox.x+cvBox.width*.6,ny=cvBox.y+cvBox.height*.5;
+      await page.mouse.move(nx,ny);
+      await page.mouse.down({button:'middle'});
+      await page.mouse.move(nx+130,ny-55,{steps:5});
+      await page.mouse.up({button:'middle'});
+      const postNavCheck=await page.evaluate(async oldSig=>{
+        const stale=[];
+        const start=performance.now();
+        let sawVisible=false;
+        while(performance.now()-start<8000){
+          await new Promise(r=>requestAnimationFrame(r));
+          const st=frameEngine.renderState(),v0=st.views?.find(v=>v.index===0);
+          if(st.visible&&v0?.hasImage){
+            sawVisible=true;
+            if(oldSig&&v0.presentedCamSig===oldSig)stale.push({t:Math.round(performance.now()-start),s:st.samples,inter:st.interactive});
+          }
+          if(st.visible&&!st.interactive&&st.samples>=2)break;
+        }
+        const final=frameEngine.renderState(),finalV0=final.views?.find(v=>v.index===0);
+        return {sawVisible,staleCount:stale.length,stale,finalSig:finalV0?.presentedCamSig||'',final};
+      },preNavSig);
+      check('Post-navigation render (rtDuringNav='+rtDuringNav+') NEVER presents stale previous camera position',
+        postNavCheck.sawVisible&&postNavCheck.staleCount===0&&postNavCheck.finalSig!==preNavSig&&
+        postNavCheck.final.visible&&!postNavCheck.final.interactive&&postNavCheck.final.samples>=2,
+        {rtDuringNav,preNavSig,postNavCheck});
+    }
+
+    // 11. Starting a new navigation right as full static render starts must preempt cleanly without micro-freeze!
+    await call('scene.update',{id:camFresh.hash,params:{'realtime during navigation':true,samples:64}});
+    await page.waitForFunction(()=>frameEngine.renderState().visible&&frameEngine.renderState().samples>=2,{},{timeout:15000});
+    const mfBox=await page.locator('#frame-engine-canvas').boundingBox();
+    const mx=mfBox.x+mfBox.width*.65,my=mfBox.y+mfBox.height*.45;
+    await page.mouse.move(mx,my);
+    await page.mouse.down({button:'left'});
+    await page.mouse.move(mx+40,my-20,{steps:4});
+    await page.mouse.up({button:'left'});
+    // Wait right into the start of full-res static settle (~105ms), then start a second navigation drag and measure RAF cadence!
+    await page.waitForTimeout(105);
+    const preemptTiming=await page.evaluate(()=>{
+      window.__rafGaps=[];let last=performance.now(),run=true;
+      const tick=now=>{if(!run)return;window.__rafGaps.push(now-last);last=now;requestAnimationFrame(tick);};
+      requestAnimationFrame(tick);
+      window.__stopRaf=()=>{run=false;return window.__rafGaps;};
+      return true;
+    });
+    await page.mouse.down({button:'left'});
+    await page.mouse.move(mx-35,my+25,{steps:6});
+    const midSecondNav=await page.evaluate(()=>({inter:frameEngine.renderState().interactive,gpuMs:frameEngine.renderState().frameGpuMs}));
+    await page.mouse.up({button:'left'});
+    const rafGaps=await page.evaluate(()=>window.__stopRaf());
+    const maxGap=Math.max(0,...rafGaps);
+    check('Preempting static render with a new navigation drag stays responsive without long GPU freeze',
+      preemptTiming&&midSecondNav.inter&&maxGap<250,
+      {midSecondNav,maxGap:Math.round(maxGap),rafGaps:rafGaps.map(v=>Math.round(v))});
+
     await call('scene.new');
     const gpu=await page.evaluate(async()=>{
       await frameEngine.renderer.device.queue.onSubmittedWorkDone();

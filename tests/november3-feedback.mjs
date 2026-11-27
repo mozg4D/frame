@@ -3,24 +3,26 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
-// The public six modes encode two independent controls, not a five-mode cycle.
+// The public nine modes encode two independent controls: Surface (solid/render/off) x Lines (isoparms/wire/off).
 // Keep this oracle separate from the runtime's mode mapping and click handlers.
 export async function solidLinesChecks(page,check){
  const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
- const mode=(solid,lines)=>({wire:solid?'solid-wire':'wireframe',isoparms:solid?'solid-isoparms':'isoparms',off:solid?'solid':'off'})[lines];
- const inspect=async()=>({view:(await call('scene.inspect')).view,ui:await page.evaluate(()=>({solid:document.querySelector('#btnSolid').getAttribute('aria-pressed'),lines:document.querySelector('#btnShading').getAttribute('aria-label'),pressed:document.querySelector('#btnShading').getAttribute('aria-pressed')}))});
- const expect=async(name,solid,lines)=>{const actual=await inspect();check(name,actual.view.shading===mode(solid,lines)&&actual.ui.solid===String(solid)&&actual.ui.lines==='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[lines]&&actual.ui.pressed===String(lines!=='off'),{solid,lines,expected:mode(solid,lines),actual});};
- const combinations=new Set();
- for(const solid of [false,true]){
-  await call('view.set',{shading:mode(solid,'wire')});
+ const mode=(surface,lines)=>surface==='render'?({wire:'render-wire',isoparms:'render-isoparms',off:'render'})[lines]:({wire:surface==='solid'?'solid-wire':'wireframe',isoparms:surface==='solid'?'solid-isoparms':'isoparms',off:surface==='solid'?'solid':'off'})[lines];
+ const inspect=async()=>({view:(await call('scene.inspect')).view,ui:await page.evaluate(()=>({solid:document.querySelector('#btnSolid').getAttribute('aria-pressed'),surface:document.querySelector('#btnSolid').dataset.surface,title:document.querySelector('#btnSolid').title,lines:document.querySelector('#btnShading').getAttribute('aria-label'),pressed:document.querySelector('#btnShading').getAttribute('aria-pressed')}))});
+ const expect=async(name,surface,lines)=>{const actual=await inspect();check(name,actual.view.shading===mode(surface,lines)&&actual.ui.solid===String(surface!=='off')&&actual.ui.surface===surface&&actual.ui.title==={solid:'Solid',render:'Render',off:'Off'}[surface]&&actual.ui.lines==='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[lines]&&actual.ui.pressed===String(lines!=='off'),{surface,lines,expected:mode(surface,lines),actual});};
+ const combinations=new Set(),surfaceCycle=['solid','render','off'];
+ for(const surface of surfaceCycle){
+  await call('view.set',{shading:mode(surface,'wire')});
   for(const [lines,next]of [['wire','off'],['off','isoparms'],['isoparms','wire']]){
-   await expect('Solid/Lines combination '+mode(solid,lines),solid,lines);combinations.add(mode(solid,lines));
-   await page.locator('#btnSolid').click();await expect('Solid toggle preserves Lines '+lines+' from '+solid,!solid,lines);
-   await page.locator('#btnSolid').click();await expect('Solid toggle restores '+mode(solid,lines),solid,lines);
-   await page.locator('#btnShading').click();await expect('Lines '+lines+' -> '+next+' preserves Solid '+solid,solid,next);
+   await expect('Surface/Lines combination '+mode(surface,lines),surface,lines);combinations.add(mode(surface,lines));
+   const nextSurf=surfaceCycle[(surfaceCycle.indexOf(surface)+1)%3],thirdSurf=surfaceCycle[(surfaceCycle.indexOf(surface)+2)%3];
+   await page.locator('#btnSolid').click();await expect('Surface cycle 1 preserves Lines '+lines+' from '+surface,nextSurf,lines);
+   await page.locator('#btnSolid').click();await expect('Surface cycle 2 preserves Lines '+lines+' from '+surface,thirdSurf,lines);
+   await page.locator('#btnSolid').click();await expect('Surface cycle 3 restores '+mode(surface,lines),surface,lines);
+   await page.locator('#btnShading').click();await expect('Lines '+lines+' -> '+next+' preserves Surface '+surface,surface,next);
   }
  }
- check('All six independent Solid/Lines combinations are reachable',combinations.size===6,[...combinations]);
+ check('All nine independent Surface/Lines combinations are reachable',combinations.size===9,[...combinations]);
  check('Solid precedes Lines and Solo ends the upper row',await page.evaluate(()=>{const solid=document.querySelector('#btnSolid'),lines=document.querySelector('#btnShading'),solo=document.querySelector('#btnSolo');return solid.nextElementSibling===lines&&solo.parentElement!==solid.parentElement&&solo===solo.parentElement.lastElementChild;}));
  const light=await call('scene.create',{type:'infinite'});
  await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid'});
@@ -28,7 +30,9 @@ export async function solidLinesChecks(page,check){
  await call('diagnostics.frame',{frames:3});check('Light helper is visible with Solid on',await helper().isVisible()&&!!await helper().getAttribute('d'));
  const mesh=await call('mesh.create',{vertices:[-50,-50,0,50,-50,0,0,50,0],indices:[0,1,2]});
  await call('view.set',{focus:mesh.hash});await call('scene.select',{ids:[mesh.hash],mode:'vertex',components:[0]});
- await page.locator('#btnSolid').click();await expect('Both controls off selects helpers-only',false,'off');
+ await page.locator('#btnSolid').click();await expect('Solid -> Render preserves Lines off','render','off');
+ await call('diagnostics.frame',{frames:2});check('Light helper remains visible in Render mode',await helper().isVisible()&&!!await helper().getAttribute('d'));
+ await page.locator('#btnSolid').click();await expect('Both controls off selects helpers-only','off','off');
  // Observe actual native draw submission, including indexed surface/component draws.
  const draws=await page.evaluate(async()=>{const r=frameEngine.renderer,p=GPURenderPassEncoder.prototype,original={setPipeline:p.setPipeline,draw:p.draw,drawIndexed:p.drawIndexed},current=new WeakMap(),rows=[];p.setPipeline=function(value){current.set(this,value);return original.setPipeline.call(this,value);};for(const name of ['draw','drawIndexed'])p[name]=function(...args){const pipeline=current.get(this);rows.push({name,label:pipeline?.label,grid:pipeline===r.gridPipeline||pipeline===r.orthoGridPipeline,presentation:pipeline===r.hoverPresentation.pipeline,count:args[0]});return original[name].apply(this,args);};try{await frameAI.call('diagnostics.frame',{frames:3});return rows;}finally{Object.assign(p,original);}});
  // The final three-vertex cached-color blit is presentation, not scene geometry.

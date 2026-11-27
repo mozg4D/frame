@@ -8812,6 +8812,7 @@ const FLAG_HAS_TLAS: u32 = 8u;
 const FLAG_HAS_USER_LIGHTS: u32 = 16u;
 const FLAG_AGX: u32 = 32u;
 const FLAG_CLAMP_INDIRECT: u32 = 64u;
+const FLAG_ORTHO: u32 = 128u;
 const INST_REFLECTED: u32 = 1u;
 const INST_ALPHA_TEST: u32 = 2u;
 const INST_TRANSPARENT: u32 = 4u;
@@ -9858,12 +9859,20 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let uv = (vec2f(f32(gid.x), f32(py)) + jitter) / vec2f(f32(w), f32(h));
     let ndc = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
 
+    let isOrtho = (params.counts.w & FLAG_ORTHO) != 0u;
     var rayO = params.camPosFocal.xyz;
-    var rayD = normalize(
-      params.camForwardScale.xyz +
-      params.camRightAspect.xyz * (ndc.x * params.camRightAspect.w / params.camPosFocal.w) +
-      params.camUpFov.xyz * (ndc.y / params.camPosFocal.w)
-    );
+    var rayD = params.camForwardScale.xyz;
+    if (isOrtho) {
+      rayO = params.camPosFocal.xyz +
+             params.camRightAspect.xyz * (ndc.x * params.camRightAspect.w * params.camPosFocal.w) +
+             params.camUpFov.xyz * (ndc.y * params.camPosFocal.w);
+    } else {
+      rayD = normalize(
+        params.camForwardScale.xyz +
+        params.camRightAspect.xyz * (ndc.x * params.camRightAspect.w / params.camPosFocal.w) +
+        params.camUpFov.xyz * (ndc.y / params.camPosFocal.w)
+      );
+    }
 
     var throughput = vec3f(1.0);
     var radiance = vec3f(0.0);
@@ -9912,7 +9921,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         if (bounce == 0u && s == 0u) {
           primaryPixFlags = PIX_FLAG_SKY;
           primaryDepth = 0.0;
-          if (params.prevCamUpValid.w > 0.5) {
+          if (params.prevCamUpValid.w > 0.5 && !isOrtho) {
             let dPrev = rayD;
             let zPrev = dot(dPrev, params.prevCamForwardExp.xyz);
             if (zPrev > 1e-4) {
@@ -9952,7 +9961,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
           if (params.prevCamUpValid.w > 0.5) {
             let dPrev = prevPos - params.prevCamPosFocal.xyz;
             let zPrev = dot(dPrev, params.prevCamForwardExp.xyz);
-            if (zPrev > 1e-4) {
+            if (isOrtho) {
+              let xPrev = dot(dPrev, params.prevCamRightAspect.xyz);
+              let yPrev = dot(dPrev, params.prevCamUpValid.xyz);
+              let pNdcX = xPrev / max(1e-6, params.prevCamPosFocal.w * params.prevCamRightAspect.w);
+              let pNdcY = yPrev / max(1e-6, params.prevCamPosFocal.w);
+              primaryMotion = vec2f(pNdcX * 0.5 + 0.5, 0.5 - pNdcY * 0.5) - uv;
+              primaryPrevDepth = max(1e-4, zPrev);
+            } else if (zPrev > 1e-4) {
               let xPrev = dot(dPrev, params.prevCamRightAspect.xyz);
               let yPrev = dot(dPrev, params.prevCamUpValid.xyz);
               let pNdcX = (xPrev / zPrev) * (params.prevCamPosFocal.w / params.prevCamRightAspect.w);
@@ -10304,6 +10320,12 @@ struct AtrousUniform { stepSize: u32, phiLuma: f32, phiNormal: f32, phiPlane: f3
 fn reconstructPos(px: vec2i, depth: f32, dims: vec2f) -> vec3f {
   let uv = (vec2f(px) + 0.5) / dims;
   let ndc = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+  if ((params.counts.w & FLAG_ORTHO) != 0u) {
+    return params.camPosFocal.xyz +
+           params.camRightAspect.xyz * (ndc.x * params.camRightAspect.w * params.camPosFocal.w) +
+           params.camUpFov.xyz * (ndc.y * params.camPosFocal.w) +
+           params.camForwardScale.xyz * depth;
+  }
   let dir = params.camForwardScale.xyz +
             params.camRightAspect.xyz * (ndc.x * params.camRightAspect.w / params.camPosFocal.w) +
             params.camUpFov.xyz * (ndc.y / params.camPosFocal.w);
@@ -10578,7 +10600,9 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       // Per-view render targets & accumulation state (keyed by view index or 'export')
       this.views = new Map();
       this.sceneBindEpoch = 1;
+      this.scenePoseRev = 1;
       this.lastGpuMs = 0;
+      this.lastFullFrameGpuMs = 0;
       this.msPerMPix = 0;
       this.lastBvhMs = 0;
       this.building = null;
@@ -10609,6 +10633,8 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
           targets: null,
           ping: 0,
           lastPresentedPing: undefined,
+          lastPresentedCamSig: '',
+          lastPresentedSceneRev: 0,
           lastDenoiseIdx: 0,
           wasInteractive: false,
           wasBootstrap: false,
@@ -10644,12 +10670,15 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         hasImage: !!vs.hasImage,
         staticSamples: vs.staticSamples || 0,
         pendingSlice: !!vs.pendingSlice,
+        wasBootstrap: !!vs.wasBootstrap,
         outW: vs.outW || 0,
         outH: vs.outH || 0,
         traceW: vs.traceW || 0,
         traceH: vs.traceH || 0,
-        lastCameraSig: vs.lastCameraSig || ''
-      } : {hasImage: false, staticSamples: 0, pendingSlice: false, outW: 0, outH: 0, traceW: 0, traceH: 0, lastCameraSig: ''};
+        lastCameraSig: vs.lastCameraSig || '',
+        lastPresentedCamSig: vs.lastPresentedCamSig || '',
+        lastPresentedSceneRev: vs.lastPresentedSceneRev || 0
+      } : {hasImage: false, staticSamples: 0, pendingSlice: false, wasBootstrap: false, outW: 0, outH: 0, traceW: 0, traceH: 0, lastCameraSig: '', lastPresentedCamSig: '', lastPresentedSceneRev: 0};
     }
 
     invalidateSceneBindGroups() {
@@ -10779,6 +10808,8 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       };
       vs.ping = 0;
       vs.lastPresentedPing = undefined;
+      vs.lastPresentedCamSig = '';
+      vs.lastPresentedSceneRev = 0;
       vs.staticSamples = 0;
       vs.pendingSlice = null;
       vs.wasBootstrap = false;
@@ -10805,10 +10836,13 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         if (dropHistory) {
           vs.prevCamera = null;
           vs.frameIndex = 0;
+          vs.lastPresentedCamSig = '';
+          vs.lastPresentedSceneRev = 0;
         }
       }
       if (dropHistory && viewKey === null) {
         this.prevWorldByKey.clear();
+        this.scenePoseRev++;
       }
     }
 
@@ -10953,6 +10987,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       this.envHeight = envMode === 'off' ? 0 : H;
       this.envTotalWeight = envMode === 'off' ? 0 : totalWeight;
       this.envKey = key;
+      this.scenePoseRev++;
       this.invalidateSceneBindGroups();
       return true;
     }
@@ -11040,6 +11075,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       if (cdfVec4 > 0) packed.set(this.envCdfFloats, this.envCdfOffset * 4);
 
       this.replaceBuf('matLightsBuf', 'PT materials and lights', packed);
+      this.scenePoseRev++;
     }
 
     // --- Fast Instance & TLAS Update (supports O(depth) refit during interactive transforms!) ---
@@ -11051,6 +11087,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         this.instanceMeshes = [];
         this.replaceBuf('tlasBuf', 'PT TLAS', new Float32Array(16));
         this.replaceBuf('instBuf', 'PT instances', new Float32Array(44));
+        this.scenePoseRev++;
         return;
       }
 
@@ -11152,6 +11189,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
           }
           if (sorted.length > 64) device.queue.writeBuffer(this.tlasBuf, 0, nodes);
         }
+        if (dirtySlots.length > 0) this.scenePoseRev++;
         this.lastBvhMs = performance.now() - t0;
         return;
       }
@@ -11236,6 +11274,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       this.tlasNodeCount = tlas.nodeCount;
       this.replaceBuf('tlasBuf', 'PT TLAS', tlas.nodes);
       this.replaceBuf('instBuf', 'PT instances', instArr);
+      this.scenePoseRev++;
       this.lastBvhMs = performance.now() - t0;
     }
 
@@ -11607,17 +11646,21 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       return vs.cachedGroups = {atlas: materialAtlas, traceG0, traceG1, traceG2, tempG0, tempG1, atrousGroups, getPresentGroup};
     }
 
-    // --- Render one sample (interactive or budget-sliced progressive) and present to target texture ---
+    // --- Render one sample (interactive or two-phase budget-sliced progressive) and present to target texture ---
     renderFrame({viewKey = 0, camera, outWidth, outHeight, targetView, targetFormat, materialAtlas, envMode, hasUserLights, interactive, sppPerDispatch = 1, reset = false, useAgX = true, allowSlice = false}) {
       const vs = this.getViewState(viewKey);
-      const camSig = [...camera.position, ...camera.right, ...camera.up, ...camera.forward, camera.focal, outWidth, outHeight, envMode].map(v => Math.fround(v)).join(':');
+      const isOrtho = !!camera.orthographic;
+      const camSig = [...camera.position, ...camera.right, ...camera.up, ...camera.forward, camera.focal, isOrtho ? 1 : 0, outWidth, outHeight, envMode].map(v => Math.fround(v)).join(':');
       const camMoved = camSig !== vs.lastCameraSig;
       const mpix = Math.max(0.05, (outWidth * outHeight) / 1e6);
 
       // Scale-invariant pixel-budget interactive resolution selection (instant ~60 FPS even on 4K frame #1!)
       const wasInteractive = vs.wasInteractive;
       const targetsWillResize = !vs.targets || vs.targetW !== outWidth || vs.targetH !== outHeight;
-      const bootstrap = allowSlice && !interactive && (!vs.hasImage || targetsWillResize) && mpix > 2.2;
+      const presentedIsStale = !vs.hasImage || targetsWillResize || vs.lastPresentedCamSig !== camSig || vs.lastPresentedSceneRev !== this.scenePoseRev;
+      const estStaticMs = this.msPerMPix > 0 ? this.msPerMPix * mpix : (mpix > 0.6 ? mpix * 22 : 0);
+      // Never re-present a stale previous camera/scene position while slicing: render one fast bootstrap frame of the NEW pose first!
+      const bootstrap = allowSlice && !interactive && presentedIsStale && estStaticMs >= 16;
       const minScale = outWidth * outHeight >= 3500000 ? 0.25 : 0.35;
       if (interactive) {
         if (!wasInteractive) {
@@ -11635,22 +11678,22 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
 
       let traceScale = interactive ? vs.adaptiveScale : 1.0;
       if (bootstrap) {
-        const estBootMs = this.msPerMPix > 0 ? this.msPerMPix * mpix * 0.52 : mpix * 36;
-        const ideal = Math.sqrt(18 / Math.max(1, estBootMs));
-        traceScale = ideal >= 0.45 ? 0.5 : (ideal >= 0.30 || minScale >= 0.35 ? 0.35 : 0.25);
+        const estBootMs = this.msPerMPix > 0 ? this.msPerMPix * mpix * 0.52 : mpix * 30;
+        const ideal = Math.sqrt(13 / Math.max(1, estBootMs));
+        traceScale = ideal >= 0.72 ? 0.75 : (ideal >= 0.48 ? 0.5 : (ideal >= 0.32 || minScale >= 0.35 ? 0.35 : 0.25));
       }
       const traceW = Math.max(1, Math.round(outWidth * traceScale));
       const traceH = Math.max(1, Math.round(outHeight * traceScale));
       const scaleChanged = traceW !== vs.lastTraceW || traceH !== vs.lastTraceH;
       const exitedInteractive = wasInteractive && !interactive;
       const exitedBootstrap = vs.wasBootstrap && !bootstrap;
-      const continuingSlice = !interactive && !bootstrap && !reset && !targetsWillResize && !!vs.pendingSlice &&
-        vs.pendingSlice.camSig === camSig && vs.pendingSlice.cur === vs.ping &&
+      const continuingSlice = !interactive && !bootstrap && !reset && !targetsWillResize && !presentedIsStale && !!vs.pendingSlice &&
+        vs.pendingSlice.camSig === camSig && vs.pendingSlice.sceneRev === this.scenePoseRev && vs.pendingSlice.cur === vs.ping &&
         vs.pendingSlice.traceW === traceW && vs.pendingSlice.traceH === traceH;
 
       // Always reset progressive accumulation across interactive/bootstrap->static or scale/size transitions
       // so a sub-res quadrant can NEVER blend into full-res progressive accumulation!
-      if (!continuingSlice && (reset || camMoved || scaleChanged || exitedInteractive || exitedBootstrap || targetsWillResize)) {
+      if (!continuingSlice && (reset || camMoved || scaleChanged || exitedInteractive || exitedBootstrap || targetsWillResize || presentedIsStale)) {
         vs.staticSamples = 0;
         vs.pendingSlice = null;
       }
@@ -11658,46 +11701,45 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       vs.outW = outWidth;
       vs.outH = outHeight;
       this.ensureViewTargets(vs, outWidth, outHeight);
-      const prevValid = !targetsWillResize && vs.prevCamera && !scaleChanged && !exitedInteractive && !exitedBootstrap ? 1.0 : 0.0;
+      const prevValid = !targetsWillResize && vs.prevCamera && !!vs.prevCamera.orthographic === isOrtho && !scaleChanged && !exitedInteractive && !exitedBootstrap ? 1.0 : 0.0;
       vs.traceW = traceW;
       vs.traceH = traceH;
 
       const cur = vs.ping;
-      // Budget-slice heavy/4K static refinement into <=14ms horizontal strips so pointer input preempts instantly!
-      const canSlice = allowSlice && !interactive && !bootstrap && vs.hasImage && !targetsWillResize && vs.lastPresentedPing !== cur;
+      // Two-phase budget-sliced static refinement (<=9ms trace strips + <=2 A-Trous passes/submit) so navigation preempts without stalls!
+      const canSlice = allowSlice && !interactive && !bootstrap && !presentedIsStale && vs.hasImage && !targetsWillResize && vs.lastPresentedPing !== cur;
       let sliceCount = 1;
       if (continuingSlice) {
         sliceCount = vs.pendingSlice.sliceCount;
-      } else if (canSlice) {
-        const estStaticMs = this.msPerMPix > 0 ? this.msPerMPix * mpix : (mpix > 2.2 ? mpix * 24 : 0);
-        if (estStaticMs >= 24) {
-          sliceCount = Math.min(16, Math.max(2, Math.pow(2, Math.ceil(Math.log2(estStaticMs / 14)))));
-        }
+      } else if (canSlice && estStaticMs >= 14) {
+        sliceCount = Math.min(16, Math.max(2, Math.pow(2, Math.ceil(Math.log2(estStaticMs / 8)))));
       }
 
-      let yStart = 0, yEnd = traceH, isFinalSlice = true;
+      let yStart = 0, yEnd = traceH;
       let activeFrameIdx = vs.frameIndex + 1;
       let activeStaticSamples = (interactive || bootstrap) ? 1 : (vs.staticSamples + sppPerDispatch);
       let activeSpp = sppPerDispatch;
+      let ps = null;
       if (sliceCount > 1) {
-        if (!vs.pendingSlice || vs.pendingSlice.camSig !== camSig || vs.pendingSlice.cur !== cur ||
-            vs.pendingSlice.traceW !== traceW || vs.pendingSlice.traceH !== traceH) {
+        if (!continuingSlice) {
           vs.pendingSlice = {
-            camSig, cur, traceW, traceH,
-            sliceIdx: 0, sliceCount,
+            camSig, sceneRev: this.scenePoseRev, cur, traceW, traceH,
+            phase: 'trace', sliceIdx: 0, sliceCount, denoiseIter: 0,
             frameIdx: vs.frameIndex + 1,
             spp: sppPerDispatch,
-            nextStaticSamples: vs.staticSamples + sppPerDispatch
+            nextStaticSamples: vs.staticSamples + sppPerDispatch,
+            timing: {totalMs: 0, timedPackets: 0, resolvedPackets: 0, totalPackets: 0, done: false, mpix, sppDiv: Math.max(1, sppPerDispatch)}
           };
         }
-        const ps = vs.pendingSlice;
+        ps = vs.pendingSlice;
         sliceCount = ps.sliceCount;
-        yStart = Math.floor(ps.sliceIdx * traceH / sliceCount);
-        yEnd = Math.floor((ps.sliceIdx + 1) * traceH / sliceCount);
-        isFinalSlice = ps.sliceIdx >= sliceCount - 1;
         activeFrameIdx = ps.frameIdx;
         activeSpp = ps.spp;
         activeStaticSamples = ps.nextStaticSamples;
+        if (ps.phase === 'trace') {
+          yStart = Math.floor(ps.sliceIdx * traceH / sliceCount);
+          yEnd = Math.floor((ps.sliceIdx + 1) * traceH / sliceCount);
+        }
       } else {
         vs.pendingSlice = null;
       }
@@ -11710,6 +11752,11 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       const maxBounces = fastPass ? 2 : 6;
       const fireflyClamp = fastPass ? 8.0 : 24.0;
       const sampleStart = fastPass ? activeFrameIdx : Math.max(0, activeStaticSamples - activeSpp);
+      const splitDenoise = !!ps && denoisePasses > 0 && (estStaticMs >= 16 || mpix >= 1.0);
+      const denoiseChunk = mpix >= 3.0 ? 1 : 2;
+      const isFinalPacket = !ps ||
+        (ps.phase === 'trace' && ps.sliceIdx >= sliceCount - 1 && !splitDenoise) ||
+        (ps.phase === 'denoise' && ps.denoiseIter + denoiseChunk >= denoisePasses);
 
       let flags = 0;
       if (fastPass) flags |= 1;
@@ -11719,6 +11766,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       if (hasUserLights) flags |= 16;
       if (useAgX) flags |= 32;
       flags |= 64; // indirect firefly clamp (direct bounce 0 is NEVER clamped!)
+      if (isOrtho) flags |= 128;
 
       const prev = vs.prevCamera || camera;
 
@@ -11740,7 +11788,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       f.set([0.005, 0.005, 0.005, activeSpp], 52);
       f.set([yStart, yEnd, 0, 0], 56);
       device.queue.writeBuffer(vs.uniformBuf, 0, uBuf);
-      if (isFinalSlice) {
+      if (isFinalPacket) {
         device.queue.writeBuffer(vs.presentUniformBuf, 0, uBuf);
         vs.lastPresentOutW = outWidth;
         vs.lastPresentOutH = outHeight;
@@ -11756,21 +11804,15 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       const gySlice = Math.max(1, Math.ceil((yEnd - yStart) / 8));
       const timer = this.gpuQuery && !this.gpuQuery.busy ? this.gpuQuery : null;
       if (timer) timer.busy = true;
+      let timerStarted = false;
+      const beginTiming = () => {
+        if (!timer || timerStarted) return undefined;
+        timerStarted = true;
+        return {timestampWrites: {querySet: timer.queries, beginningOfPassWriteIndex: 0}};
+      };
 
       const enc = device.createCommandEncoder({label: 'FramePathTracer'});
-      // Pass 1: Path Trace (full frame or horizontal band slice)
-      {
-        const pass = enc.beginComputePass(timer ? {timestampWrites: {querySet: timer.queries, beginningOfPassWriteIndex: 0}} : undefined);
-        pass.setPipeline(p.trace);
-        pass.setBindGroup(0, g.traceG0);
-        pass.setBindGroup(1, g.traceG1);
-        pass.setBindGroup(2, g.traceG2[cur]);
-        pass.dispatchWorkgroups(gx, gySlice);
-        pass.end();
-      }
-
-      if (!isFinalSlice) {
-        // Re-present the last completed frame cleanly via its dedicated presentUniformBuf while tracing slices
+      const presentPrev = () => {
         if (targetView) {
           const format = targetFormat || this.presentFormat;
           const pipe = this.presentPipelines.get(format);
@@ -11787,13 +11829,62 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
           const pass = enc.beginComputePass({timestampWrites: {querySet: timer.queries, endOfPassWriteIndex: 1}});
           pass.end();
         }
+      };
+
+      if (ps) {
+        ps.timing.totalPackets++;
+        if (timer) ps.timing.timedPackets++;
+      }
+
+      if (!ps || ps.phase === 'trace') {
+        // Pass 1: Path Trace (full frame or horizontal band slice)
+        const pass = enc.beginComputePass(beginTiming());
+        pass.setPipeline(p.trace);
+        pass.setBindGroup(0, g.traceG0);
+        pass.setBindGroup(1, g.traceG1);
+        pass.setBindGroup(2, g.traceG2[cur]);
+        pass.dispatchWorkgroups(gx, gySlice);
+        pass.end();
+      }
+
+      const lastTraceStrip = !ps || (ps.phase === 'trace' && ps.sliceIdx >= sliceCount - 1);
+      if (lastTraceStrip) {
+        // Pass 2: Temporal Reprojection / Progressive Accumulation
+        const pass = enc.beginComputePass(beginTiming());
+        pass.setPipeline(p.temporal);
+        pass.setBindGroup(0, g.tempG0[cur]);
+        pass.setBindGroup(1, g.tempG1[cur]);
+        pass.dispatchWorkgroups(gx, gy);
+        pass.end();
+      }
+
+      if (!isFinalPacket) {
+        if (ps.phase === 'denoise') {
+          const ag = g.atrousGroups[cur];
+          const endIter = Math.min(denoisePasses, ps.denoiseIter + denoiseChunk);
+          for (let iter = ps.denoiseIter; iter < endIter; iter++) {
+            const pass = enc.beginComputePass(beginTiming());
+            pass.setPipeline(p.atrous);
+            pass.setBindGroup(0, ag[iter]);
+            pass.dispatchWorkgroups(gx, gy);
+            pass.end();
+          }
+          ps.denoiseIter = endIter;
+        } else if (lastTraceStrip && splitDenoise) {
+          ps.phase = 'denoise';
+          ps.denoiseIter = 0;
+        } else {
+          ps.sliceIdx++;
+        }
+
+        presentPrev();
         if (timer) {
           enc.resolveQuerySet(timer.queries, 0, 2, timer.resolve, 0);
           enc.copyBufferToBuffer(timer.resolve, 0, timer.read, 0, 16);
         }
         device.queue.submit([enc.finish()]);
         if (timer) {
-          const sCnt = sliceCount;
+          const timing = ps.timing;
           timer.read.mapAsync(GPUMapMode.READ).then(() => {
             if (this.dead) { timer.read.unmap(); timer.busy = false; return; }
             const q = new BigUint64Array(timer.read.getMappedRange());
@@ -11802,29 +11893,26 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
             timer.busy = false;
             if (ms > 0 && ms < 10000) {
               this.lastGpuMs = ms;
-              const est = (ms * sCnt) / mpix;
-              this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+              timing.totalMs += ms;
+              timing.resolvedPackets++;
+              if (timing.done && timing.resolvedPackets >= timing.timedPackets) {
+                const fullMs = timing.totalMs * (timing.totalPackets / Math.max(1, timing.timedPackets));
+                this.lastFullFrameGpuMs = fullMs;
+                const est = fullMs / (timing.mpix * timing.sppDiv);
+                this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+              }
             }
           }).catch(() => { timer.busy = false; });
         }
-        vs.pendingSlice.sliceIdx++;
         return false;
       }
 
-      // Pass 2: Temporal Reprojection / Progressive Accumulation
-      {
-        const pass = enc.beginComputePass();
-        pass.setPipeline(p.temporal);
-        pass.setBindGroup(0, g.tempG0[cur]);
-        pass.setBindGroup(1, g.tempG1[cur]);
-        pass.dispatchWorkgroups(gx, gy);
-        pass.end();
-      }
-      // Pass 3: Variance-Guided Plane-Distance 5x5 A-Trous Denoiser
+      // Pass 3: Variance-Guided Plane-Distance 5x5 A-Trous Denoiser (all remaining passes)
       if (denoisePasses > 0) {
         const ag = g.atrousGroups[cur];
-        for (let iter = 0; iter < denoisePasses; iter++) {
-          const pass = enc.beginComputePass();
+        const startIter = ps && ps.phase === 'denoise' ? ps.denoiseIter : 0;
+        for (let iter = startIter; iter < denoisePasses; iter++) {
+          const pass = enc.beginComputePass(beginTiming());
           pass.setPipeline(p.atrous);
           pass.setBindGroup(0, ag[iter]);
           pass.dispatchWorkgroups(gx, gy);
@@ -11837,7 +11925,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         const format = targetFormat || this.presentFormat;
         const pipe = this.presentPipelines.get(format);
         const pass = enc.beginRenderPass({
-          ...(timer ? {timestampWrites: {querySet: timer.queries, endOfPassWriteIndex: 1}} : {}),
+          ...(timer ? {timestampWrites: {querySet: timer.queries, ...(timerStarted ? {} : {beginningOfPassWriteIndex: 0}), endOfPassWriteIndex: 1}} : {}),
           colorAttachments: [{view: targetView, loadOp: 'clear', storeOp: 'store', clearValue: [0.06, 0.06, 0.06, 1]}]
         });
         pass.setPipeline(pipe);
@@ -11845,7 +11933,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         pass.draw(3);
         pass.end();
       } else if (timer) {
-        const pass = enc.beginComputePass({timestampWrites: {querySet: timer.queries, endOfPassWriteIndex: 1}});
+        const pass = enc.beginComputePass({timestampWrites: {querySet: timer.queries, ...(timerStarted ? {} : {beginningOfPassWriteIndex: 0}), endOfPassWriteIndex: 1}});
         pass.end();
       }
 
@@ -11853,10 +11941,11 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         enc.resolveQuerySet(timer.queries, 0, 2, timer.resolve, 0);
         enc.copyBufferToBuffer(timer.resolve, 0, timer.read, 0, 16);
       }
+      if (ps) ps.timing.done = true;
       device.queue.submit([enc.finish()]);
 
       if (timer) {
-        const wasFast = fastPass, sCnt = sliceCount, tracedMpix = Math.max(0.05, (traceW * traceH) / 1e6), sppDiv = Math.max(1, activeSpp);
+        const wasFast = fastPass, timing = ps?.timing || null, tracedMpix = Math.max(0.05, (traceW * traceH) / 1e6), sppDiv = Math.max(1, activeSpp);
         timer.read.mapAsync(GPUMapMode.READ).then(() => {
           if (this.dead) { timer.read.unmap(); timer.busy = false; return; }
           const q = new BigUint64Array(timer.read.getMappedRange());
@@ -11865,8 +11954,20 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
           timer.busy = false;
           if (ms > 0 && ms < 10000) {
             this.lastGpuMs = ms;
-            const est = wasFast ? (ms / tracedMpix) * 1.85 : ((ms * sCnt) / (mpix * sppDiv));
-            this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+            if (timing) {
+              timing.totalMs += ms;
+              timing.resolvedPackets++;
+              if (timing.resolvedPackets >= timing.timedPackets) {
+                const fullMs = timing.totalMs * (timing.totalPackets / Math.max(1, timing.timedPackets));
+                this.lastFullFrameGpuMs = fullMs;
+                const est = fullMs / (timing.mpix * timing.sppDiv);
+                this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+              }
+            } else {
+              if (!wasFast) this.lastFullFrameGpuMs = ms;
+              const est = wasFast ? (ms / tracedMpix) * 1.85 : (ms / (mpix * sppDiv));
+              this.msPerMPix = this.msPerMPix > 0 ? this.msPerMPix * 0.65 + est * 0.35 : est;
+            }
           }
         }).catch(() => { timer.busy = false; });
       }
@@ -11877,6 +11978,8 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
       vs.wasInteractive = interactive;
       vs.wasBootstrap = bootstrap;
       vs.lastCameraSig = camSig;
+      vs.lastPresentedCamSig = camSig;
+      vs.lastPresentedSceneRev = this.scenePoseRev;
       vs.lastTraceW = traceW;
       vs.lastTraceH = traceH;
       vs.prevCamera = {
@@ -11885,6 +11988,7 @@ fn sampleAccumBilinear(uv: vec2f, dims: vec2i) -> vec3f {
         up: [...camera.up],
         forward: [...camera.forward],
         focal: camera.focal,
+        orthographic: isOrtho,
         aspect: outWidth / Math.max(1, outHeight)
       };
       vs.lastPresentedPing = cur;
@@ -12781,6 +12885,7 @@ ICO_PLUGINS:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-r
   "ICO_TL_PREV": "<svg width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M9 7v14M20 7l-9 7 9 7z\" fill=\"none\" stroke=\"#cbd2dc\"/></svg>",
   "ICO_TL_NEXT": "<svg width=\"28\" height=\"28\" viewBox=\"0 0 28 28\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M19 7v14M8 7l9 7-9 7z\" fill=\"none\" stroke=\"#cbd2dc\"/></svg>",
   "ICO_SHADING_SOLID": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"0\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><defs><radialGradient id=\"icoShadeGrad\" cx=\"38%\" cy=\"33%\" r=\"70%\"><stop offset=\"0%\" stop-color=\"#808080\"/><stop offset=\"100%\" stop-color=\"#2c2c2c\"/></radialGradient></defs><circle cx=\"16\" cy=\"16\" r=\"10.5\" fill=\"url(#icoShadeGrad)\"/></svg>",
+  "ICO_SHADING_RENDER": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\"><defs><radialGradient id=\"icoRenderGrad\" cx=\"35%\" cy=\"30%\" r=\"72%\"><stop offset=\"0%\" stop-color=\"#ffffff\"/><stop offset=\"22%\" stop-color=\"#d2dce8\"/><stop offset=\"58%\" stop-color=\"#5d728a\"/><stop offset=\"86%\" stop-color=\"#222a36\"/><stop offset=\"100%\" stop-color=\"#48586b\"/></radialGradient></defs><circle cx=\"16\" cy=\"16\" r=\"10.5\" fill=\"url(#icoRenderGrad)\"/></svg>",
   "ICO_SHADING_WIRE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"9.5\"/><ellipse cx=\"16\" cy=\"16\" rx=\"9.5\" ry=\"3.5\"/><ellipse cx=\"16\" cy=\"16\" rx=\"3.5\" ry=\"9.5\"/></svg>",
   "ICO_SHADING_CAGE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#5ab1cf\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"9.5\"/><ellipse cx=\"16\" cy=\"16\" rx=\"9.5\" ry=\"3.5\"/><ellipse cx=\"16\" cy=\"16\" rx=\"3.5\" ry=\"9.5\"/></svg>",
   "human": `<svg viewBox="0 0 32 32"><circle cx="16" cy="6.5" r="3" fill="${frameObjectPalette.asset}"/><path d="M12 12Q16 10 20 12L23 21M12 12L9 21M13 13L13.5 21 11 29M19 13L18.5 21 21 29M13 21H19" fill="none" stroke="${frameObjectPalette.asset}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -17245,21 +17350,31 @@ $('btnLocal').onclick=()=>window.frameEngine?.autoPivot();
 for(const [id,mode]of Object.entries({btnVertexMode:'vertex',btnEdgeMode:'edge',btnPolygonMode:'polygon'}))$(id).onclick=()=>{selectionArea='viewport';window.frameEngine?.setViewerMode('element',$(id).classList.contains('on')?'object':mode);};
 // Independent controls map to the existing per-view/HASH mode, without duplicate state.
 const frameShadingStates={
- solid:[true,'off'],wireframe:[false,'wire'],'solid-wire':[true,'wire'],
- isoparms:[false,'isoparms'],'solid-isoparms':[true,'isoparms'],off:[false,'off']
+ solid:['solid','off'],wireframe:['off','wire'],'solid-wire':['solid','wire'],
+ isoparms:['off','isoparms'],'solid-isoparms':['solid','isoparms'],off:['off','off'],
+ render:['render','off'],'render-wire':['render','wire'],'render-isoparms':['render','isoparms']
 };
 let shading='solid-isoparms';
-function frameShadingMode(solid,lines){return lines==='off'?(solid?'solid':'off'):lines==='wire'?(solid?'solid-wire':'wireframe'):(solid?'solid-isoparms':'isoparms');}
+function frameShadingMode(surface,lines){
+ const s=surface===true?'solid':surface===false?'off':surface;
+ if(s==='render')return lines==='off'?'render':lines==='wire'?'render-wire':'render-isoparms';
+ return lines==='off'?(s==='solid'?'solid':'off'):lines==='wire'?(s==='solid'?'solid-wire':'wireframe'):(s==='solid'?'solid-isoparms':'isoparms');
+}
 function frameSyncShadingControls(mode){
- shading=mode;const [solid,lines]=frameShadingStates[mode];
- $('btnSolid').classList.remove('on');$('btnSolid').innerHTML=icons.ICO_SHADING_SOLID.replace('<svg ','<svg style="opacity:'+ (solid?'1':'.4')+'" ');$('btnSolid').setAttribute('aria-pressed',String(solid));
+ shading=mode;const [surface,lines]=frameShadingStates[mode]||['solid','isoparms'];
+ $('btnSolid').classList.remove('on');
+ $('btnSolid').innerHTML=(surface==='render'?icons.ICO_SHADING_RENDER:icons.ICO_SHADING_SOLID).replace('<svg ','<svg style="opacity:'+(surface==='off'?'.4':'1')+'" ');
+ $('btnSolid').dataset.surface=surface;
+ $('btnSolid').title={solid:'Solid',render:'Render',off:'Off'}[surface];
+ $('btnSolid').setAttribute('aria-label',$('btnSolid').title);
+ $('btnSolid').setAttribute('aria-pressed',String(surface!=='off'));
  $('btnShading').innerHTML=icons[lines==='wire'?'ICO_SHADING_WIRE':'ICO_SHADING_CAGE'];
  $('btnShading').classList.remove('on');$('btnShading').style.opacity='';if(lines==='off')$('btnShading').firstElementChild.style.opacity='.4';
  $('btnShading').title='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[lines];
  $('btnShading').setAttribute('aria-label',$('btnShading').title);$('btnShading').setAttribute('aria-pressed',String(lines!=='off'));
 }
-$('btnSolid').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading];window.frameEngine?.setViewerMode('shading',frameShadingMode(!solid,lines));};
-$('btnShading').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading],cycle=['isoparms','wire','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(solid,cycle[(cycle.indexOf(lines)+1)%cycle.length]));};
+$('btnSolid').onclick=()=>{selectionArea='viewport';const [surface,lines]=frameShadingStates[shading],cycle=['solid','render','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(cycle[(cycle.indexOf(surface)+1)%cycle.length],lines));};
+$('btnShading').onclick=()=>{selectionArea='viewport';const [surface,lines]=frameShadingStates[shading],cycle=['isoparms','wire','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(surface,cycle[(cycle.indexOf(lines)+1)%cycle.length]));};
 frameSyncShadingControls(shading);
 const units=['nm','µm','mm','cm','dm','m','km'];
 for(const [suffix,step]of [['M',-1],['P',1]]){
@@ -23324,7 +23439,12 @@ window.frameEngine=(()=>{
     function beginSplineRecordBatch(){const space=scene;let batch=splineRecordBatch;if(!batch||batch.space!==space)splineRecordBatch=batch={space,depth:0};batch.depth++;let finished=false;return ()=>{if(finished)return;finished=true;if(!--batch.depth&&splineRecordBatch===batch)splineRecordBatch=null;};}
     const hoverCursor={x:0,y:0,inside:false};
     const surfaceProbeUI={cursor:null,revision:0,timer:0,busy:false,label:null};
-    const elementIds={vertex:0,edge:1,polygon:2,object:3},shadingIds={wireframe:0,solid:1,'solid-wire':2,isoparms:0,'solid-isoparms':3,off:0};
+    const elementIds={vertex:0,edge:1,polygon:2,object:3},shadingIds={wireframe:0,solid:1,'solid-wire':2,isoparms:0,'solid-isoparms':3,off:0,render:1,'render-wire':2,'render-isoparms':3};
+    const isRenderShading=m=>m==='render'||m==='render-wire'||m==='render-isoparms';
+    const isSurfaceShading=m=>typeof m==='string'&&(m.startsWith('solid')||m.startsWith('render'));
+    const isSurfaceNoLines=m=>m==='solid'||m==='render';
+    const toRenderShading=m=>m==='solid'?'render':m==='solid-wire'?'render-wire':m==='solid-isoparms'?'render-isoparms':m;
+    const toSolidShading=m=>m==='render'?'solid':m==='render-wire'?'solid-wire':m==='render-isoparms'?'solid-isoparms':m;
     function makeGPUBuffer(device,descriptor){
       const buffer=device.createBuffer(descriptor);gpuAllocations.set(buffer,buffer.size);
       allocatedBytes+=buffer.size;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return buffer;
@@ -23341,7 +23461,7 @@ window.frameEngine=(()=>{
       if(nativeIOBusy||selectionBusy||editDrag||gizmoSession||coreNumeric||editFinishing)return;
       const edgeVertices=kind==='element'&&elementMode==='edge'&&value==='vertex',meshVertices=edgeVertices&&selectionScope==='components'&&!!renderer?.boxSelection;const splineRows=edgeVertices?[...FrameSpline.edits.values()].map(row=>({hash:row.hash,selection:FrameSpline.componentVertices(frameNodeByHash(row.hash).splineData,row.selection)})):[];const indices=kind==='element'&&scene?currentSelectionMeshes().map(m=>scene.meshes.indexOf(m)):[],knownHashes=new Set(poseObjects().map(o=>o.hash)),hashes=nodes.filter(n=>selected.has(n.id)&&knownHashes.has(n.nativeHash)).map(n=>n.nativeHash);if(!hashes.length)hashes.push(...objectSelection);
       if(kind==='element'&&value!==elementMode&&renderer?.boxSelection)clearBoxSelection(renderer);if(kind==='element'&&value!==elementMode){endPolygonTool();}
-      if(kind==='element'){elementMode=value;if(value!=='object')warmComponentEditing(renderer);boundsFlashUntil=0;for(const svg of gizmoViews.values())svg.querySelector('.frame-bounds-flash')?.remove();gizmoViewStates.clear();}else viewShadings[viewIndex]=shadingMode=value;
+      if(kind==='element'){elementMode=value;if(value!=='object')warmComponentEditing(renderer);boundsFlashUntil=0;for(const svg of gizmoViews.values())svg.querySelector('.frame-bounds-flash')?.remove();gizmoViewStates.clear();}else{viewShadings[viewIndex]=shadingMode=value;if(!isRenderShading(value))previewCamera=null;}
       for(const b of document.querySelectorAll('[data-mode-kind]'))b.setAttribute('aria-pressed',String(b.dataset.modeKind==='element'?b.dataset.modeValue===elementMode:b.dataset.modeValue===shadingMode));
       canvas.dataset.elementMode=elementMode;canvas.dataset.shadingMode=shadingMode;
       if(renderer){renderer.frameSamples=[];renderer.frameSampleKey='';}
@@ -24048,7 +24168,7 @@ window.frameEngine=(()=>{
     }
     function releaseBorrowed(mesh){for(const b of mesh.borrowed||[]){const q=gpuLeases.get(b);if(q&&!--q.count){gpuLeases.delete(b);if(q.retired)releaseGPU(b);}}mesh.borrowed=[];if(mesh.cowReadToken){mesh.cowReadToken.count--;mesh.cowReadToken=null;}mesh.cowShared=false;}
     function disposeMesh(mesh){creasePolicyJobs.delete(mesh);clearPatchPreview(mesh);releaseMaterialTable(mesh);for(const b of mesh.buffers)releaseGPU(b);mesh.buffers=[];releaseBorrowed(mesh);}
-    function disposeScene(value){if(value===scene){if(typeof renderExportJob!=='undefined')renderExportJob?.controller.abort();if(typeof lastViewportOutput!=='undefined')lastViewportOutput=null;if(typeof previewCamera!=='undefined')previewCamera=null;if(typeof renderStoppedCamera!=='undefined')renderStoppedCamera=null;if(typeof lastSeenCameraHash!=='undefined')lastSeenCameraHash=null;if(typeof detachedRenderViews!=='undefined')detachedRenderViews.clear();if(typeof pathTracerSyncGeneration!=='undefined'){pathTracerSyncGeneration++;pathTracerSyncPromise=null;}if(typeof pathTracerCancelRefine==='function')pathTracerCancelRefine();if(typeof pathTracer!=='undefined'){pathTracer?.releaseDetachedViews();pathTracer?.resetAccumulation(true);}if(typeof updateRenderProgressUI==='function')updateRenderProgressUI();}for(const b of bendStates.values())if(b.scene===value)retireBend(b);if(renderer?.orderedReplicas?.scene===value)retireOrderedReplicas(renderer);if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
+    function disposeScene(value){if(value===scene){if(typeof renderExportJob!=='undefined')renderExportJob?.controller.abort();if(typeof lastViewportOutput!=='undefined')lastViewportOutput=null;if(typeof previewCamera!=='undefined')previewCamera=null;if(typeof renderStoppedCamera!=='undefined')renderStoppedCamera=null;if(typeof lastSeenCameraHash!=='undefined')lastSeenCameraHash=null;if(typeof lastCameraAutoEnabled!=='undefined')lastCameraAutoEnabled=false;if(typeof lastNavReleaseAt!=='undefined'){lastNavReleaseAt=0;lastNavReleaseView=-1;}if(typeof detachedRenderViews!=='undefined')detachedRenderViews.clear();if(typeof pathTracerSyncGeneration!=='undefined'){pathTracerSyncGeneration++;pathTracerSyncPromise=null;}if(typeof pathTracerCancelRefine==='function')pathTracerCancelRefine();if(typeof pathTracer!=='undefined'){pathTracer?.releaseDetachedViews();pathTracer?.resetAccumulation(true);}if(typeof updateRenderProgressUI==='function')updateRenderProgressUI();}for(const b of bendStates.values())if(b.scene===value)retireBend(b);if(renderer?.orderedReplicas?.scene===value)retireOrderedReplicas(renderer);if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
 
     async function createNormalPacking(device){
       const module=device.createShaderModule({label:'dense shading records',code:computeCommon+`
@@ -24521,7 +24641,7 @@ window.frameEngine=(()=>{
     const CAMERA_RELATIVE_WGSL=`fn frameCameraRelative(rotation:mat4x4f)->mat4x4f{var relative=rotation;relative[3].z=rotation[3].z-3.2;return relative;}
 `;
     const POSE_WGSL=`struct ObjectFrame{matrix:mat4x4f,nx:vec4f,ny:vec4f,nz:vec4f,flags:vec4u};fn objectPoint(p:vec3f,f:ObjectFrame)->vec3f{if(f.flags.x!=0u){return(f.matrix*vec4f(p,1)).xyz;}return p;}`;
-    let preserveSelectionTags=false;let poseEpoch=0,selectionScope='components',objectSelection=[],objectSelectionOccurrence=null,componentPivot=null,coordinateMode='object',pivotEditing=false,quantize=false,snapping=false;
+    let preserveSelectionTags=false;let poseEpoch=0,geometryPoseEpoch=0,visibilityEpoch=0,selectionScope='components',objectSelection=[],objectSelectionOccurrence=null,componentPivot=null,coordinateMode='object',pivotEditing=false,quantize=false,snapping=false;
     let metaUndo=[],metaRedo=[],transformSequence=0,coreNumeric=null,measurementSerial=0,measurementCache=null,coordinateCache=null;
     const poseWorlds=new Map();let poseRecordCache=null,poseConstraints=new Map();
     function nativeValue(h,field){if(!h)return undefined;return scene?.records?.get(FrameHash.address(h,field))?.value;}
@@ -24770,6 +24890,7 @@ window.frameEngine=(()=>{
         }
         if(needReplicas)syncReplicas();
       }
+      if(geometryChanged)geometryPoseEpoch++;
       poseEpoch++;measurementCache=null;return geometryChanged;
     }
     function objectDescendants(h,objects=poseObjects()){let children=objects===poseRecordCache?.objects?poseRecordCache.children:null;if(!children){children=new Map();for(const o of objects){if(!children.has(o.parent))children.set(o.parent,[]);children.get(o.parent).push(o.hash);}if(objects===poseRecordCache?.objects)poseRecordCache.children=children;}const out=[h],seen=new Set(out);for(let i=0;i<out.length;i++)for(const hash of children.get(out[i])||[])if(!seen.has(hash)){seen.add(hash);out.push(hash);}return out;}
@@ -24997,7 +25118,7 @@ window.frameEngine=(()=>{
     // Navigation is core state. Geometry and pipelines have one GPU owner across all views.
     let viewIndex=0,viewRevision=0;
     const viewStates=[null,null,null,null],passiveViews=new Map(),cameraNavigationRevisions=new Map();let cameraRoll=0,cameraViewKey='',perspectiveFov=45;
-    const viewShadingNames=['solid','wireframe','solid-wire','isoparms','solid-isoparms','off'],defaultViewShadings=['solid-isoparms','isoparms','isoparms','isoparms'],viewShadings=[...defaultViewShadings];
+    const viewShadingNames=['solid','wireframe','solid-wire','isoparms','solid-isoparms','off','render','render-wire','render-isoparms'],defaultViewShadings=['solid-isoparms','isoparms','isoparms','isoparms'],viewShadings=[...defaultViewShadings];
     const captureCamera=()=>[yaw,pitch,zoom,panX,panY,...orbitPivot,...orbitOffset,orbitDepth];
     function restoreCamera(v){[yaw,pitch,zoom,panX,panY]=v;orbitPivot=v.slice(5,8);orbitOffset=v.slice(8,11);orbitDepth=v[11];}
     function defaultCamera(i){i=frameViewKind(i);return [i===3?Math.PI/2:i===0?-Math.PI/4:0,i===1?Math.PI/2:i===0?Math.PI/6:0,i?2.41421356/3.2:1,0,0,0,0,0,0,0,0,3.2];}
@@ -25011,7 +25132,7 @@ window.frameEngine=(()=>{
       canvas.dataset.viewIndex=String(i);deferHoverMaps();draw(true,true);return true;
     }
     function viewCamera(i){return {camera:(i===viewIndex?captureCamera():viewStates[i]||defaultCamera(i)).slice(),shading:viewShadings[i]};}
-    function createView(i,source,inheritRender=false){viewStates[i]=viewCamera(source).camera.slice();viewShadings[i]=viewShadings[source];if(inheritRender&&source===0&&isPathTracedView(0)&&frameViewVisible(0))detachedRenderViews.add(i);else detachedRenderViews.delete(i);createViewGizmo(i);updateRenderProgressUI();}
+    function createView(i,source,inheritRender=false){viewStates[i]=viewCamera(source).camera.slice();viewShadings[i]=viewShadings[source];if(inheritRender&&isPathTracedView(source)&&frameViewVisible(source)){detachedRenderViews.add(i);if(!isRenderShading(viewShadings[i])&&isSurfaceShading(viewShadings[i]))viewShadings[i]=toRenderShading(viewShadings[i]);}else detachedRenderViews.delete(i);createViewGizmo(i);updateRenderProgressUI();}
     function dropView(i){
       detachedRenderViews.delete(i);pathTracer?.releaseView(i);
       retireViewSurface(i,false);for(const map of [gizmoViews,motionViews,lightHelperViews]){map.get(i)?.remove();map.delete(i);}gizmoViewStates.delete(i);navigationSurfaces.delete(i);
@@ -25022,14 +25143,14 @@ window.frameEngine=(()=>{
     }
     async function releaseView(i,fallback){while(i===viewIndex&&!activateFrameView(fallback))await new Promise(resolve=>setTimeout(resolve,25));dropView(i);}
     function retireViewSurface(i,replace=true){
-      const v=passiveViews.get(i);if(v){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);try{v.context.unconfigure();}catch{}passiveViews.delete(i);}
+      const v=passiveViews.get(i);if(v){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);try{v.context.unconfigure();}catch{}passiveViews.delete(i);}
       clearWirePixels(renderer,i);clearMaterialTransparency(renderer,i);clearVertexRaster(renderer,i);
       // A context configured in a closing document cannot be configured again in Chromium.
       // Only the lightweight passive presentation canvas is replaced; native input and GPU geometry stay owned here.
       if(!replace)return;const old=frameViewCanvases.get(i),next=document.createElement('canvas');next.className='frame-viewport-canvas';next.dataset.passiveView=i;old?.replaceWith(next);frameViewCanvases.set(i,next);
     }
     function layoutChanged(){
-      if(renderer)for(const [i,v]of passiveViews)if(!frameViewVisible(i)||i===viewIndex){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);v.context.unconfigure();passiveViews.delete(i);if(i!==viewIndex){clearWirePixels(renderer,i);clearMaterialTransparency(renderer,i);clearVertexRaster(renderer,i);}}
+      if(renderer)for(const [i,v]of passiveViews)if(!frameViewVisible(i)||i===viewIndex){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);v.context.unconfigure();passiveViews.delete(i);if(i!==viewIndex){clearWirePixels(renderer,i);clearMaterialTransparency(renderer,i);clearVertexRaster(renderer,i);}}
       draw(true,true);
     }
     function cameraUniform(width,height){
@@ -26156,23 +26277,46 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       return {hash,signature:key,data:cage,report:result.report,empty:cage?!Object.keys(cage.segments).length:!result.indices.length};}finally{progress.end();}
     }
 
-    let lastViewportOutput=null,previewCamera=null,renderExportJob=null,renderStoppedCamera=null,lastSeenCameraHash=null,lastCameraStateSig='';
+    let lastViewportOutput=null,previewCamera=null,renderExportJob=null,renderStoppedCamera=null,lastSeenCameraHash=null,lastCameraStateSig='',lastCameraAutoEnabled=false;
     const detachedRenderViews=new Set();
     let pathTracer=null,pathTracerFactory=null,pathTracerSyncPromise=null,pathTracerSyncGeneration=0;
-    let pathTracerRefineRAF=0,pathTracerSettleTimer=0,pathTracerBusy=false,pathTracerRefineCursor=0,lastWheelActivityAt=0,lastWheelView=-1;
+    let pathTracerRefineRAF=0,pathTracerSettleTimer=0,pathTracerBusy=false,pathTracerRefineCursor=0,lastWheelActivityAt=0,lastWheelView=-1,lastNavReleaseAt=0,lastNavReleaseView=-1;
 
     function pathTracerTargetSamples(samples){
       const n=Math.round(samples??64);
       return Number.isFinite(n)&&n>=1?Math.min(0x7fffffff,n):64;
     }
+    function pathTracerSettings(cam=cameraConfig()){
+      const useCam=cam&&cam.params.renderer==='Path tracer';
+      return {
+        samples:pathTracerTargetSamples(useCam?cam.params.samples:64),
+        envMode:useCam?(cam.params.environment||'default'):'default',
+        envAssetId:useCam?(cam.params['environment image']||''):'',
+        rtDuringNav:useCam?cam.params['realtime during navigation']!==false:true
+      };
+    }
+    function pathTracerCamSig(camera,w,h,envMode){
+      return [...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,camera.orthographic?1:0,w,h,envMode].map(v=>Math.fround(v)).join(':');
+    }
+    function setViewShading(i,mode){
+      if(!viewShadings[i]||viewShadings[i]===mode)return;
+      viewShadings[i]=mode;
+      if(i===viewIndex){
+        shadingMode=mode;
+        canvas.dataset.shadingMode=mode;
+        window.dispatchEvent(new CustomEvent('frame-engine-mode',{detail:{elementMode,shadingMode}}));
+      }
+    }
     function isSceneInteractiveMotion(){
       return !!(gizmoSession?.moved||coreNumeric||editDrag||motionDrag||materialGesture||playing);
     }
     function isViewCameraNavigation(i=0){
-      const wheelRecent=performance.now()-lastWheelActivityAt<180;
-      const ptrNav=viewIndex===i&&!!((drag&&!drag.navigationBlocked)||(touchNavigation&&!touchNavigation.navigationBlocked));
+      const now=performance.now();
+      const wheelRecent=now-lastWheelActivityAt<180;
+      const ptrNav=viewIndex===i&&!!((drag&&drag.navigated&&!drag.navigationBlocked)||(touchNavigation&&touchNavigation.moved&&!touchNavigation.navigationBlocked));
       const wheelNav=lastWheelView===i&&(wheelBusy||pendingWheel||wheelNavigation||wheelRecent);
-      return !!(ptrNav||wheelNav);
+      const navGrace=lastNavReleaseView===i&&now-lastNavReleaseAt<90&&pathTracerSettings().rtDuringNav;
+      return !!(ptrNav||wheelNav||navGrace);
     }
     function isViewInteractiveMotion(i=0){
       return isSceneInteractiveMotion()||isViewCameraNavigation(i);
@@ -26189,25 +26333,30 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const cam=cameraConfig(),hash=cam?.nativeHash||null;
       if(hash!==lastSeenCameraHash){
         lastSeenCameraHash=hash;
+        lastCameraAutoEnabled=!!(cam&&cam.params.renderer==='Path tracer'&&cam.params.realtime==='on');
         if(hash&&renderStoppedCamera!==null&&renderStoppedCamera!==hash)renderStoppedCamera=null;
-        if(!hash){renderStoppedCamera=null;previewCamera=null;pathTracerCancelRefine();}
+        if(!hash){renderStoppedCamera=null;previewCamera=null;if(!activePathTracerViews(null).length)pathTracerCancelRefine();}
+        else if(lastCameraAutoEnabled&&renderStoppedCamera!==hash&&viewShadings[0]?.startsWith('solid')){
+          setViewShading(0,toRenderShading(viewShadings[0]));
+        }
       }
       return cam;
     }
     function cameraRenderEnabled(cam=syncActiveCameraAutoStart()){
-      if(!cam||cam.params.renderer!=='Path tracer')return false;
-      return (cam.params.realtime==='on'&&renderStoppedCamera!==cam.nativeHash)||previewCamera===cam.nativeHash;
+      if(cam&&cam.params.renderer==='Path tracer'&&((cam.params.realtime==='on'&&renderStoppedCamera!==cam.nativeHash)||previewCamera===cam.nativeHash))return true;
+      for(const i of frameViewSections.keys())if(isRenderShading(viewShadings[i]))return true;
+      return false;
     }
     function isPathTracedView(i=0,cam=syncActiveCameraAutoStart()){
-      if(!cameraRenderEnabled(cam))return false;
-      if(i!==0&&(!detachedRenderViews.has(i)||frameViewKind(i)!==0))return false;
-      if(elementMode!=='object'||!viewShadings[i]?.startsWith('solid'))return false;
-      return true;
+      const mode=viewShadings[i];
+      if(isRenderShading(mode))return true;
+      if(i===0&&cam&&cam.params.renderer==='Path tracer'&&previewCamera===cam.nativeHash&&isSurfaceShading(mode))return true;
+      return false;
     }
     function pathTracerWantsDisplay(i=0,cam=syncActiveCameraAutoStart()){
       if(!isPathTracedView(i,cam))return false;
       if(!frameViewVisible(i))return false;
-      if(isViewInteractiveMotion(i)&&!cam.params['realtime during navigation']){
+      if(isViewInteractiveMotion(i)&&!pathTracerSettings(cam).rtDuringNav){
         schedulePathTracerSettle();
         return false;
       }
@@ -26215,8 +26364,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     }
     function activePathTracerViews(cam=syncActiveCameraAutoStart()){
       const list=[];
-      if(pathTracerWantsDisplay(0,cam))list.push(0);
-      for(const i of detachedRenderViews)if(frameViewSections.has(i)&&pathTracerWantsDisplay(i,cam))list.push(i);
+      for(const i of frameViewSections.keys())if(pathTracerWantsDisplay(i,cam))list.push(i);
       return list;
     }
     function pathTracerCancelRefine(){
@@ -26228,22 +26376,31 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       pathTracerSettleTimer=setTimeout(()=>{
         pathTracerSettleTimer=0;
         if(!scene||!renderer)return;
-        if(isSceneInteractiveMotion()||isViewCameraNavigation(viewIndex)){schedulePathTracerSettle(90);return;}
+        if(isSceneInteractiveMotion()||isViewCameraNavigation(viewIndex)){schedulePathTracerSettle(50);return;}
         const cam=cameraConfig();
-        if(cameraRenderEnabled(cam)&&activePathTracerViews(cam).length){
+        if(activePathTracerViews(cam).length){
           draw(false);
         }
       },delay);
     }
     function resumeCameraRender(hash){
       if(!hash||renderStoppedCamera===hash)renderStoppedCamera=null;
-      renderStatus();draw(false);
+      const cam=cameraConfig();
+      if(cam&&cam.params.renderer==='Path tracer'&&cam.params.realtime==='on'&&viewShadings[0]?.startsWith('solid'))setViewShading(0,toRenderShading(viewShadings[0]));
+      lastCameraAutoEnabled=!!(cam&&cam.params.renderer==='Path tracer'&&cam.params.realtime==='on');
+      renderStatus();draw(true);
     }
     function cameraSettingsChanged(){
       const cam=syncActiveCameraAutoStart();
-      if(!cameraRenderEnabled(cam))pathTracerCancelRefine();
+      const autoOn=!!(cam&&cam.params.renderer==='Path tracer'&&cam.params.realtime==='on');
+      if(cam&&!autoOn&&previewCamera!==cam.nativeHash){
+        if(isRenderShading(viewShadings[0]))setViewShading(0,toSolidShading(viewShadings[0]));
+        for(const i of [...detachedRenderViews])if(isRenderShading(viewShadings[i]))setViewShading(i,toSolidShading(viewShadings[i]));
+      }
+      lastCameraAutoEnabled=autoOn;
+      if(!activePathTracerViews(cam).length)pathTracerCancelRefine();
       renderStatus();
-      draw(!cameraRenderEnabled(cam));
+      draw(true);
     }
     function ensurePathTracer(r){
       if(pathTracer&&!pathTracer.dead&&pathTracer._device===r.device)return pathTracer;
@@ -26384,8 +26541,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           halfAngle:Math.max(0.001,lv[2])*Math.PI/360
         });
       }
-      const envMode=camera?.params.environment||'default';
-      const envAssetId=camera?.params['environment image']||'';
+      const {envMode,envAssetId}=pathTracerSettings(camera);
       const envAsset=envAssetId?frameMaterialAssets.get(envAssetId)||null:null;
 
       const visibleMeshes=nativeSurfaceOccurrences().filter(m=>m.frameVisible!==false&&m.triangleCount>0);
@@ -26423,17 +26579,22 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           stableKey,stableId:hash32(stableKey)||1
         });
       }
-      const geomKey=scene.topologyRevision+'|'+visibleMeshes.length+'|'+geomParts.join(',');
+      const geomKey=scene.topologyRevision+'|'+visibilityEpoch+'|'+visibleMeshes.length+'|'+geomParts.join(',');
       const matKey=state.signature+'|'+appearanceRevision+'|'+viewportLightingSignature()+'|'+envMode+'|'+envAssetId;
-      const poseKey=poseEpoch+'|'+scene.topologyRevision+'|'+occurrences.length;
+      const poseKey=geometryPoseEpoch+'|'+scene.topologyRevision+'|'+visibilityEpoch+'|'+occurrences.length;
       return {scene,occurrences,materials:matArray,lights,envMode,envAssetId,envAsset,materialAtlas:state.atlas,geomKey,matKey,poseKey};
     }
     function viewCameraFrame(i=0){
       const active=viewIndex,saved=captureCamera();
       try{
         if(active!==i){viewIndex=i;restoreCamera(viewStates[i]||defaultCamera(i));}
-        const f=cameraFrame();
-        return {...f,focal:cameraFocal(),sceneScale:scene?.scale||1};
+        const f=cameraFrame(),ortho=!!frameViewKind(i);
+        if(ortho){
+          const near=clippingPlanes()[0];
+          const position=inverseView([-panX-orbitOffset[0],-panY-orbitOffset[1],3.2-orbitOffset[2]-near]).map((v,k)=>v/scene.scale+scene.center[k]);
+          return {...f,position,focal:1/(zoom*scene.scale),orthographic:true,sceneScale:scene?.scale||1};
+        }
+        return {...f,focal:cameraFocal(),orthographic:false,sceneScale:scene?.scale||1};
       }finally{
         if(active!==i){viewIndex=active;restoreCamera(saved);}
       }
@@ -26446,17 +26607,19 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const dpr=Math.min(c.ownerDocument.defaultView?.devicePixelRatio||1,2);
       const width=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(c.clientWidth*dpr)));
       const height=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(c.clientHeight*dpr)));
-      if(c.width!==width||c.height!==height){c.width=v.width=width;c.height=v.height=height;}
-      if(drivePathTracerView(i,r,v.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true,passiveOnly:false})){
+      if(c.width!==width||c.height!==height){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);v.depth=v.wireIds=v.wirePlanes=v.pluginDepth=v.renderOverlay=null;c.width=v.width=width;c.height=v.height=height;}
+      const color=v.context.getCurrentTexture();
+      if(drivePathTracerView(i,r,color.createView(),r.format,width,height,{allowSlice:true,passiveOnly:false})){
+        if(!viewHidesHelpers(i))compositePassiveRenderOverlay(i,r,v,c,color,width,height);
         v.scene=scene;v.key='';c.dataset.frames=String((+c.dataset.frames||0)+1);
       }
     }
     function pendingPathTracerViews(cam=syncActiveCameraAutoStart()){
-      const target=pathTracerTargetSamples(cam?.params.samples);
+      const target=pathTracerSettings(cam).samples;
       return activePathTracerViews(cam).filter(i=>{
         if(isViewInteractiveMotion(i))return false;
         const vi=pathTracer?.viewInfo(i);
-        return !vi||!vi.hasImage||vi.pendingSlice||vi.staticSamples<target;
+        return !vi||!vi.hasImage||vi.pendingSlice||vi.wasBootstrap||vi.staticSamples<target;
       });
     }
     function schedulePathTracerRefine(){
@@ -26470,7 +26633,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         if(!pending.length){updateRenderProgressUI();return;}
         if(pathTracerBusy){schedulePathTracerRefine();return;}
         // While navigating a non-path-traced view (e.g. ortho in quad or non-rendering detached copy), yield refine ticks cleanly.
-        if(!isPathTracedView(viewIndex,c)&&(drag||touchNavigation||wheelBusy||pendingWheel)){schedulePathTracerSettle(60);return;}
+        if(!isPathTracedView(viewIndex,c)&&((drag&&drag.navigated)||(touchNavigation&&touchNavigation.moved)||wheelBusy||pendingWheel)){schedulePathTracerSettle(60);return;}
         const targetIdx=pending[pathTracerRefineCursor%pending.length];
         pathTracerRefineCursor=(pathTracerRefineCursor+1)%pending.length;
         if(targetIdx!==viewIndex)stepPassivePathTracerView(targetIdx);
@@ -26480,18 +26643,20 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function drivePathTracerView(i,r,targetView,targetFormat,width,height,opts={}){
       const {allowSlice=false,passiveOnly=false}=opts;
       const cam=cameraConfig();
-      if(!cam||!pathTracerWantsDisplay(i,cam))return false;
+      if(!pathTracerWantsDisplay(i,cam))return false;
       const pt=ensurePathTracer(r);
       const interactive=isViewInteractiveMotion(i);
-      const targetSamples=pathTracerTargetSamples(cam.params.samples);
+      const cfg=pathTracerSettings(cam);
+      const targetSamples=cfg.samples;
       const state=materialLibraryGPU(r);
-      const envMode=cam.params.environment||'default',envAssetId=cam.params['environment image']||'';
+      const envMode=cfg.envMode,envAssetId=cfg.envAssetId;
       const fastMatKey=state.signature+'|'+appearanceRevision+'|'+viewportLightingSignature()+'|'+envMode+'|'+envAssetId;
-      const fastPoseKey=poseEpoch+'|'+scene.topologyRevision+'|'+scene.meshes.length;
+      const fastPoseKey=geometryPoseEpoch+'|'+scene.topologyRevision+'|'+visibilityEpoch+'|'+scene.meshes.length;
 
-      // Ultra-fast O(moved) path when ONLY camera or object transforms changed (skips scanning 5,000+ stationary trees!)
+      // Ultra-fast O(moved) path when ONLY camera or non-emissive object transforms changed (skips scanning 5,000+ stationary trees!)
       const fastReady=pt.pipelines&&pt.scene===scene&&pt.matKey===fastMatKey&&pt.lastAtlas===state.atlas&&pt.envTex&&
-        pt._topologyRev===scene.topologyRevision&&pt._meshCount===scene.meshes.length&&!cloudRows().length;
+        pt._topologyRev===scene.topologyRevision&&pt._meshCount===scene.meshes.length&&pt._visEpoch===visibilityEpoch&&
+        !cloudRows().length&&(pt.tlasKey===fastPoseKey||pt.emissiveCount===0);
 
       if(fastReady){
         if(pt.tlasKey!==fastPoseKey&&pt.emissiveCount===0&&pt.instanceMeshes.length>0){
@@ -26520,20 +26685,22 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           }
         }
         const camera=viewCameraFrame(i);
-        const camSig=[...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,width,height,envMode].map(v=>Math.fround(v)).join(':');
+        const camSig=pathTracerCamSig(camera,width,height,envMode);
         const vi=pt.viewInfo(i);
+        const freshPresented=vi.hasImage&&vi.lastPresentedCamSig===camSig&&vi.lastPresentedSceneRev===pt.scenePoseRev&&vi.outW===width&&vi.outH===height;
         // During navigation in another view, keep this view completely untouched (no restart, no stall)!
-        if(passiveOnly&&!interactive&&vi.hasImage&&vi.lastCameraSig===camSig&&vi.outW===width&&vi.outH===height&&pt.tlasKey===fastPoseKey){
+        if(passiveOnly&&!interactive&&freshPresented&&pt.tlasKey===fastPoseKey){
           pt.presentCached(targetView,targetFormat,state.atlas,width,height,i);
-          if(vi.pendingSlice||vi.staticSamples<targetSamples)schedulePathTracerSettle(60);
+          if(vi.pendingSlice||vi.wasBootstrap||vi.staticSamples<targetSamples)schedulePathTracerSettle(60);
           return true;
         }
-        if(!interactive&&!vi.pendingSlice&&vi.hasImage&&vi.staticSamples>=targetSamples&&vi.lastCameraSig===camSig&&vi.outW===width&&vi.outH===height){
+        if(!interactive&&!vi.pendingSlice&&!vi.wasBootstrap&&freshPresented&&vi.staticSamples>=targetSamples){
           pt.presentCached(targetView,targetFormat,state.atlas,width,height,i);
           updateRenderProgressUI();
           return true;
         }
-        const autoSpp=!interactive&&vi.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7&&!vi.pendingSlice?Math.min(4,Math.max(2,Math.floor(10/Math.max(1,pt.lastGpuMs)))):1;
+        const canAutoSpp=!interactive&&!vi.pendingSlice&&!vi.wasBootstrap&&freshPresented&&vi.staticSamples>=4&&pt.lastFullFrameGpuMs>0&&pt.lastFullFrameGpuMs<7;
+        const autoSpp=canAutoSpp?Math.min(4,Math.max(2,Math.floor(10/Math.max(1,pt.lastFullFrameGpuMs)))):1;
         pt.renderFrame({
           viewKey:i,camera,outWidth:width,outHeight:height,targetView,targetFormat,
           materialAtlas:state.atlas,envMode,
@@ -26542,7 +26709,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         });
         updateRenderProgressUI();
         const after=pt.viewInfo(i);
-        if(!interactive&&(after.pendingSlice||after.staticSamples<targetSamples||pendingPathTracerViews(cam).length)){
+        if(!interactive&&(after.pendingSlice||after.wasBootstrap||after.staticSamples<targetSamples||pendingPathTracerViews(cam).length)){
           pathTracerBusy=true;
           r.device.queue.onSubmittedWorkDone().then(()=>{pathTracerBusy=false;updateRenderProgressUI();schedulePathTracerRefine();},()=>{pathTracerBusy=false;updateRenderProgressUI();});
         }
@@ -26553,13 +26720,13 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const needsSync=!pt.pipelines||pt.scene!==scene||pt.geomKey!==snapshot.geomKey||pt.matKey!==snapshot.matKey||pt.lastAtlas!==snapshot.materialAtlas||!pt.envTex||pt.tlasKey!==snapshot.poseKey;
       if(needsSync){
         if(!pathTracerSyncPromise){
-          const gen=++pathTracerSyncGeneration,space=scene,topo=scene.topologyRevision,mCnt=scene.meshes.length;
+          const gen=++pathTracerSyncGeneration,space=scene,topo=scene.topologyRevision,mCnt=scene.meshes.length,vEpoch=visibilityEpoch,gEpoch=geometryPoseEpoch;
           const valid=()=>scene===space&&renderer===r&&pathTracerSyncGeneration===gen&&!pt.dead&&activePathTracerViews().length>0;
           pathTracerSyncPromise=pt.syncScene(snapshot,interactive,valid).then(res=>{
             if(!res||!valid())return;
-            pt._topologyRev=topo;pt._meshCount=mCnt;
+            pt._topologyRev=topo;pt._meshCount=mCnt;pt._visEpoch=vEpoch;
             pt._cachedOccurrences=snapshot.occurrences;pt._cachedMaterials=snapshot.materials;
-            pt.tlasKey=poseEpoch+'|'+topo+'|'+mCnt;
+            pt.tlasKey=gEpoch+'|'+topo+'|'+vEpoch+'|'+mCnt;
           }).catch(error=>{if(valid()){pt.errors.push(error.message||String(error));editError(error);}}).finally(()=>{
             if(pathTracerSyncGeneration===gen)pathTracerSyncPromise=null;
             updateRenderProgressUI();
@@ -26572,14 +26739,16 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       }
 
       const camera=viewCameraFrame(i);
-      const camSig=[...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,width,height,snapshot.envMode].map(v=>Math.fround(v)).join(':');
+      const camSig=pathTracerCamSig(camera,width,height,snapshot.envMode);
       const vi=pt.viewInfo(i);
-      if(!interactive&&!vi.pendingSlice&&vi.hasImage&&vi.staticSamples>=targetSamples&&vi.lastCameraSig===camSig&&vi.outW===width&&vi.outH===height){
+      const freshPresented=vi.hasImage&&vi.lastPresentedCamSig===camSig&&vi.lastPresentedSceneRev===pt.scenePoseRev&&vi.outW===width&&vi.outH===height;
+      if(!interactive&&!vi.pendingSlice&&!vi.wasBootstrap&&freshPresented&&vi.staticSamples>=targetSamples){
         pt.presentCached(targetView,targetFormat,snapshot.materialAtlas,width,height,i);
         updateRenderProgressUI();
         return true;
       }
-      const autoSpp=!interactive&&vi.staticSamples>=4&&pt.lastGpuMs>0&&pt.lastGpuMs<7&&!vi.pendingSlice?Math.min(4,Math.max(2,Math.floor(10/Math.max(1,pt.lastGpuMs)))):1;
+      const canAutoSpp=!interactive&&!vi.pendingSlice&&!vi.wasBootstrap&&freshPresented&&vi.staticSamples>=4&&pt.lastFullFrameGpuMs>0&&pt.lastFullFrameGpuMs<7;
+      const autoSpp=canAutoSpp?Math.min(4,Math.max(2,Math.floor(10/Math.max(1,pt.lastFullFrameGpuMs)))):1;
       pt.renderFrame({
         viewKey:i,camera,outWidth:width,outHeight:height,targetView,targetFormat,
         materialAtlas:snapshot.materialAtlas,envMode:snapshot.envMode,
@@ -26588,7 +26757,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       });
       updateRenderProgressUI();
       const after=pt.viewInfo(i);
-      if(!interactive&&(after.pendingSlice||after.staticSamples<targetSamples||pendingPathTracerViews(cam).length)){
+      if(!interactive&&(after.pendingSlice||after.wasBootstrap||after.staticSamples<targetSamples||pendingPathTracerViews(cam).length)){
         pathTracerBusy=true;
         r.device.queue.onSubmittedWorkDone().then(()=>{pathTracerBusy=false;updateRenderProgressUI();schedulePathTracerRefine();},()=>{pathTracerBusy=false;updateRenderProgressUI();});
       }
@@ -26597,22 +26766,22 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
 
     function renderState(){
       const cam=syncActiveCameraAutoStart(),camera=cam?.nativeHash;
-      const isPT=cam?.params.renderer==='Path tracer';
-      const targetSamples=isPT?pathTracerTargetSamples(cam?.params.samples):1;
-      const activeViews=isPT?activePathTracerViews(cam):[];
+      const activeViews=activePathTracerViews(cam);
+      const isPT=cam?.params.renderer==='Path tracer'||activeViews.length>0;
+      const targetSamples=isPT?pathTracerSettings(cam).samples:1;
       const activePT=isPT&&activeViews.length>0;
       const output=camera&&lastViewportOutput?.camera===camera?lastViewportOutput:null;
       const views=activeViews.map(i=>{
-        const vi=pathTracer?.viewInfo(i)||{hasImage:false,staticSamples:0,pendingSlice:false,outW:0,outH:0};
+        const vi=pathTracer?.viewInfo(i)||{hasImage:false,staticSamples:0,pendingSlice:false,wasBootstrap:false,outW:0,outH:0};
         const inter=isViewInteractiveMotion(i);
         let vPhase='idle';
         if(pathTracer?.errors?.length)vPhase='error';
         else if(pathTracerSyncPromise||!vi.hasImage)vPhase='preparing';
         else if(inter)vPhase='interactive';
-        else vPhase=!vi.pendingSlice&&vi.staticSamples>=targetSamples?'complete':'refining';
-        return {index:i,visible:true,hasImage:vi.hasImage,samples:vi.staticSamples,targetSamples,phase:vPhase,interactive:inter,width:vi.outW||undefined,height:vi.outH||undefined};
+        else vPhase=!vi.pendingSlice&&!vi.wasBootstrap&&vi.staticSamples>=targetSamples?'complete':'refining';
+        return {index:i,visible:true,hasImage:vi.hasImage,samples:vi.staticSamples,targetSamples,phase:vPhase,interactive:inter,presentedCamSig:vi.lastPresentedCamSig||'',width:vi.outW||undefined,height:vi.outH||undefined};
       });
-      const primaryView=views.find(v=>v.index===0)||views[0]||null;
+      const primaryView=views.find(v=>v.index===viewIndex)||views.find(v=>v.index===0)||views[0]||null;
       const refiningView=views.find(v=>v.phase!=='complete')||primaryView;
       const ptReady=isPT&&!!(primaryView?.hasImage||views.some(v=>v.hasImage)||pathTracer?.hasImage);
       const visible=activePT||(!!camera&&previewCamera===camera);
@@ -26642,6 +26811,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         interactive:activePT&&views.some(v=>v.interactive),
         bvhMs:pathTracer?.lastBvhMs||0,
         frameGpuMs:pathTracer?.lastGpuMs||0,
+        fullFrameGpuMs:pathTracer?.lastFullFrameGpuMs||0,
         instances:pathTracer?.instanceMeshes?.length||0,
         uniqueTriangles:pathTracer?.uniqueTriCount||0,
         errors:pathTracer?.errors?.slice()||[],
@@ -26653,8 +26823,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function viewHidesHelpers(i=0){
       const cam=cameraConfig();
       if(!cam||['off','wireframe','isoparms'].includes(viewShadings[i]))return false;
-      if(i===0&&(!!renderExportJob||previewCamera===cam.nativeHash))return true;
-      return pathTracerWantsDisplay(i,cam);
+      return i===0&&(!!renderExportJob||previewCamera===cam.nativeHash);
     }
     function cameraConfig(){if(frameNavigation)return frameNavigation.camera;if(navigationScene?.ready&&(drag||touchNavigation||wheelNavigation))return navigationScene.cameras.find(n=>n.enabled);return nodes.find(n=>n.type==='render'&&n.enabled);}
     // Camera tracks own the full navigation pose, including paused/partial tracks and animated dependencies.
@@ -26711,7 +26880,11 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function renderStop(){
       const cam=cameraConfig();
       renderStoppedCamera=cam?.nativeHash||'stopped';
-      previewCamera=null;pathTracerSyncGeneration++;pathTracerSyncPromise=null;pathTracerCancelRefine();renderExportJob?.controller.abort();renderStatus();draw(true);return renderState();
+      previewCamera=null;
+      if(isRenderShading(viewShadings[0]))setViewShading(0,toSolidShading(viewShadings[0]));
+      for(const i of [...detachedRenderViews])if(isRenderShading(viewShadings[i]))setViewShading(i,toSolidShading(viewShadings[i]));
+      detachedRenderViews.clear();
+      pathTracerSyncGeneration++;pathTracerSyncPromise=null;pathTracerCancelRefine();renderExportJob?.controller.abort();renderStatus();draw(true);return renderState();
     }
     async function meshMaterialIds(mesh,material,masks=null){
       const ids=new Uint32Array(mesh.triangleCount);ids.fill(material(null));for(const tag of mesh.materialTags||[]){const id=material(tag.materialUID);if(!tag.mask)ids.fill(id);else{const set=polygonSet(tag.mask);if(set){let bits=masks?.get(set.resource);if(!bits){bits=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);masks?.set(set.resource,bits);}for(let f=0;f<ids.length;f++)if(bits[f>>5]>>(f&31)&1)ids[f]=id;}}}return ids;
@@ -26957,7 +27130,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           syncCameraView();
           const camera=viewCameraFrame(0);
           const targetSamples=pathTracerTargetSamples(cam.params.samples);
-          const camSig=[...camera.position,...camera.right,...camera.up,...camera.forward,camera.focal,width,height,snapshot.envMode].map(v=>Math.fround(v)).join(':');
+          const camSig=pathTracerCamSig(camera,width,height,snapshot.envMode);
           const v0=pt.viewInfo(0);
           const reuseLive=job.kind==='view'&&v0.hasImage&&v0.outW===width&&v0.outH===height&&v0.traceW===width&&v0.traceH===height&&v0.lastCameraSig===camSig;
           const exportViewKey=reuseLive?0:'export';
@@ -27168,7 +27341,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     }
     function auxiliaryCoordinates(aux){const frame=aux.frame,ref=coordinateMode==='world'?FM.I():aux.kind==='mapping'?FM.rigid(aux.world):nativeValue(aux.hash,'parent')?.[0]?FM.rigid(objectWorld(nativeValue(aux.hash,'parent')[0])):FM.I(),relative=FM.mul(FM.inv(ref),frame);return {position:Array.from(relative.slice(12,15)),rotation:FM.euler(relative).map(n=>n*180/Math.PI),size:aux.kind==='mapping'?[0,4,8].map(i=>Math.hypot(...frame.slice(i,i+3))):[1,1,1],frame,basis:coordinateMode==='world'?FM.I():FM.rigid(frame),scope:aux.kind,editingPivot:false};}
     async function setUVEditing(on,hash=null){if(!scene||nativeIOBusy||gizmoSession||editDrag||coreNumeric)return false;if(on){const mesh=scene.meshes.find(m=>m.hashId===(hash||selectedMesh?.hashId));if(!mesh||importedUV(mesh))return false;window.frameUVTarget=mesh.hashId;await selectObjects([scene.meshes.indexOf(mesh)],{objectHashes:[mesh.hashId]});pivotEditing=false;}uvEditing=!!on;const b=document.getElementById('btnUV');b.classList.toggle('on',uvEditing);b.ariaPressed=String(uvEditing);coordinateCache=null;gizmoSignature='';notifyTransformUI();draw(false);return true;}
-    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(t.mapping.world),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
+    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(t.mapping.world),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);geometryPoseEpoch++;poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
     function drawAuxiliaryShape(svg,rect){
       const aux=auxiliaryState();if(aux?.kind!=='mapping')return;
       const path=document.createElementNS(svgNS,'path');path.classList.add('frame-projection-cube');
@@ -27427,7 +27600,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
 `;const module=d.createShaderModule({label:'native material editor shader',code:source}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),meshLayout,libraryLayout]});
       return r.materialProgram={source,module,layout,meshLayout,libraryLayout,pipelines:new Map(),pending:new Map(),sampler:d.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear'})};
     }
-    function polygonWire(mesh){return shadingMode==='solid-wire'||shadingMode==='solid-isoparms';}
+    function polygonWire(mesh){return shadingMode==='solid-wire'||shadingMode==='solid-isoparms'||shadingMode==='render-wire'||shadingMode==='render-isoparms';}
     function classifiedSurfaceWire(mesh){return mesh.parts?mesh.parts.some(part=>!!part.splineWireEdges):!!mesh.splineWireEdges;}
     function meshUsesMaterialMaps(state,mesh){
       const bindings=mesh.materialBindings;
@@ -28338,7 +28511,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     function prepareOrderedReplicaFrame(r){
       try{
-        const solid=shadingMode.startsWith("solid"),order=solid?prepareOrderedReplicaDraw(r):null;
+        const solid=isSurfaceShading(shadingMode),order=solid?prepareOrderedReplicaDraw(r):null;
         if(!solid&&r.wireRaster&&["wireframe","isoparms"].includes(shadingMode)&&elementMode==="object"&&scene.meshes.length>=256)orderedReplicaPlan(r);
         if(order!==orderedReplicasPending)frameOrderedReplicaError(null);
         return order;
@@ -28572,7 +28745,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           const helper=pluginHelper(n),warning=drawHelpers&&shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
           if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({label:entry.manifest.id+' viewport '+stage,colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
-          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms'].includes(shadingMode)?2:1;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
+          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','render-wire','render-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms','render-isoparms'].includes(shadingMode)?2:1;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
           if(drawHelpers&&helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}const render=drawCallback,renderState={camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format};if(render&&!v.independentDepth)v.render({...renderState,pass});pass.end();if(render&&v.independentDepth){const target=depth===r.depth?r:passiveViews.get(viewIndex);if(!target.pluginDepth){const width=depth.width,height=depth.height;target.pluginDepth=r.device.createTexture({label:'plugin independent overlay depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});gpuAllocations.set(target.pluginDepth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);}const ownPass=encoder.beginRenderPass({label:entry.manifest.id+' independent overlay',colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:target.pluginDepth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});v.render({...renderState,pass:ownPass});ownPass.end();}
         }
       }
@@ -29055,6 +29228,146 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     function restoreTransformBackground(r,pass,background){pass.setPipeline(polygonWire()?r.backgroundWirePipeline:r.backgroundPipeline);pass.setBindGroup(0,polygonWire()?background.cache.wireGroup:background.cache.group);pass.draw(3);}
 
+    function makeRenderOverlayTarget(r,width,height,label='render modeling overlay'){
+      const t=r.device.createTexture({label,size:[width,height],format:r.format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
+      gpuAllocations.set(t,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);
+      return t;
+    }
+    function ensureRenderOverlay(r){
+      if(r.renderOverlayState)return r.renderOverlayState;
+      if(!r.renderOverlayInit)r.renderOverlayInit=(async()=>{
+        const d=r.device,module=r.shader;
+        const compMod=d.createShaderModule({label:'render overlay composite',code:`
+          @group(0) @binding(0) var overlay:texture_2d<f32>;
+          @vertex fn vs(@builtin(vertex_index) v:u32)->@builtin(position) vec4f{return vec4f(f32((v<<1u)&2u)*2.-1.,f32(v&2u)*2.-1.,0,1);}
+          @fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f{return textureLoad(overlay,vec2i(p.xy),0);}
+        `});
+        const composite=await d.createRenderPipelineAsync({
+          label:'render overlay composite',layout:'auto',
+          vertex:{module:compMod,entryPoint:'vs'},
+          fragment:{module:compMod,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'one',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},
+          primitive:{topology:'triangle-list'}
+        });
+        const wirePipelines=new Map(),transPipelines=new Map(),jobs=[];
+        for(const ortho of [false,true])for(const posed of [false,true])for(const plain of [false,true]){
+          const key=+ortho+':'+(+posed)+':'+(+plain),constants={orthographic:ortho,posed,plainSurfaceWire:plain};
+          jobs.push(
+            d.createRenderPipelineAsync({label:'render overlay wire '+key,layout:r.surfaceLayout,vertex:{module,entryPoint:'wireSurfaceVS',constants},fragment:{module,entryPoint:'renderOverlayFS',constants,targets:r.wireTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(p=>wirePipelines.set(key,p)),
+            d.createRenderPipelineAsync({label:'render overlay trans '+key,layout:r.surfaceLayout,vertex:{module,entryPoint:'wireSurfaceVS',constants},fragment:{module,entryPoint:'renderOverlayTransparentFS',constants,targets:[{format:r.format,blend:{color:{srcFactor:'one',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>transPipelines.set(key,p))
+          );
+        }
+        await Promise.all(jobs);
+        if(renderer!==r||r.dead)return null;
+        r.renderOverlayState={composite,wirePipelines,transPipelines,groups:new WeakMap()};
+        draw(true,true);
+        return r.renderOverlayState;
+      })().catch(error=>{r.renderOverlayInit=null;editError(error);});
+      return null;
+    }
+    function compositeRenderOverlay(r,encoder,targetView,overlayTex){
+      const st=r.renderOverlayState;if(!st||!overlayTex)return;
+      let group=st.groups.get(overlayTex);
+      if(!group){group=r.device.createBindGroup({layout:st.composite.getBindGroupLayout(0),entries:[{binding:0,resource:overlayTex.createView()}]});st.groups.set(overlayTex,group);}
+      const pass=encoder.beginRenderPass({colorAttachments:[{view:targetView,loadOp:'load',storeOp:'store'}]});
+      pass.setPipeline(st.composite);pass.setBindGroup(0,group);pass.draw(3);pass.end();
+    }
+    function encodeRenderOverlay(r,encoder,overlayTex,depthTex,idsTex,planesTex,width,height){
+      const st=ensureRenderOverlay(r);if(!st)return false;
+      const ortho=!!frameViewKind(viewIndex),wire=polygonWire(),hasTransparent=[];
+      if(wire){
+        const pass=encoder.beginRenderPass({
+          colorAttachments:[
+            {view:overlayTex.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'},
+            {view:idsTex.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'},
+            {view:planesTex.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}
+          ],
+          depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}
+        });
+        pass.setBindGroup(0,r.bindGroup);
+        for(const mesh of scene.meshes){
+          if(!meshVisible(mesh)||pluginSurfaceStyle(mesh))continue;
+          if(materialTransparent(mesh)){hasTransparent.push(mesh);continue;}
+          const key=+ortho+':'+(+!!mesh.posed)+':'+(+!classifiedSurfaceWire(mesh));
+          const pipe=st.wirePipelines.get(key);if(!pipe)continue;
+          const parts=mesh.parts||[mesh];
+          if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
+          pass.setPipeline(pipe);
+          for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.draw(part.count);}
+        }
+        pass.end();
+      }else{
+        const clearPass=encoder.beginRenderPass({colorAttachments:[{view:overlayTex.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}]});
+        clearPass.end();
+        const idPass=encoder.beginRenderPass({
+          colorAttachments:[{view:idsTex.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}],
+          depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}
+        });
+        idPass.setBindGroup(0,r.bindGroup);
+        for(const mesh of scene.meshes){
+          if(!meshVisible(mesh)||materialTransparent(mesh)||pluginSurfaceStyle(mesh))continue;
+          const parts=mesh.parts||[mesh];
+          if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
+          idPass.setPipeline(meshPipelines(r,mesh).idPipeline);
+          for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;idPass.setBindGroup(1,part.shadingBindGroup);idPass.draw(part.count);}
+        }
+        idPass.end();
+      }
+      renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,overlayTex,depthTex,'opaque'));
+      if(wire||deferPluginSceneLines(r)){
+        renderDeferredSceneLines(r,encoder,overlayTex,depthTex,width,height,true,idsTex,null);
+      }else{
+        const linePass=encoder.beginRenderPass({colorAttachments:[{view:overlayTex.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthReadOnly:true}});
+        drawViewGrid(linePass,width,height);drawSplineDisplays(linePass);linePass.end();
+      }
+      if(hasTransparent.length){
+        const tPass=encoder.beginRenderPass({colorAttachments:[{view:overlayTex.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depthTex.createView(),depthReadOnly:true}});
+        tPass.setBindGroup(0,r.bindGroup);
+        for(const mesh of hasTransparent){
+          const key=+ortho+':'+(+!!mesh.posed)+':'+(+!classifiedSurfaceWire(mesh));
+          const pipe=st.transPipelines.get(key);if(!pipe)continue;
+          const parts=mesh.parts||[mesh];
+          if(parts.some(part=>!part.shadingBindGroup||mesh.replicaMatrix&&r.meshRenderGroupStates?.get(part)?.owner!==mesh))meshRenderGroups(r,mesh);
+          tPass.setPipeline(pipe);
+          for(const part of parts){if(mesh.paged&&!meshVisible(part))continue;tPass.setBindGroup(1,part.shadingBindGroup);tPass.draw(part.count);}
+        }
+        tPass.end();
+      }
+      renderPluginSurfaceStyles(r,encoder,overlayTex,depthTex);
+      renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,overlayTex,depthTex));
+      renderPluginSurfaceStyles(r,encoder,overlayTex,depthTex,true);
+      return true;
+    }
+    function compositePassiveRenderOverlay(i,r,v,c,color,width,height){
+      const activeCanvas=canvas,activeIndex=viewIndex,savedCam=captureCamera(),activeShading=shadingMode,d=r.device;
+      try{
+        canvas=c;viewIndex=i;shadingMode=viewShadings[i];restoreCamera(viewStates[i]||defaultCamera(i));
+        const state=viewStates[i]||defaultCamera(i),overlayKey=[viewRevision,poseEpoch,selectionGeneration,width,height,shadingMode,elementMode,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0,...state].join(':');
+        if(!v.depth||v.width!==width||v.height!==height){
+          releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);
+          v.wireIds=v.wirePlanes=v.pluginDepth=v.renderOverlay=null;v.width=width;v.height=height;
+          v.depth=d.createTexture({label:'inactive view depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});
+          gpuAllocations.set(v.depth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);
+        }
+        if(!v.wireIds)v.wireIds=makeWireIDTarget(r,width,height,'inactive view visible triangle owners');
+        if(polygonWire()&&!v.wirePlanes)v.wirePlanes=makeWirePlaneTarget(r,width,height);
+        if(!v.renderOverlay)v.renderOverlay=makeRenderOverlayTarget(r,width,height,'inactive view render overlay');
+        const encoder=d.createCommandEncoder();
+        if(v.overlayScene!==scene||v.overlayKey!==overlayKey){
+          const uniforms=cameraUniform(width,height);uniforms[35]=1;d.queue.writeBuffer(r.uniform,0,uniforms);
+          if(encodeRenderOverlay(r,encoder,v.renderOverlay,v.depth,v.wireIds,v.wirePlanes,width,height)){
+            renderPolygonVertices(r,encoder,v.renderOverlay,v.depth,v.wireIds);
+            renderBoxSelection(r,encoder,v.renderOverlay,v.depth,v.wireIds);
+            v.overlayScene=scene;v.overlayKey=overlayKey;
+          }
+        }
+        if(r.renderOverlayState)compositeRenderOverlay(r,encoder,color.createView(),v.renderOverlay);
+        d.queue.submit([encoder.finish()]);
+      }finally{
+        canvas=activeCanvas;viewIndex=activeIndex;shadingMode=activeShading;restoreCamera(savedCam);
+        d.queue.writeBuffer(r.uniform,0,cameraUniform(r.width||1,r.height||1));
+      }
+    }
+
     function renderPassiveViews(){
       if(!renderer?.ortho||!scene)return;
       const activeCanvas=canvas,activeIndex=viewIndex,camera=captureCamera(),activeShading=shadingMode,r=renderer,d=r.device;
@@ -29064,10 +29377,14 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const dpr=Math.min(canvas.ownerDocument.defaultView?.devicePixelRatio||1,2),width=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(canvas.clientWidth*dpr))),height=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(canvas.clientHeight*dpr)));
         const state=viewStates[i]||defaultCamera(i),key=[viewRevision,width,height,viewShadings[i],...state].join(':');
         if(pathTracerWantsDisplay(i)){
-          if(canvas.width!==width||canvas.height!==height){canvas.width=v.width=width;canvas.height=v.height=height;}
-          const activeNavigating=!!(drag||touchNavigation||wheelBusy||pendingWheel);
+          if(canvas.width!==width||canvas.height!==height){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);v.depth=v.wireIds=v.wirePlanes=v.pluginDepth=v.renderOverlay=null;canvas.width=v.width=width;canvas.height=v.height=height;}
+          const activeNavigating=!!((drag&&drag.navigated)||(touchNavigation&&touchNavigation.moved)||wheelBusy||pendingWheel);
           const passiveOnly=!isViewInteractiveMotion(i)&&activeNavigating;
-          if(drivePathTracerView(i,r,v.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true,passiveOnly})){v.scene=scene;v.key='';canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);continue;}
+          const color=v.context.getCurrentTexture();
+          if(drivePathTracerView(i,r,color.createView(),r.format,width,height,{allowSlice:true,passiveOnly})){
+            if(!viewHidesHelpers(i))compositePassiveRenderOverlay(i,r,v,canvas,color,width,height);
+            v.scene=scene;v.key='';canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);continue;
+          }
         }
         if(v.scene===scene&&v.key===key)continue;
         viewIndex=i;shadingMode=viewShadings[i];restoreCamera(state);
@@ -29077,7 +29394,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         if(scene.meshes.length>=256&&['wireframe','isoparms'].includes(shadingMode)&&!r.wireRaster&&width*height*4<=d.limits.maxStorageBufferBindingSize){
           ensureWireRaster(r);continue;
         }
-        if(!v.depth||v.width!==width||v.height!==height){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);v.wireIds=null;v.wirePlanes=null;v.pluginDepth=null;canvas.width=v.width=width;canvas.height=v.height=height;v.depth=d.createTexture({label:'inactive view depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(v.depth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);}
+        if(!v.depth||v.width!==width||v.height!==height){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);v.wireIds=null;v.wirePlanes=null;v.pluginDepth=null;v.renderOverlay=null;canvas.width=v.width=width;canvas.height=v.height=height;v.depth=d.createTexture({label:'inactive view depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(v.depth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);}
         if(polygonWire()&&!v.wireIds){v.wireIds=makeWireIDTarget(r,width,height,'inactive view visible triangle owners');v.wirePlanes=makeWirePlaneTarget(r,width,height);}
         const uniforms=cameraUniform(width,height);uniforms[35]=polygonWire()?1:0;d.queue.writeBuffer(r.uniform,0,uniforms);
         const encoder=d.createCommandEncoder(),color=v.context.getCurrentTexture(),background=transformBackground(r,encoder,width,height),mask=encodeWireRaster(r,encoder,width,height,background?m=>background.moving.has(m):undefined),pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),clearValue:frameViewportClear,loadOp:'clear',storeOp:'store'},...polygonWire()?[{view:v.wireIds.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'},{view:v.wirePlanes.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}]:[]],depthStencilAttachment:{view:v.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
@@ -29253,6 +29570,38 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           }
           struct WireSurfaceOutput{@location(0) color:vec4f,@location(1) triangleID:u32,@location(2) plane:vec4f}
           @fragment fn wireSurfaceFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}
+          fn renderOverlayWire(bary:vec3f,reciprocalW:f32,cageEdges:u32)->vec4f{
+            let screen=bary*reciprocalW;
+            let span=max(abs(dpdx(screen)),abs(dpdy(screen)));
+            var distance=abs(screen)/max(span,vec3f(1e-20));
+            if(!plainSurfaceWire){
+              if((cageEdges&8u)!=0u && params.modes.y==3.){return vec4f(0);}
+              let marked=(vec3u(cageEdges)&vec3u(1u,2u,4u))!=vec3u(0u);
+              distance=select(distance,vec3f(2.),marked);
+            }
+            let coverage=clamp(2.5-2.*min(distance.x,min(distance.y,distance.z)),0.,1.);
+            if(coverage==0.){return vec4f(0);}
+            let frequency=max(span.x,max(span.y,span.z))/max(abs(reciprocalW),1e-20);
+            let alpha=coverage*(1.-.55*clamp(1.5*frequency-.5,0.,1.))*.46;
+            return vec4f(vec3f(.05,.06,.08)*alpha,alpha);
+          }
+          @fragment fn renderOverlayFS(input:Output)->WireSurfaceOutput{
+            let color=select(vec4f(0),renderOverlayWire(input.bary,input.position.w,input.wireEdges),params.modes.y>=2.);
+            let id=select(input.triangleID,0u,objectFrame.flags.y!=0u);
+            if(plainSurfaceWire){return WireSurfaceOutput(color,id,fragmentSurfacePlane(input.viewPosition));}
+            return WireSurfaceOutput(color,id,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));
+          }
+          @fragment fn renderOverlayTransparentFS(input:Output)->@location(0) vec4f{
+            var out=vec4f(0);
+            if(params.modes.y>=2.){out=renderOverlayWire(input.bary,input.position.w,input.wireEdges);}
+            if(!plainSurfaceWire){
+              let cov=surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,params.modes.y==3.);
+              let c=surfaceCageColor(vec3f(0),input.bary,input.wireEdges,input.position.w,(input.triangleID-faceBase.x)*3u);
+              if((input.wireEdges&8u)!=0u&&cov.y>0.){out=vec4f(c,cov.y);}
+            }
+            if(out.a<=0.){discard;}
+            return out;
+          }
           fn projectWorld(point:vec3f)->vec4f {
             let p=frameCameraRelative(params.rotation)*vec4f((point-params.centerScale.xyz)*params.centerScale.w,1);
             return frameProject(p.xyz);
@@ -29331,7 +29680,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           canvas.dataset.operationError=event.error.message;
         });
         await ensureNativeSurfaceLines(renderer);
-        withBackgroundShaderWarmup(()=>warmPlantSurfaces(session));
+        withBackgroundShaderWarmup(()=>{ensureRenderOverlay(session);warmPlantSurfaces(session);});
         return renderer;
       })();
       try { return await rendererPromise; }
@@ -29548,7 +29897,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function makeRenderCache(gpu,width,height){
       // Passive depth can survive an active-window resize; its bind group cannot retain the retired ID texture.
       gpu.vertexGlobals=new WeakMap();gpu.boxGlobals=new WeakMap();
-      for(const key of ['depth','cachedColor','triangleIds','wirePlanes','featureIds','featureDepth','pluginDepth'])releaseGPU(gpu[key]);gpu.featureIds=null;gpu.featureDepth=null;gpu.featureMode=null;gpu.wirePlanes=null;gpu.pluginDepth=null;
+      for(const key of ['depth','cachedColor','triangleIds','wirePlanes','featureIds','featureDepth','pluginDepth','renderOverlay'])releaseGPU(gpu[key]);gpu.featureIds=null;gpu.featureDepth=null;gpu.featureMode=null;gpu.wirePlanes=null;gpu.pluginDepth=null;gpu.renderOverlay=null;gpu.renderOverlayScene=null;gpu.ptCachedReady=false;
       gpu.depth=gpu.device.createTexture({size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});const depthSize=width*height*4;gpuAllocations.set(gpu.depth,depthSize);allocatedBytes+=depthSize;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);
       for(const [key,format]of [['cachedColor',navigator.gpu.getPreferredCanvasFormat()],['triangleIds','r32uint']]){
         const texture=gpu.device.createTexture({label:key,size:[width,height],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_SRC});
@@ -29571,7 +29920,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function renderFrame(){
       const saved=navigationScene,revision=navigationRevision;
       const eligible=scene&&renderer&&single&&!FrameViewWindows.size&&elementMode==='object'&&
-        scene.meshes.length>=256&&['solid','solid-wire','solid-isoparms'].includes(shadingMode)&&
+        scene.meshes.length>=256&&isSurfaceShading(shadingMode)&&
         !pathTracerWantsDisplay(viewIndex)&&
         (!gizmoSession||gizmoSession.scope==='objects'&&gizmoSession.before?.poseScope?.work?.retain&&!gizmoSession.before.poseScope.work.generators?.length)&&!editDrag&&!coreNumeric&&!editFinishing&&!FrameSpline.drawing;
       const replay=eligible&&saved?.scene===scene&&saved.meshes===scene.meshes&&saved.count===scene.meshes.length&&
@@ -29616,20 +29965,108 @@ fn occupied(p:vec2i,channel:u32)->bool{
       }
       if(width!==r.width||height!==r.height){canvas.width=r.width=width;canvas.height=r.height=height;makeRenderCache(r,width,height);sceneFrameDirty=true;}
       if(pathTracerWantsDisplay(viewIndex)){
-        const id=++frameCount;
-        canvas.dataset.frameCount=String(id);canvas.dataset.elementMode=elementMode;canvas.dataset.shadingMode=shadingMode;canvas.dataset.viewIndex=String(viewIndex);
-        if(scene.records)nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());
-        canvas.dataset.camera=JSON.stringify({yaw,pitch,fov:perspectiveFov,view:viewIndex,offset:orbitOffset,pan:[panX,panY]});canvas.dataset.zoom=String(zoom);canvas.dataset.clip=JSON.stringify(clippingPlanes());
-        if(drivePathTracerView(viewIndex,r,r.context.getCurrentTexture().createView(),r.format,width,height,{allowSlice:true})){
-          sceneFrameDirty=false;r.cachedScene=scene;
+        const ptWithOverlays=!viewHidesHelpers(viewIndex);
+        const cam=cameraConfig(),cfg=pathTracerSettings(cam),pt=ensurePathTracer(r),state=materialLibraryGPU(r);
+        const interactive=isViewInteractiveMotion(viewIndex);
+        const surfaceKey=elementMode!=='object'||r.surfaceRequested||r.surfaceScene===scene||ptWithOverlays?[perspectiveFov,cameraRoll,viewIndex,zoom,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':'):null;
+        const overlayKey=ptWithOverlays?[viewIndex,width,height,shadingMode,elementMode,viewRevision,poseEpoch,selectionGeneration,surfaceKey,r.boxSelection?.counts?.join(','),r.renderOverlayState?1:0].join(':'):'';
+        const full=sceneFrameDirty||r.cachedScene!==scene;
+        const overlayDirty=ptWithOverlays&&(full||!r.renderOverlay||r.renderOverlayScene!==scene||r.renderOverlayKey!==overlayKey);
+        const vi=pt.viewInfo(viewIndex);
+        const camera=viewCameraFrame(viewIndex);
+        const camSig=pathTracerCamSig(camera,width,height,cfg.envMode);
+        const fastMatKey=state.signature+'|'+appearanceRevision+'|'+viewportLightingSignature()+'|'+cfg.envMode+'|'+cfg.envAssetId;
+        const fastPoseKey=geometryPoseEpoch+'|'+scene.topologyRevision+'|'+visibilityEpoch+'|'+scene.meshes.length;
+        const ptConverged=!interactive&&!vi.pendingSlice&&!vi.wasBootstrap&&vi.hasImage&&vi.staticSamples>=cfg.samples&&vi.lastPresentedCamSig===camSig&&vi.lastPresentedSceneRev===pt.scenePoseRev&&vi.outW===width&&vi.outH===height&&pt.matKey===fastMatKey&&pt.tlasKey===fastPoseKey&&pt.scene===scene&&pt.lastAtlas===state.atlas;
+        const ptNeedStep=!ptConverged||!r.ptCachedReady||r.ptCachedView!==viewIndex||r.ptCachedOverlay!==ptWithOverlays;
+
+        let ptReady=false,ptWroteColor=false;
+        if(ptNeedStep){
+          ptReady=drivePathTracerView(viewIndex,r,r.cachedColor.createView(),r.format,width,height,{allowSlice:true});
+          ptWroteColor=ptReady;
+        }else if(overlayDirty){
+          ptReady=pt.presentCached(r.cachedColor.createView(),r.format,state.atlas,width,height,viewIndex);
+          ptWroteColor=ptReady;
+        }else{
+          ptReady=true;
+        }
+        if(ptReady){
+          const id=++frameCount;
+          canvas.dataset.frameCount=String(id);canvas.dataset.elementMode=elementMode;canvas.dataset.shadingMode=shadingMode;canvas.dataset.viewIndex=String(viewIndex);
+          if(scene.records)nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());
+          canvas.dataset.camera=JSON.stringify({yaw,pitch,fov:perspectiveFov,view:viewIndex,offset:orbitOffset,pan:[panX,panY]});canvas.dataset.zoom=String(zoom);canvas.dataset.clip=JSON.stringify(clippingPlanes());
+          const encoder=device.createCommandEncoder();
+          const eligibleComponents=elementMode==='object'?[]:componentMeshes();
+          const featureKey=elementMode==='vertex'||elementMode==='edge'?[...eligibleComponents.map(m=>m.hashId),elementMode,shadingMode,surfaceKey].join(':'):null;
+          if(r.featureKey!==featureKey)r.featureMode=null;
+          const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(width-1,Math.floor((hoverCursor.x-rect.left)*width/rect.width))),y=Math.max(0,Math.min(height-1,Math.floor((hoverCursor.y-rect.top)*height/rect.height)));
+          const stationaryPress=drag?.button===0&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<=3;
+          const hoverIdle=(!heldPointers.size||stationaryPress)&&(!drag||stationaryPress)&&!boxDrag&&!selectionBusy&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!button.disabled&&!wheelBusy&&!pendingWheel&&performance.now()>=(r.hoverReadyAt||0);
+          const splineSelection=!!splineComponentHash()||objectSelection.length&&objectSelection.every(h=>splineDisplays.has(h));
+          const componentMode=ptWithOverlays&&shadingMode!=='off'&&elementMode!=='object'&&!splineSelection&&eligibleComponents.length>0;
+          const enabled=ptWithOverlays&&shadingMode!=='off'&&componentMode&&hoverCursor.inside&&hoverIdle;
+          let surfacePass=false,featurePass=false,overlayFresh=false;
+
+          if(ptWithOverlays){
+            if(!r.renderOverlay)r.renderOverlay=makeRenderOverlayTarget(r,width,height);
+            if(polygonWire()&&!r.wirePlanes)r.wirePlanes=makeWirePlaneTarget(r,width,height);
+            if(overlayDirty){
+              const uniforms=cameraUniform(width,height);uniforms[35]=1;device.queue.writeBuffer(r.uniform,0,uniforms);
+              overlayFresh=encodeRenderOverlay(r,encoder,r.renderOverlay,r.depth,r.triangleIds,r.wirePlanes,width,height);
+              if(overlayFresh){
+                if(elementMode!=='object'&&scene.meshes.some(m=>replicaEditingSource(m))||scene.meshes.some(m=>meshVisible(m)&&materialTransparent(m))){r.surfaceScene=null;r.surfaceKey=null;}
+                else{r.surfaceScene=scene;r.surfaceKey=surfaceKey;}
+                r.renderOverlayScene=scene;r.renderOverlayKey=overlayKey;
+              }
+            }
+            const surfaceNeeded=r.surfaceRequested||componentMode&&(r.surfaceScene!==scene||r.surfaceKey!==surfaceKey);
+            if(surfaceNeeded&&(r.surfaceScene!==scene||r.surfaceKey!==surfaceKey)){
+              const uniforms=cameraUniform(width,height);uniforms[35]=1;device.queue.writeBuffer(r.uniform,0,uniforms);
+              const ids=encoder.beginRenderPass({colorAttachments:[{view:r.triangleIds.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:r.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
+              ids.setPipeline(frameViewKind(viewIndex)?r.ortho.idPipeline:r.idPipeline);ids.setBindGroup(0,r.bindGroup);
+              for(const mesh of scene.meshes){if(!meshVisible(mesh)||replicaEditingSource(mesh))continue;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;ids.setPipeline(meshPipelines(r,mesh).idPipeline);ids.setBindGroup(1,part.shadingBindGroup);ids.draw(part.count);}}ids.end();
+              surfacePass=true;r.idPasses=(r.idPasses||0)+1;r.surfaceScene=scene;r.surfaceKey=surfaceKey;
+            }
+            r.surfaceRequested=false;
+            if(overlayFresh||(surfacePass&&r.boxSelection?.mode!=='polygon')){
+              if(!overlayFresh&&!ptWroteColor){
+                pt.presentCached(r.cachedColor.createView(),r.format,state.atlas,width,height,viewIndex);
+                ptWroteColor=true;
+              }
+              renderPolygonVertices(r,encoder,r.renderOverlay,r.depth,r.triangleIds);
+              renderBoxSelection(r,encoder,r.renderOverlay,r.depth,r.triangleIds);
+            }
+            if(ptWroteColor&&r.renderOverlayState)compositeRenderOverlay(r,encoder,r.cachedColor.createView(),r.renderOverlay);
+            if((!splineSelection||r.featureRequested)&&(elementMode==='vertex'||elementMode==='edge')&&(hoverIdle||r.featureRequested)&&(r.featureMode!==elementMode||r.featureScene!==scene)){
+              const uniforms=cameraUniform(width,height);uniforms[35]=1;device.queue.writeBuffer(r.uniform,0,uniforms);
+              renderFeatureMap(r,encoder);r.featureKey=featureKey;featurePass=true;
+            }
+            r.featureRequested=false;
+          }else{
+            r.surfaceRequested=false;r.featureRequested=false;
+          }
+
+          const cursorData=new ArrayBuffer(32);new Int32Array(cursorData).set([x,y,enabled?1:0,elementIds[elementMode]]);new Float32Array(cursorData).set([width/rect.width,height/rect.height,(hoverCursor.x-rect.left)*width/rect.width,(hoverCursor.y-rect.top)*height/rect.height],4);device.queue.writeBuffer(r.hoverPresentation.uniform,0,cursorData);
+          if(enabled&&elementMode!=='polygon'){const search=encoder.beginComputePass();search.setPipeline(r.featureHover.search);search.setBindGroup(0,r.featureHover.searchGroup);search.dispatchWorkgroups(1);search.end();}else encoder.clearBuffer(r.hoverPresentation.winner);
+          hoverPresentationGroup(r);
+          const present=encoder.beginRenderPass({colorAttachments:[{view:r.context.getCurrentTexture().createView(),loadOp:'clear',clearValue:frameViewportClear,storeOp:'store'}]});
+          present.setPipeline(r.hoverPresentation.pipeline);present.setBindGroup(0,r.hoverPresentation.group);present.draw(3);present.end();
+          device.queue.submit([encoder.finish()]);
+
+          sceneFrameDirty=false;r.cachedScene=scene;r.ptCachedReady=true;r.ptCachedView=viewIndex;r.ptCachedOverlay=ptWithOverlays;
+          canvas.dataset.gpuPasses=JSON.stringify({geometry:overlayFresh,surfaceMap:surfacePass,featureMap:featurePass,hoverSearch:enabled&&elementMode!=='polygon',hoverIdle,wheelBusy,pendingWheel:!!pendingWheel,heldPointers:heldPointers.size});
+          canvas.dataset.hover=JSON.stringify({enabled,pixel:[x,y],geometryFrames:r.geometryFrames||0,presentations:id,idPasses:r.idPasses||0,primitiveIndex:r.primitiveIndex,mode:elementMode,featureFrames:r.featureFrames||0});
           const cpuMs=performance.now()-cpuStart;updateMemoryStats();
-          const vi=pathTracer?.viewInfo(viewIndex);
-          const rawTiming={id,gpuMs:pathTracer?.lastGpuMs||0,cpuMs,fps:pathTracer?.lastGpuMs>0?1000/pathTracer.lastGpuMs:null,samples:vi?.staticSamples||0,source:'Path tracer',key:'pathtracer'};
+          const viNow=pt.viewInfo(viewIndex);
+          const rawTiming={id,gpuMs:pt.lastGpuMs||0,cpuMs,fps:pt.lastGpuMs>0?1000/pt.lastGpuMs:null,samples:viNow?.staticSamples||0,source:'Path tracer',key:'pathtracer'};
           r.lastFrameRaw=rawTiming;
           canvas.dataset.frameTiming=JSON.stringify(rawTiming);
           renderPassiveViews();
           return;
         }
+        r.ptCachedReady=false;
+      }else{
+        r.ptCachedReady=false;
       }
       const surfaceKey=elementMode!=='object'||r.surfaceRequested||r.surfaceScene===scene?[perspectiveFov,cameraRoll,viewIndex,zoom,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':'):null;
       const full=sceneFrameDirty||r.cachedScene!==scene,id=++frameCount,mesh=scene,key=[elementMode,shadingMode,width,height,viewIndex,!!(gizmoSession?.moved||coreNumeric||editDrag)].join(':'),encoder=device.createCommandEncoder();
@@ -29669,7 +30106,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const splineSelection=!!splineComponentHash()||objectSelection.length&&objectSelection.every(h=>splineDisplays.has(h)),componentMode=shadingMode!=='off'&&elementMode!=='object'&&!splineSelection&&eligibleComponents.length>0;const enabled=shadingMode!=='off'&&componentMode&&hoverCursor.inside&&hoverIdle;let surfacePass=false,featurePass=false;
       // Wireframe/Isoparms need no surface pass while navigating or while the cursor is outside the canvas.
       // Build the polygon ID/depth map once when an idle hover or an explicit selection needs it.
-      const solidVertices=componentMode&&elementMode==='vertex'&&shadingMode==='solid',solidShading=shadingMode.startsWith('solid');
+      const solidVertices=componentMode&&elementMode==='vertex'&&isSurfaceNoLines(shadingMode),solidShading=isSurfaceShading(shadingMode);
       const surfaceNeeded=shadingMode!=='off'&&(r.surfaceRequested||solidVertices||(componentMode&&hoverIdle&&((full&&solidShading)||(hoverCursor.inside&&elementMode==='polygon')||(solidShading&&elementMode!=='polygon'))));
       if(surfaceNeeded&&(r.surfaceScene!==scene||r.surfaceKey!==surfaceKey)){
         const ids=encoder.beginRenderPass({colorAttachments:[{view:r.triangleIds.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:r.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
@@ -30073,7 +30510,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     async function componentSeed(gpu,x,y){
       if(shadingMode==='off')return null;
-      gpu.featureRequested=true;gpu.surfaceRequested=shadingMode.startsWith('solid');const started=performance.now();do{await draw(false);if(performance.now()-started>5000)throw Error('Component pick did not become ready');}while(gpu.featureRequested||gpu.surfaceRequested);if(!gpu.featureHover?.searchGroup)return null;const rect=canvas.getBoundingClientRect(),data=new ArrayBuffer(32);new Int32Array(data).set([Math.floor((x-rect.left)*gpu.width/rect.width),Math.floor((y-rect.top)*gpu.height/rect.height),1,elementIds[elementMode]]);new Float32Array(data).set([gpu.width/rect.width,gpu.height/rect.height,(x-rect.left)*gpu.width/rect.width,(y-rect.top)*gpu.height/rect.height],4);gpu.device.queue.writeBuffer(gpu.hoverPresentation.uniform,0,data);
+      gpu.featureRequested=true;gpu.surfaceRequested=isSurfaceShading(shadingMode);const started=performance.now();do{await draw(false);if(performance.now()-started>5000)throw Error('Component pick did not become ready');}while(gpu.featureRequested||gpu.surfaceRequested);if(!gpu.featureHover?.searchGroup)return null;const rect=canvas.getBoundingClientRect(),data=new ArrayBuffer(32);new Int32Array(data).set([Math.floor((x-rect.left)*gpu.width/rect.width),Math.floor((y-rect.top)*gpu.height/rect.height),1,elementIds[elementMode]]);new Float32Array(data).set([gpu.width/rect.width,gpu.height/rect.height,(x-rect.left)*gpu.width/rect.width,(y-rect.top)*gpu.height/rect.height],4);gpu.device.queue.writeBuffer(gpu.hoverPresentation.uniform,0,data);
       const pooled=!gpu.seedReadBusy;if(pooled){gpu.seedReadBusy=true;gpu.seedRead??=makeGPUBuffer(gpu.device,{label:'component seed readback',size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});}const read=pooled?gpu.seedRead:makeGPUBuffer(gpu.device,{size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
       try{const e=gpu.device.createCommandEncoder(),p=e.beginComputePass();p.setPipeline(gpu.featureHover.search);p.setBindGroup(0,gpu.featureHover.searchGroup);p.dispatchWorkgroups(1);p.end();e.copyBufferToBuffer(gpu.hoverPresentation.winner,0,read,0,32);gpu.device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const id=new Uint32Array(read.getMappedRange())[0];read.unmap();const draw=featureDrawGroups(gpu).find(d=>elementMode==='edge'?id>=d.edgeBase&&id<d.edgeBase+d.edgeCount:d.first&&id>=d.vertexBase&&id<d.vertexBase+d.mesh.vertexCount);return draw?{draw,id}:null;}finally{if(pooled)gpu.seedReadBusy=false;else releaseGPU(read);}
     }
@@ -30115,7 +30552,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       releaseMaterialState(gpu);for(const row of gpu.pluginSurfaceStyles?.colors.values()||[])releaseGPU(row.buffer);gpu.pluginSurfaceStyles=null;
       clearWirePixels(gpu);releaseGPU(gpu.nativeSurfaceLines?.emptyFrames);gpu.nativeSurfaceLines=null;
       clearTransformBackgrounds(gpu);
-      clearVertexRaster(gpu);for(const v of passiveViews.values()){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);v.context.unconfigure();}passiveViews.clear();
+      clearVertexRaster(gpu);for(const v of passiveViews.values()){releaseGPU(v.depth);releaseGPU(v.wireIds);releaseGPU(v.wirePlanes);releaseGPU(v.pluginDepth);releaseGPU(v.renderOverlay);v.context.unconfigure();}passiveViews.clear();
       measurementSerial++;if(gpu.frameMeasure)for(const value of Object.values(gpu.frameMeasure))if(value?.destroy)releaseGPU(value);if(gpu.vertexSnap){releaseGPU(gpu.vertexSnap.winner);releaseGPU(gpu.vertexSnap.read);for(const p of gpu.vertexSnap.params.values())releaseGPU(p);}
       clearTimeout(gpu.hoverTimer);clearBoxSelection(gpu);clearFeatureDraws(gpu);clearPickGroups(gpu);for(const slot of gpu.pickPool){releaseGPU(slot.closest);releaseGPU(slot.read);}gpu.pickPool=[];
       for(const slot of gpu.boundsPool){releaseGPU(slot.partial);releaseGPU(slot.info);releaseGPU(slot.read);}gpu.boundsPool=[];
@@ -30124,7 +30561,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(gpu.pagedWorkspace){releaseGPU(gpu.pagedWorkspace.faces);releaseGPU(gpu.pagedWorkspace.shading);}
       if(gpu.pagedConnectedWorkspace)for(const value of gpu.pagedConnectedWorkspace.buffers)releaseGPU(value);
       gpu.pagedWorkspace=null;gpu.pagedConnectedWorkspace=null;gpu.paged=null;
-      for(const key of ['uniform','normalPackCounter','boundsAll','boundsSelected','undoReadback','seedRead','depth','dummyBuffer','dummyReadBuffer','dummyTexture','meshModeBuffer','meshModePaged','cachedColor','triangleIds','wirePlanes','featureIds','featureDepth','boxVertexMask','orthoGrid','pluginDepth'])releaseGPU(gpu[key]);
+      for(const key of ['uniform','normalPackCounter','boundsAll','boundsSelected','undoReadback','seedRead','depth','dummyBuffer','dummyReadBuffer','dummyTexture','meshModeBuffer','meshModePaged','cachedColor','triangleIds','wirePlanes','featureIds','featureDepth','boxVertexMask','orthoGrid','pluginDepth','renderOverlay'])releaseGPU(gpu[key]);
       for(const slot of gpu.frameMeter.slots){releaseGPU(slot.resolve);releaseGPU(slot.read);}gpu.frameMeter.queries?.destroy();releaseGPU(gpu.hoverPresentation.uniform);releaseGPU(gpu.hoverPresentation.winner);releaseGPU(gpu.hoverPresentation.owners);
       gpu.normalWorkspace=null;gpu.connectedWorkspace=null;gpu.importCleanup=null;gpu.compute=null;gpu.normalPacking=null;
     }
@@ -30522,7 +30959,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         for(const entry of list){p.setBindGroup(1,entry.writeGroup);const n=Math.max(1,Math.ceil(entry.count/128)),x=Math.min(n,gpu.device.limits.maxComputeWorkgroupsPerDimension);p.dispatchWorkgroups(x,Math.ceil(n/x));}p.end();
       }await finishElementState(gpu,s,e);return s;
     }
-    async function visibleSplinePoints(hash,points){if(!points.length)return [];if(!['solid','solid-wire','solid-isoparms'].includes(shadingMode))return points.map(()=>1);const gpu=renderer,d=gpu.device;await draw(true);if(!gpu.splineVisibility){const code=`${CAMERA_RELATIVE_WGSL}struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};@group(0) @binding(0) var<uniform> camera:Camera;@group(0) @binding(1) var depth:texture_depth_2d;@group(0) @binding(2) var<storage,read> points:array<vec4f>;@group(0) @binding(3) var<storage,read_write> result:array<u32>;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*128u;if(i>=arrayLength(&points)){return;}let p=frameCameraRelative(camera.rotation)*vec4f((points[i].xyz-camera.centerScale.xyz)*camera.centerScale.w,1);let z=-p.z;let xy=p.xy+camera.viewport.zw;var ndc=xy*vec2f(camera.clip.w/camera.viewport.x,camera.clip.w)/z;var value=(camera.clip.y*z-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x)/z;if(camera.clip.z!=0.){ndc=xy*vec2f(camera.viewport.y/camera.viewport.x,camera.viewport.y);value=(z-camera.clip.x)/(camera.clip.y-camera.clip.x);}let pixel=vec2i(floor((ndc*vec2f(.5,-.5)+.5)*camera.frame.xy));let size=vec2i(textureDimensions(depth));if((camera.clip.z==0.&&z<=0.)||any(pixel<vec2i(0))||any(pixel>=size)){result[i]=0u;return;}result[i]=select(0u,1u,value<=textureLoad(depth,pixel,0)+.0000008);}`;gpu.splineVisibility=await d.createComputePipelineAsync({layout:'auto',compute:{module:d.createShaderModule({label:'authored spline selection visibility',code}),entryPoint:'main'}});}const world=objectWorld(hash),values=new Float32Array(points.length*4);points.forEach((p,i)=>values.set([...FM.point(world,p),1],i*4));const input=makeGPUBuffer(d,{size:values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),result=makeGPUBuffer(d,{size:points.length*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC}),read=makeGPUBuffer(d,{size:points.length*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{d.queue.writeBuffer(input,0,values);const group=d.createBindGroup({layout:gpu.splineVisibility.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:gpu.depth.createView()},{binding:2,resource:{buffer:input}},{binding:3,resource:{buffer:result}}]}),encoder=d.createCommandEncoder();dispatchOn(gpu,encoder,gpu.splineVisibility,group,points.length);encoder.copyBufferToBuffer(result,0,read,0,points.length*4);d.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);const flags=Array.from(new Uint32Array(read.getMappedRange()));read.unmap();return flags;}finally{releaseGPU(input);releaseGPU(result);releaseGPU(read);}}
+    async function visibleSplinePoints(hash,points){if(!points.length)return [];if(!isSurfaceShading(shadingMode))return points.map(()=>1);const gpu=renderer,d=gpu.device;await draw(true);if(!gpu.splineVisibility){const code=`${CAMERA_RELATIVE_WGSL}struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};@group(0) @binding(0) var<uniform> camera:Camera;@group(0) @binding(1) var depth:texture_depth_2d;@group(0) @binding(2) var<storage,read> points:array<vec4f>;@group(0) @binding(3) var<storage,read_write> result:array<u32>;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*128u;if(i>=arrayLength(&points)){return;}let p=frameCameraRelative(camera.rotation)*vec4f((points[i].xyz-camera.centerScale.xyz)*camera.centerScale.w,1);let z=-p.z;let xy=p.xy+camera.viewport.zw;var ndc=xy*vec2f(camera.clip.w/camera.viewport.x,camera.clip.w)/z;var value=(camera.clip.y*z-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x)/z;if(camera.clip.z!=0.){ndc=xy*vec2f(camera.viewport.y/camera.viewport.x,camera.viewport.y);value=(z-camera.clip.x)/(camera.clip.y-camera.clip.x);}let pixel=vec2i(floor((ndc*vec2f(.5,-.5)+.5)*camera.frame.xy));let size=vec2i(textureDimensions(depth));if((camera.clip.z==0.&&z<=0.)||any(pixel<vec2i(0))||any(pixel>=size)){result[i]=0u;return;}result[i]=select(0u,1u,value<=textureLoad(depth,pixel,0)+.0000008);}`;gpu.splineVisibility=await d.createComputePipelineAsync({layout:'auto',compute:{module:d.createShaderModule({label:'authored spline selection visibility',code}),entryPoint:'main'}});}const world=objectWorld(hash),values=new Float32Array(points.length*4);points.forEach((p,i)=>values.set([...FM.point(world,p),1],i*4));const input=makeGPUBuffer(d,{size:values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),result=makeGPUBuffer(d,{size:points.length*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC}),read=makeGPUBuffer(d,{size:points.length*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{d.queue.writeBuffer(input,0,values);const group=d.createBindGroup({layout:gpu.splineVisibility.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:gpu.depth.createView()},{binding:2,resource:{buffer:input}},{binding:3,resource:{buffer:result}}]}),encoder=d.createCommandEncoder();dispatchOn(gpu,encoder,gpu.splineVisibility,group,points.length);encoder.copyBufferToBuffer(result,0,read,0,points.length*4);d.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);const flags=Array.from(new Uint32Array(read.getMappedRange()));read.unmap();return flags;}finally{releaseGPU(input);releaseGPU(result);releaseGPU(read);}}
     async function pickSplineCell(x,y){
       if(!scene||frameViewportAt(x,y)===null||!scene.meshes.some(m=>m.splineGenerated&&m.splineFaceRanges))return null;
       const space=scene,gpu=renderer,view=frameViewportAt(x,y),saved=view!==viewIndex?[viewIndex,canvas,captureCamera()]:null;
@@ -30545,7 +30982,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
         const valid=()=>renderer===gpu&&scene===space&&generation===selectionGeneration;if(!valid())return;let previous=null;
         try{
-          previous=await captureSelectionBits(gpu,mode,operation);gpu.surfaceRequested=mode==='polygon'||shadingMode.startsWith('solid');gpu.featureRequested=mode!=='polygon';const started=performance.now();do{await draw(false);if(!valid())return;if(performance.now()-started>5000)throw Error('Selection render did not become ready');}while(gpu.surfaceRequested||gpu.featureRequested);const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(gpu.width-1,Math.floor((clientX-rect.left)*gpu.width/rect.width))),y=Math.max(0,Math.min(gpu.height-1,Math.floor((clientY-rect.top)*gpu.height/rect.height))),s=await createElementState(gpu,mode,componentMeshes()),e=gpu.device.createCommandEncoder();
+          previous=await captureSelectionBits(gpu,mode,operation);gpu.surfaceRequested=mode==='polygon'||isSurfaceShading(shadingMode);gpu.featureRequested=mode!=='polygon';const started=performance.now();do{await draw(false);if(!valid())return;if(performance.now()-started>5000)throw Error('Selection render did not become ready');}while(gpu.surfaceRequested||gpu.featureRequested);const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(gpu.width-1,Math.floor((clientX-rect.left)*gpu.width/rect.width))),y=Math.max(0,Math.min(gpu.height-1,Math.floor((clientY-rect.top)*gpu.height/rect.height))),s=await createElementState(gpu,mode,componentMeshes()),e=gpu.device.createCommandEncoder();
           for(const mesh of scene.meshes)e.clearBuffer(mesh.connected.flags);e.clearBuffer(s.bits);e.clearBuffer(s.counters);
           if(mode==='polygon')e.copyTextureToBuffer({texture:gpu.triangleIds,origin:[x,y]},{buffer:s.hit},[1,1]);
           else{const data=new ArrayBuffer(32);new Int32Array(data).set([x,y,1,elementIds[mode]]);new Float32Array(data).set([gpu.width/rect.width,gpu.height/rect.height,(clientX-rect.left)*gpu.width/rect.width,(clientY-rect.top)*gpu.height/rect.height],4);gpu.device.queue.writeBuffer(gpu.hoverPresentation.uniform,0,data);const p=e.beginComputePass();p.setPipeline(gpu.featureHover.search);p.setBindGroup(0,gpu.featureHover.searchGroup);p.dispatchWorkgroups(1);p.end();e.copyBufferToBuffer(gpu.hoverPresentation.winner,0,s.hit,0,32);}
@@ -30918,7 +31355,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       return delta;
     }
     function applyGizmoEvent(g,event){
-      if(gizmoSession!==g)return;g.event=event;if(g.copyPromise&&!g.copyReady)return;if(!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6)return;g.moved=true;if(g.ctrl&&g.scope==='objects'&&!g.editPivot&&!g.copyPromise){g.copyPromise=duplicateGizmoObjects(g).then(()=>{g.copyReady=true;applyGizmoEvent(g,g.event);}).catch(error=>{g.copyError=error;editError(error);});return;}if(pivotKey)pivotKey.gesture=true;g.delta=gizmoMatrix(g,event);
+      if(gizmoSession!==g)return;g.event=event;if(g.copyPromise&&!g.copyReady)return;if(!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6)return;if(!g.moved){g.moved=true;pathTracerPreemptForInput();}if(g.ctrl&&g.scope==='objects'&&!g.editPivot&&!g.copyPromise){g.copyPromise=duplicateGizmoObjects(g).then(()=>{g.copyReady=true;applyGizmoEvent(g,g.event);}).catch(error=>{g.copyError=error;editError(error);});return;}if(pivotKey)pivotKey.gesture=true;g.delta=gizmoMatrix(g,event);
       if(g.scope==='spline'&&!g.editPivot){g.spline.independent=g.ctrl||g.shift;if((g.ctrl||g.shift)&&FrameMorph.tagOf(g.spline.n)?.params.mode!=='Solve')FrameSpline.prepareTransformTopology(g.spline,g.ctrl&&elementMode!=='edge'?'copy':'extrude');}if(g.scope==='plugin'){if(g.editPivot){g.plugin.pivot?.(g.delta);componentPivot=FM.mul(g.delta,g.frame);notifyTransformUI();draw(false);}else{g.plugin.apply(g.delta,g.ctrl);componentPivot=FM.mul(g.delta,g.frame);}}else if(g.scope==='motion'){applyMotionDelta(g.delta,g.motion);}else if(g.editPivot&&g.scope==='spline'){componentPivot=FM.mul(g.delta,g.frame);notifyTransformUI();draw(false);}else if(g.scope==='spline'){FrameSpline.applyTransform(g.spline,FM.mul(FM.inv(objectWorld(g.spline.n.nativeHash)),FM.mul(g.delta,objectWorld(g.spline.n.nativeHash))));componentPivot=FM.mul(g.delta,g.frame);draw(false);}else if(g.scope==='mapping')applyProjectionDelta(g.delta,g);else if(g.scope==='objects')applyObjectDelta(g.delta,g.before,g.roots,g.editPivot,g.occurrence);
       else if(g.editPivot){componentPivot=FM.mul(g.delta,g.frame);notifyTransformUI();draw(false);}
       else{
@@ -30931,7 +31368,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const t=transformTransaction(),pivot=Array.from(t.frame.slice(12,15)),basis=gizmoBasis(),state=gizmoViewStates.get(viewIndex),signed=basis.map((a,i)=>FM.scale(a,state?.mode3D?state.signs[i]:1)),viewAxis=FM.unit(inverseView([0,0,1]));let kind=part.startsWith('rotate')||part==='screenRotate'?'rotate':part.startsWith('scale')?'scale':'move',indices=(part.match(/\d/g)||[]).map(Number),axis=indices.length?signed[indices[0]]:viewAxis,normal=viewAxis,axes=indices.length?indices.map(i=>signed[i]):[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))];
       if(kind==='rotate')normal=axis;else if(indices.length===2)normal=FM.unit(FM.cross(...axes));else if(indices.length===1)normal=FM.unit(FM.sub(viewAxis,FM.scale(axis,FM.dot(viewAxis,axis))));
       let other=basis[(indices[0]+1)%3];if(kind==='scale'&&event.altKey&&indices.length){kind='skew';other=basis.map((b,i)=>({b,i,d:Math.hypot(...FM.sub(worldScreen(FM.add(pivot,FM.scale(b,worldPerPixel(pivot)*80))),worldScreen(pivot)))})).filter(o=>o.i!==indices[0]).sort((a,b)=>b.d-a.d)[0].b;normal=FM.unit(FM.cross(axis,other));}
-      const hit=pointerWorld(event,pivot,normal);if(!hit)return;const g=gizmoSession={...t,camera:captureCamera(),pivot,basis,kind,axis,axes,normal,other,hit,editPivot:pivotEditing,uniform:part==='scale',screenPlane:part==='move',extent:part==='scale'?Math.max(...t.state.size):t.state.size[indices[0]||0],at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind!=='skew')lastGizmoOperation=kind;pathTracerPreemptForInput();if(kind==='scale'){g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!g.uniform)g.scaleRate=scaleResponse(axis,pivot,g.extent);}gizmoSvg.setPointerCapture(event.pointerId);hoverCursor.inside=false;deferHoverMaps();
+      const hit=pointerWorld(event,pivot,normal);if(!hit)return;const g=gizmoSession={...t,camera:captureCamera(),pivot,basis,kind,axis,axes,normal,other,hit,editPivot:pivotEditing,uniform:part==='scale',screenPlane:part==='move',extent:part==='scale'?Math.max(...t.state.size):t.state.size[indices[0]||0],at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind!=='skew')lastGizmoOperation=kind;if(kind==='scale'){g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!g.uniform)g.scaleRate=scaleResponse(axis,pivot,g.extent);}gizmoSvg.setPointerCapture(event.pointerId);hoverCursor.inside=false;deferHoverMaps();
     }
     let gizmoRAF=0;
     function gizmoPointerMove(event){const g=gizmoSession;if(!g||g.ending)return;g.event=event;if(gizmoRAF)return;
@@ -31307,7 +31744,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
         const valid=()=>renderer===gpu&&!gpu.dead&&scene===space&&generation===selectionGeneration;if(!valid())return;
         try{
-          const previous=await captureSelectionBits(gpu,mode,operation);gpu.surfaceRequested=shadingMode.startsWith('solid');await draw(false);await createBoxPipelines(gpu);if(!valid()){releaseGPU(previous);return;}
+          const previous=await captureSelectionBits(gpu,mode,operation);gpu.surfaceRequested=isSurfaceShading(shadingMode);await draw(false);await createBoxPipelines(gpu);if(!valid()){releaseGPU(previous);return;}
           const bounds=canvas.getBoundingClientRect(),rect=cssRect.map((v,i)=>Math.max(0,Math.min(i%2?gpu.height:gpu.width,(v-(i%2?bounds.top:bounds.left))*(i%2?gpu.height/bounds.height:gpu.width/bounds.width))));
           clearBoxSelection(gpu);const draws=featureDrawGroups(gpu),last=draws.at(-1),total=mode==='vertex'?last.vertexBase+last.mesh.vertexCount:mode==='edge'?last.edgeBase+last.edgeCount:space.triangleCount+1,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
           const s=gpu.boxSelection={mode,space,rect,entries:[],drawsRef:draws,counts:[],bits:makeGPUBuffer(gpu.device,{label:'selected element bitset',size:Math.max(16,Math.ceil(total/32)*4),usage}),counters:makeGPUBuffer(gpu.device,{label:'selected element counts',size:Math.max(16,space.meshes.length*4),usage}),read:makeGPUBuffer(gpu.device,{label:'selection metadata readback',size:Math.max(16,space.meshes.length*4),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ})};
@@ -31363,7 +31800,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(polygonClickGesture||FramePlugins.dispatch('interceptsPointer'))return false;
       if((!frameViewKind(viewIndex)&&!component)||event.altKey||!selectionBox||!selected.size||gizmoSession||coreNumeric||editDrag||editFinishing||selectionBusy||nativeIOBusy)return false;
       const t=transformTransaction(prepared),pivot=Array.from(t.frame.slice(12,15)),normal=FM.unit(inverseView([0,0,1])),hit=pointerWorld(event,pivot,normal);if(!hit)return false;
-      const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());pathTracerPreemptForInput();if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
+      const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
     }
     if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag||g.ending)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
     if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;const click=!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6;finishGizmo(event).catch(editError);if(click)selectElement(event.clientX,event.clientY,frameSelectionOperation(event));});
@@ -31391,7 +31828,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function beginTouchNavigation(multi=false){
       clearTimeout(touchHold);const owned=cameraNavigationOwned();if(owned&&touchNavigation&&!touchNavigation.navigationBlocked){cancelCameraNavigation();return;}const navigationBlocked=!!touchNavigation?.navigationBlocked||!!cancelledTouchPointers.size||owned,p=touchCenter(),point=navigationBlocked?scene.center:fallbackZoomPoint(p.x,p.y),pivot=point.map((v,i)=>(v-scene.center[i])*scene.scale),anchor=rotatePoint(pivot).map((v,i)=>v+orbitOffset[i]);
       touchNavigation={...p,navigationBlocked,element:canvas,startX:p.x,startY:p.y,x:p.x,y:p.y,yaw,pitch,zoom,panX,panY,offset:[...orbitOffset],pivot,anchor,point,depth:Math.max(.01,3.2-anchor[2]),time:performance.now(),multi,moved:multi,held:false,camera:captureCamera()};
-      if(isPathTracedView(viewIndex)&&!navigationBlocked)pathTracerPreemptForInput(viewIndex);
+      if(multi&&isPathTracedView(viewIndex)&&!navigationBlocked)pathTracerPreemptForInput(viewIndex);
       const state=touchNavigation;if(!multi){touchHold=setTimeout(()=>{if(touchNavigation!==state||state.moved||touchPointers.size!==1)return;state.held=true;lastTouchTap=null;navigationMenuSuppressed=false;canvas.dispatchEvent(new MouseEvent('contextmenu',{clientX:p.x,clientY:p.y,button:2,bubbles:true,cancelable:true}));if($('menu').hidden){if(current())objectMenu(p.x,p.y);else showMenu(p.x,p.y,[['Paste',()=>pasteSelection().catch(editError)]]);}},550);
         if(!navigationBlocked&&!frameViewKind(viewIndex))pickWorldPoint(p.x,p.y).then(point=>{if(!point||touchNavigation!==state||state.moved||state.held)return;state.point=point;state.pivot=point.map((v,i)=>(v-scene.center[i])*scene.scale);state.anchor=rotatePoint(state.pivot).map((v,i)=>v+state.offset[i]);state.depth=Math.max(.01,3.2-state.anchor[2]);}).catch(editError);
       }
@@ -31405,7 +31842,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     },{capture:true,passive:false});
     FrameViewWindows.onDocument('pointermove',event=>{
       if(!touchPointers.has(event.pointerId))return;event.preventDefault();event.stopImmediatePropagation();touchPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const g=touchNavigation;if(!g||g.held||g.blocked)return;if(!g.navigationBlocked&&cameraNavigationOwned()){cancelCameraNavigation();return;}
-      const p=touchCenter(),dx=p.x-g.startX,dy=p.y-g.startY;if(Math.hypot(dx,dy)>6||g.multi&&Math.abs(p.distance-g.distance)>3){g.moved=true;clearTimeout(touchHold);lastTouchTap=null;}if(!g.moved||g.navigationBlocked)return;
+      const p=touchCenter(),dx=p.x-g.startX,dy=p.y-g.startY;if(Math.hypot(dx,dy)>6||g.multi&&Math.abs(p.distance-g.distance)>3){if(!g.moved&&isPathTracedView(viewIndex)&&!g.navigationBlocked)pathTracerPreemptForInput(viewIndex);g.moved=true;clearTimeout(touchHold);lastTouchTap=null;}if(!g.moved||g.navigationBlocked)return;
       if(g.multi){restoreCamera(g.camera);zoomAt(g.point,g.startX,g.startY,g.zoom*p.distance/g.distance);const depth=frameViewKind(viewIndex)?1/zoom:Math.max(.01,3.2-rotatePoint(g.pivot)[2]-orbitOffset[2])/cameraFocal(),unit=2*depth/Math.max(1,canvas.clientHeight);panX+=dx*unit;panY-=dy*unit;}
       else if(frameViewKind(viewIndex)){const unit=2/(zoom*Math.max(1,canvas.clientHeight));panX=g.panX+dx*unit;panY=g.panY-dy*unit;}
       else{g.x=p.x;g.y=p.y;applyOrbit(g);}deferHoverMaps();draw(true,true,true);
@@ -31415,7 +31852,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);
       if(cancel){cancelTouchNavigation();return;}
       if(touchPointers.size){if(touchPointers.size>=2)beginTouchNavigation(true);else touchNavigation={moved:true,held:true,blocked:true,navigationBlocked:g?.navigationBlocked,element:g?.element||canvas};return;}touchNavigation=null;if(!g)return;
-      if(g.moved){if(!g.navigationBlocked){storeCameraNavigation();if(isPathTracedView(viewIndex))schedulePathTracerSettle(16);}}else if(!g.held){const now=performance.now(),p=[event.clientX,event.clientY];if(lastTouchTap&&lastTouchTap.view===viewIndex&&now-lastTouchTap.time<320&&Math.hypot(p[0]-lastTouchTap.x,p[1]-lastTouchTap.y)<24){lastTouchTap=null;frameToggleViewLayout(viewIndex);}else{lastTouchTap={x:p[0],y:p[1],time:now,view:viewIndex};selectElement(...p,'replace');}}deferHoverMaps();
+      if(g.moved){if(!g.navigationBlocked){storeCameraNavigation();if(isPathTracedView(viewIndex)){if(pathTracerSettings().rtDuringNav){lastNavReleaseView=viewIndex;lastNavReleaseAt=performance.now();schedulePathTracerSettle(95);}else{lastNavReleaseAt=0;schedulePathTracerSettle(16);}}}}else if(!g.held){const now=performance.now(),p=[event.clientX,event.clientY];if(lastTouchTap&&lastTouchTap.view===viewIndex&&now-lastTouchTap.time<320&&Math.hypot(p[0]-lastTouchTap.x,p[1]-lastTouchTap.y)<24){lastTouchTap=null;frameToggleViewLayout(viewIndex);}else{lastTouchTap={x:p[0],y:p[1],time:now,view:viewIndex};selectElement(...p,'replace');}}deferHoverMaps();
     }
     FrameViewWindows.onDocument('pointerup',e=>endTouchNavigation(e),{capture:true,passive:false});FrameViewWindows.onDocument('pointercancel',e=>endTouchNavigation(e,true),{capture:true,passive:false});
     FrameViewWindows.onWindow('blur',()=>{cancelTouchNavigation();cancelledTouchPointers.clear();});
@@ -31428,8 +31865,14 @@ fn occupied(p:vec2i,channel:u32)->bool{
       state.anchor=rotatePoint(state.pivot,state.yaw,state.pitch).map((v,i)=>v+state.offset[i]);
       orbitDepth=Math.max(.01,3.2-state.anchor[2]);state.pending=false;
     }
+    function markDragNavigated(state){
+      if(!state||state.navigated)return;
+      state.navigated=true;
+      if(isPathTracedView(viewIndex)&&!state.navigationBlocked)pathTracerPreemptForInput(viewIndex);
+    }
     function applyOrbit(state) {
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}
+      if(state===drag)markDragNavigated(state);
       yaw=state.yaw+(state.x-state.startX)*0.008;
       pitch=state.pitch+(state.y-state.startY)*0.008;
       const rotated=rotatePoint(state.pivot);
@@ -31536,9 +31979,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if((event.button!==0&&event.button!==1&&event.button!==2)||!scene||selectionBusy||boxDrag||gizmoSession||coreNumeric||editDrag||editFinishing)return;
       event.preventDefault();
       const state={id:event.pointerId,element:canvas,navigationBlocked:cameraNavigationOwned(),x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,button:event.button,operation:frameSelectionOperation(event),
-        yaw,pitch,pivot:[...orbitPivot],offset:[...orbitOffset],generation:++orbitGeneration,mesh:scene,pending:event.button!==1,released:false,zoom,panX,panY,time:performance.now(),middlePan:false};
+        yaw,pitch,pivot:[...orbitPivot],offset:[...orbitOffset],generation:++orbitGeneration,mesh:scene,pending:event.button!==1,released:false,navigated:false,zoom,panX,panY,time:performance.now(),middlePan:false};
       drag=state;navigationMenuSuppressed=false;canvas.style.cursor='default';canvas.setPointerCapture(event.pointerId);
-      if(isPathTracedView(viewIndex)&&!state.navigationBlocked)pathTracerPreemptForInput(viewIndex);
       if(state.button===1&&!state.navigationBlocked){const p=fallbackZoomPoint(state.startX,state.startY);orbitDepth=Math.max(.01,3.2-rotatePoint(p.map((v,i)=>(v-scene.center[i])*scene.scale))[2]-orbitOffset[2]);}
       if(state.button===0&&!FramePlugins.dispatch('interceptsPointer')&&elementMode==='vertex'&&(frameViewKind(viewIndex)||selectionScope==='components'&&selectedMeshes.length)&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
         state.vertexPending=true;const task=(async()=>{
@@ -31575,7 +32017,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       orbitDepth=Math.max(0.01,3.2-state.anchor[2]);
       canvas.dataset.orbitStartScreen=JSON.stringify(projectOrbitPoint(state.pivot));
       state.pending=false;
-      if(state.button===2){state.zoomPoint=point||fallbackZoomPoint(state.startX,state.startY);zoomAt(state.zoomPoint,state.startX,state.startY,state.zoom*Math.exp(((state.x-state.startX)-(state.y-state.startY))*0.007/Math.SQRT2));}
+      if(state.button===2){state.zoomPoint=point||fallbackZoomPoint(state.startX,state.startY);if(state.x!==state.startX||state.y!==state.startY){markDragNavigated(state);zoomAt(state.zoomPoint,state.startX,state.startY,state.zoom*Math.exp(((state.x-state.startX)-(state.y-state.startY))*0.007/Math.SQRT2));}}
       else if(state.button===0&&Math.hypot(state.x-state.startX,state.y-state.startY)>3)applyOrbit(state);
     });
     if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',event=>{
@@ -31587,11 +32029,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
         drag.usedFallback=true;useDragAnchor(drag,fallbackZoomPoint(drag.startX,drag.startY));
       }
       if(drag.button===1||drag.button===0&&frameViewKind(viewIndex)&&(polygonClickGesture?.moved||FramePlugins.dispatch('interceptsPointer'))){
+        if(drag.x!==drag.startX||drag.y!==drag.startY)markDragNavigated(drag);
         drag.middlePan=drag.button===1;
         const unitsPerPixel=(frameViewKind(viewIndex)?2/zoom:2*orbitDepth/cameraFocal())/Math.max(1,canvas.clientHeight);
         panX=drag.panX+(drag.x-drag.startX)*unitsPerPixel;panY=drag.panY-(drag.y-drag.startY)*unitsPerPixel;deferHoverMaps();draw(true,true,true);
       }else if(drag.button===2){
-        if(!drag.pending)zoomAt(drag.zoomPoint,drag.startX,drag.startY,drag.zoom*Math.exp(((drag.x-drag.startX)-(drag.y-drag.startY))*(frameViewKind(viewIndex)?3/Math.max(1,canvas.clientHeight):0.007/Math.SQRT2)));
+        if(!drag.pending&&(drag.x!==drag.startX||drag.y!==drag.startY)){markDragNavigated(drag);zoomAt(drag.zoomPoint,drag.startX,drag.startY,drag.zoom*Math.exp(((drag.x-drag.startX)-(drag.y-drag.startY))*(frameViewKind(viewIndex)?3/Math.max(1,canvas.clientHeight):0.007/Math.SQRT2)));}
       }else if(!frameViewKind(viewIndex)&&!drag.pending&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>3)applyOrbit(drag);
     });
     function finishDrag(event,cancel=false){
@@ -31599,8 +32042,11 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const state=drag;state.released=true;
       if(cancel||state.button===1)orbitGeneration++;
       else if(state.button===0){state.x=event.clientX;state.y=event.clientY;if(Math.hypot(state.x-state.startX,state.y-state.startY)<=3){orbitGeneration++;drag=null;canvas.style.cursor='default';selectElement(event.clientX,event.clientY,state.operation);return;}if(!state.navigationBlocked&&!state.pending&&!frameViewKind(viewIndex))applyOrbit(state);}
-      drag=null;canvas.style.cursor='default';const middle=frameEngineViewGesture,elapsed=middle?performance.now()-middle.time:Infinity,quick=state.button===1&&middle&&elapsed<=350&&Math.max(middle.distance,Math.hypot(event.clientX-middle.x,event.clientY-middle.y))<=(elapsed<=180?72:24);if(!quick&&!state.navigationBlocked)storeCameraNavigation();deferHoverMaps();
-      if(isPathTracedView(viewIndex)&&!state.navigationBlocked)schedulePathTracerSettle(16);
+      drag=null;canvas.style.cursor='default';const middle=frameEngineViewGesture,elapsed=middle?performance.now()-middle.time:Infinity,quick=state.button===1&&middle&&elapsed<=350&&Math.max(middle.distance,Math.hypot(event.clientX-middle.x,event.clientY-middle.y))<=(elapsed<=180?72:24);if(!quick&&state.navigated&&!state.navigationBlocked)storeCameraNavigation();deferHoverMaps();
+      if(state.navigated&&isPathTracedView(viewIndex)&&!state.navigationBlocked){
+        if(pathTracerSettings().rtDuringNav){lastNavReleaseView=viewIndex;lastNavReleaseAt=performance.now();schedulePathTracerSettle(95);}
+        else{lastNavReleaseAt=0;schedulePathTracerSettle(16);}
+      }
     }
     FrameViewWindows.onWindow('blur',()=>{if(drag)finishDrag({type:'blur'},true);});
     FrameViewWindows.onWindow('keydown',event=>{if(event.key==='Escape'&&drag?.vertexPending){drag.cancelled=true;event.preventDefault();event.stopImmediatePropagation();}},true);
@@ -31691,7 +32137,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(!scene)return;let changed=false;
       const visibility=new Map(records.map(record=>[record.index,record]));
       for(const [index,mesh]of scene.meshes.entries()){if(mesh.replicaMatrix)continue;const record=visibility.get(index),visible=record?.visible??false;mesh.frameSourceConsumed=!!record?.sourceConsumed;if(mesh.frameVisible!==visible){mesh.frameVisible=visible;changed=true;}}
-      if(changed){deferHoverMaps();draw();}
+      if(changed){visibilityEpoch++;geometryPoseEpoch++;deferHoverMaps();draw();}
     }
     // Canonical scene records own metadata and GPU-backed geometry descriptors.
     // Derived normals, adjacency, aliases, selection and undo never enter HASH.
@@ -32339,8 +32785,17 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }
       setVisibility(present.filter(o=>o.index!==undefined).map(o=>{const n=frameNodeByHash(o.hash);const consumed=polygonConsumesObject(n);return {index:o.index,visible:o.effectiveVisible&&!consumed,sourceConsumed:consumed};}));syncReplicas();
       const camNow=syncActiveCameraAutoStart();
+      const autoOn=!!(camNow&&camNow.params.renderer==='Path tracer'&&camNow.params.realtime==='on');
+      if(autoOn!==lastCameraAutoEnabled){
+        lastCameraAutoEnabled=autoOn;
+        if(autoOn&&renderStoppedCamera!==camNow.nativeHash&&viewShadings[0]?.startsWith('solid'))setViewShading(0,toRenderShading(viewShadings[0]));
+        else if(!autoOn&&camNow&&previewCamera!==camNow.nativeHash){
+          if(isRenderShading(viewShadings[0]))setViewShading(0,toSolidShading(viewShadings[0]));
+          for(const i of [...detachedRenderViews])if(isRenderShading(viewShadings[i]))setViewShading(i,toSolidShading(viewShadings[i]));
+        }
+      }
       const camSigNow=camNow?[camNow.nativeHash,camNow.params.renderer,camNow.params.realtime,camNow.params['realtime during navigation'],camNow.params.samples,camNow.params.environment,camNow.params['environment image']].join('|'):'';
-      if(camSigNow!==lastCameraStateSig){lastCameraStateSig=camSigNow;if(!cameraRenderEnabled(camNow))pathTracerCancelRefine();renderStatus();draw(false);}
+      if(camSigNow!==lastCameraStateSig){lastCameraStateSig=camSigNow;if(!activePathTracerViews(camNow).length)pathTracerCancelRefine();renderStatus();draw(false);}
       else if(viewportLightingSignature()!==lightBefore)draw(false);
     }
     function nativeCamera(){
@@ -32953,7 +33408,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     function stageHashMaterialImages(plan,r){
       const camera=plan.camera,shadings=camera?.length===27?Array.from(camera.slice(23),i=>viewShadingNames[i]):defaultViewShadings;
       const visible=camera?.[22]===0||FrameViewWindows.size?shadings:[shadings[camera?.[21]||0]];
-      if(!visible.some(mode=>mode.startsWith('solid')))return null;
+      if(!visible.some(mode=>isSurfaceShading(mode)))return null;
       const get=(id,field)=>plan.records.get(FrameHash.address(id,field))?.value,materials=new Set();
       for(const o of plan.objects)for(const tag of get(o.hash,'tags')||[]){
         const uid=get(tag,'material')?.[0];if(uid)materials.add(uid);
@@ -33455,8 +33910,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           requestMaterialReplicaPipeline(r,{...options,wire:false,preview:true},true));
       }
       for(const i of frameViewSections.keys()){
-        const shading=viewShadings[i];if(!frameViewVisible(i)||!shading?.startsWith('solid'))continue;
-        const orthographic=!!frameViewKind(i),options={orthographic,grouped,uv:!!raw.uv,wire:shading!=='solid',mapped};
+        const shading=viewShadings[i];if(!frameViewVisible(i)||!isSurfaceShading(shading))continue;
+        const orthographic=!!frameViewKind(i),options={orthographic,grouped,uv:!!raw.uv,wire:!isSurfaceNoLines(shading),mapped};
         jobs.push(requestMaterialPipeline(r,materialProgram(r),options,true));
         if(transparent)jobs.push(requestMaterialPipeline(r,materialProgram(r),{...options,transparent:true},true));
         if(!FM.equal(world,FM.I()))posedPipelines(r,orthographic).catch(editError);
@@ -34385,7 +34840,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const d of splineDisplays.values()){
         if(!d.visible||!d.controlCount)continue;
         const owner=frameNodeByHash(d.hash);if(!owner)continue;
-        const active=!globalThis.frameHTMLPlayer&&FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
+        const active=!globalThis.frameHTMLPlayer&&FrameSpline.isActive(owner);if(d.consumed&&(!active||isSurfaceNoLines(shadingMode)&&elementMode==='object'))continue;
         const selected=!globalThis.frameHTMLPlayer&&(selectedHashes.has(d.hash)||active),editable=FrameSpline.isEditable(owner);
         const showControls=!globalThis.frameHTMLPlayer&&editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
         const surface=surfaces.get(d.hash)||surfaces.get(FrameSpline.patchOwner(owner)?.nativeHash),covered=d.consumed||surface;
@@ -34394,7 +34849,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const separateTint=!!loose?.runs.length;
         const partial=!d.consumed&&source&&(solidCages||source.allowed||separateTint)?patchCageLines(d,source,solidCages?'loose':separateTint?'filled':'all'):null;
         const drawCage=!partial&&(!solidCages||!covered);
-        const highlights=!drawCage&&shadingMode==='solid'&&selected&&editable&&['edge','polygon'].includes(elementMode)&&d.lineHighlightRuns?.length;
+        const highlights=!drawCage&&isSurfaceNoLines(shadingMode)&&selected&&editable&&['edge','polygon'].includes(elementMode)&&d.lineHighlightRuns?.length;
         if(!drawCage&&!partial?.runs.length&&!separateTint&&!showControls&&!highlights||FrameSpline.sourceNode(owner))continue;
         const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix,tintParts&&surface&&!(solidCages&&source)?meshWireColor(surface):splineCageColor);
         if(showControls)writeSplineDisplayFrame(d.handleUniform,matrix,splineTangentColor);
@@ -34672,7 +35127,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       return queryNavigationTree(plan.curves.tree,n=>splineNavigationBoxHit(null,c,x,y,8,n,true));
     }
     function splineNavigationPoint(x,y){if(!scene||!splineDisplays.size)return null;const ray=cameraRay(x,y),projectionKey=splineProjectionKey();let best=null;
-      for(const d of navigationDisplays(x,y,projectionKey)){const owner=frameNodeByHash(d.hash);if(!splineShown(d)||d.generated&&shadingMode!=='isoparms'&&shadingMode!=='solid-isoparms'&&!(selected.has(owner?.id)&&FrameSpline.isEditable(owner)&&['vertex','edge'].includes(elementMode)))continue;const m=objectWorld(d.hash);
+      for(const d of navigationDisplays(x,y,projectionKey)){const owner=frameNodeByHash(d.hash);if(!splineShown(d)||d.generated&&!['isoparms','solid-isoparms','render-isoparms'].includes(shadingMode)&&!(selected.has(owner?.id)&&FrameSpline.isEditable(owner)&&['vertex','edge'].includes(elementMode)))continue;const m=objectWorld(d.hash);
         const cache=splineProjection(d,projectionKey);if(!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;for(const [segment,samples]of navigationSegmentRows(d,cache,x,y)){const p=projectedSplineSegment(cache,segment,samples);for(let i=3;i<p.length;i+=3){const ax=p[i-3],ay=p[i-2],dx=p[i]-ax,dy=p[i+1]-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1))),distance=Math.hypot(x-ax-t*dx,y-ay-t*dy);if(distance>8)continue;let u=t;if(!frameViewKind(viewIndex)){const za=p[i-1],zb=p[i+2];if(za<=0||zb<=0)continue;u=t*za/((1-t)*zb+t*za);}const a=FM.point(m,samples[i/3-1].position),b=FM.point(m,samples[i/3].position),point=a.map((v,k)=>v+(b[k]-v)*u),normalized=point.map((v,k)=>(v-scene.center[k])*scene.scale),depth=FM.dot(FM.sub(normalized,ray.origin),ray.direction)/FM.dot(ray.direction,ray.direction);if(depth>0&&(!best||depth<best.depth))best={point,depth,distance,hash:d.hash,segment};}}
       }return best;
     }
@@ -35079,7 +35534,7 @@ function FramePolygonKernel(d){
     }
     async function polygonVisiblePatchHit(x,y,radius,view,editableMeshes,solid,valid){
       const gpu=renderer,space=scene,shading=viewShadings[view];
-      if(!['solid-wire','solid-isoparms'].includes(shading)||sceneFrameDirty)return undefined;
+      if(!['solid-wire','solid-isoparms','render-wire','render-isoparms'].includes(shading)||sceneFrameDirty)return undefined;
       let idTex=null,texW=0,texH=0;
       if(view===viewIndex){
         if(!gpu.triangleIds||gpu.cachedScene!==space||!gpu.width||!gpu.height)return undefined;
@@ -35132,7 +35587,7 @@ function FramePolygonKernel(d){
     }
     async function polygonInsertionHit(x,y,view=viewIndex,valid=()=>true){
       const gpu=renderer,space=scene;if(!gpu||!space)return null;
-      const epoch=orbitGeneration,topology=space.topologyRevision,radius=10,solid=viewShadings[view].startsWith('solid');
+      const epoch=orbitGeneration,topology=space.topologyRevision,radius=10,solid=isSurfaceShading(viewShadings[view]);
       const ok=()=>valid()&&space===scene&&epoch===orbitGeneration&&space.topologyRevision===topology&&frameViewVisible(view);
       const editable=editablePolygonMeshes();
       if(!editable.length||!polygonNearEditableBounds(x,y,radius+2,view,editable))return null;
@@ -35669,9 +36124,12 @@ function FramePolygonKernel(d){
         }
         if(!st.hasImage)fail('NOT_READY','Export a Camera image first');
         let src=cameraConfig()&&lastViewportOutput?.camera===cameraConfig().nativeHash?lastViewportOutput:null;
-        if((!src||(a.linear&&!src.linear))&&st.renderer==='Path tracer'&&pathTracer?.hasImage){
-          const atlas=materialLibraryGPU(renderer).atlas;
-          src=await pathTracer.readOutput(atlas,!!a.linear,'Camera pixel probe',0);
+        if((!src||(a.linear&&!src.linear))&&st.renderer==='Path tracer'){
+          const probeView=pathTracer?.viewInfo(viewIndex)?.hasImage?viewIndex:(pathTracer?.hasImage?0:st.views?.[0]?.index);
+          if(probeView!==undefined&&pathTracer?.viewInfo(probeView)?.hasImage){
+            const atlas=materialLibraryGPU(renderer).atlas;
+            src=await pathTracer.readOutput(atlas,!!a.linear,'Camera pixel probe',probeView);
+          }
         }
         if(!src||(a.linear&&!src.linear))fail('NOT_READY','Linear radiance is unavailable for this output');
         const {width,height}=src,buf=a.linear?src.linear:src.rgba;
@@ -35711,7 +36169,7 @@ function FramePolygonKernel(d){
       register('edit.history','Undo or Redo one normal editor transaction, including metadata and geometry.',required(obj({action:choice('undo','redo')}),'action'),false,async a=>{await requestHistory(a.action==='undo');await settle();return selectionInfo();});
       register('view.windows','Inspect main and additional independent camera instances sharing one live scene and GPU device.',obj({}),true,()=>FrameViewWindows.inspect());
       register('view.window','Open an additional independent view from a main view (0..3), or focus/close an additional instance. Opening needs browser popup permission. Main views remain in place.',required(obj({index:integer,action:choice('open','focus','close')}),'index','action'),false,a=>{if(a.action==='open'?a.index>3:!FrameViewWindows.available(a.index))fail('INVALID_ARGUMENT','Invalid view instance');return FrameViewWindows.command(a.index,a.action);});
-      register('view.set','Set active view, single/quad, shading, selection mode and transform options; focus an object if requested.',obj({index:integer,single:bool,camera:array(num,27),shading:choice('solid','wireframe','solid-wire','isoparms','solid-isoparms','off'),mode:choice('object','vertex','edge','polygon'),coordinates:choice('world','object'),snap:bool,quantize:bool,pivot:bool,uv:bool,focus:str,focusSelection:bool}),false,async a=>{if(a.index!==undefined&&(!frameViewSections.has(a.index)||a.index>=4&&!FrameViewWindows.available(a.index)))fail('INVALID_ARGUMENT','Unknown view instance');if(a.focus&&a.focusSelection)fail('INVALID_ARGUMENT','Choose object focus or current selection');if(a.camera&&!validNativeCamera(a.camera))fail('INVALID_ARGUMENT','Invalid camera record');if(a.camera&&cameraNavigationOwned(0))fail('INVALID_ARGUMENT','Camera animation owns the main view');if(a.camera)applyNativeCamera(a.camera);if(a.focus)resolve(a.focus);if(a.index!==undefined&&!activateFrameView(a.index))fail('BUSY','Cannot switch view during a gesture');if(a.single!==undefined)frameSetViewLayout(a.single);if(a.mode)setViewerMode('element',a.mode);if(a.shading)setViewerMode('shading',a.shading);setTransformOptions(a);if(a.focus){const n=resolve(a.focus);await focusSpline(n.nativeHash);}if(a.focusSelection)await focusSpline(null);if(a.uv!==undefined)await setUVEditing(a.uv,a.focus?resolve(a.focus).nativeHash:null);await draw(true);return {index:viewIndex,single:FrameViewWindows.single(viewIndex),shading:shadingMode,mode:elementMode,camera:Array.from(nativeCamera())};});
+      register('view.set','Set active view, single/quad, shading, selection mode and transform options; focus an object if requested.',obj({index:integer,single:bool,camera:array(num,27),shading:choice('solid','wireframe','solid-wire','isoparms','solid-isoparms','off','render','render-wire','render-isoparms'),mode:choice('object','vertex','edge','polygon'),coordinates:choice('world','object'),snap:bool,quantize:bool,pivot:bool,uv:bool,focus:str,focusSelection:bool}),false,async a=>{if(a.index!==undefined&&(!frameViewSections.has(a.index)||a.index>=4&&!FrameViewWindows.available(a.index)))fail('INVALID_ARGUMENT','Unknown view instance');if(a.focus&&a.focusSelection)fail('INVALID_ARGUMENT','Choose object focus or current selection');if(a.camera&&!validNativeCamera(a.camera))fail('INVALID_ARGUMENT','Invalid camera record');if(a.camera&&cameraNavigationOwned(0))fail('INVALID_ARGUMENT','Camera animation owns the main view');if(a.camera)applyNativeCamera(a.camera);if(a.focus)resolve(a.focus);if(a.index!==undefined&&!activateFrameView(a.index))fail('BUSY','Cannot switch view during a gesture');if(a.single!==undefined)frameSetViewLayout(a.single);if(a.mode)setViewerMode('element',a.mode);if(a.shading)setViewerMode('shading',a.shading);setTransformOptions(a);if(a.focus){const n=resolve(a.focus);await focusSpline(n.nativeHash);}if(a.focusSelection)await focusSpline(null);if(a.uv!==undefined)await setUVEditing(a.uv,a.focus?resolve(a.focus).nativeHash:null);await draw(true);return {index:viewIndex,single:FrameViewWindows.single(viewIndex),shading:shadingMode,mode:elementMode,camera:Array.from(nativeCamera())};});
       register('view.project','Project a world point (or local point on an object) to CSS screen coordinates in the active view.',required(obj({point:vector,id:str}),'point'),true,a=>{const p=a.id?FM.point(objectWorld(resolve(a.id).nativeHash),a.point):a.point;return {point:p,screen:worldScreen(p)};});
       register('view.pick','Read navigation world-space target under a CSS screen point: native mesh, plugin surface, visible spline or finite XZ guide fallback.',required(obj({x:num,y:num}),'x','y'),true,async a=>({point:await pickWorldPoint(a.x,a.y)}));
       register('scene.merge','Merge a same-origin scene URL into the current scene using native import and one Undo.',required(obj({url:str}),'url'),false,async a=>{const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol)||!frameIsModelFile(u.pathname))fail('INVALID_ARGUMENT','Expected same-origin scene URL');const r=await fetch(u);if(!r.ok)fail('IO_ERROR','HTTP '+r.status);const roots=await mergeFile(new File([await r.blob()],decodeURIComponent(u.pathname.split('/').pop())),{baseURL:u.href});await settle();return {objects:roots.map(h=>describe(resolve(h)))};});

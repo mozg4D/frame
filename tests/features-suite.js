@@ -22,16 +22,17 @@ export async function runFeatureSuite(api,progress=()=>{},sceneDocument=document
   const started=performance.now(),cube=await call('scene.create',{type:'cube'}),solid=sceneDocument.getElementById('btnSolid'),lines=sceneDocument.getElementById('btnShading');
   check('Solid is immediately left of line selector',solid?.nextElementSibling===lines);
   const solo=sceneDocument.getElementById('btnSolo');check('Solo ends upper toolbar row',solo?.parentElement!==solid.parentElement&&solo===solo.parentElement.lastElementChild);
-  const states={solid:[true,'off'],wireframe:[false,'wire'],'solid-wire':[true,'wire'],isoparms:[false,'isoparms'],'solid-isoparms':[true,'isoparms'],off:[false,'off']};
-  for(const [mode,[filled,line]] of Object.entries(states)){
+  const states={solid:['solid','off'],wireframe:['off','wire'],'solid-wire':['solid','wire'],isoparms:['off','isoparms'],'solid-isoparms':['solid','isoparms'],off:['off','off'],render:['render','off'],'render-wire':['render','wire'],'render-isoparms':['render','isoparms']};
+  const surfCycle=['solid','render','off'];
+  for(const [mode,[surface,line]] of Object.entries(states)){
    await call('view.set',{index:0,shading:mode});
-   check('API and controls agree for '+mode,(await inspect()).view.shading===mode&&solid.getAttribute('aria-pressed')===String(filled)&&lines.getAttribute('aria-pressed')===String(line!=='off')&&lines.title==='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[line]);
-   solid.click();await call('diagnostics.frame',{frames:1});const toggled=Object.keys(states).find(k=>states[k][0]===!filled&&states[k][1]===line);check('Solid UI preserves lines for '+mode,(await inspect()).view.shading===toggled);
-   solid.click();await call('diagnostics.frame',{frames:1});lines.click();await call('diagnostics.frame',{frames:1});const next={wire:'off',isoparms:'wire',off:'isoparms'}[line],cycled=Object.keys(states).find(k=>states[k][0]===filled&&states[k][1]===next);check('Lines UI preserves Solid for '+mode,(await inspect()).view.shading===cycled);
+   check('API and controls agree for '+mode,(await inspect()).view.shading===mode&&solid.getAttribute('aria-pressed')===String(surface!=='off')&&lines.getAttribute('aria-pressed')===String(line!=='off')&&lines.title==='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[line]);
+   solid.click();await call('diagnostics.frame',{frames:1});const nextSurf=surfCycle[(surfCycle.indexOf(surface)+1)%3],toggled=Object.keys(states).find(k=>states[k][0]===nextSurf&&states[k][1]===line);check('Solid UI preserves lines for '+mode,(await inspect()).view.shading===toggled);
+   solid.click();await call('diagnostics.frame',{frames:1});solid.click();await call('diagnostics.frame',{frames:1});lines.click();await call('diagnostics.frame',{frames:1});const next={wire:'off',isoparms:'wire',off:'isoparms'}[line],cycled=Object.keys(states).find(k=>states[k][0]===surface&&states[k][1]===next);check('Lines UI preserves Solid for '+mode,(await inspect()).view.shading===cycled);
    await call('view.set',{index:0,shading:mode});await call('view.set',{index:2,shading:'solid-wire'});await call('view.set',{index:0});check('View switching preserves '+mode,(await inspect()).view.shading===mode);
    const saved=await call('scene.export',{includeData:true});await call('scene.open',{name:'solid-mode.hash',base64:saved.base64});check('HASH preserves '+mode,(await inspect()).view.shading===mode);
   }
-  await call('view.set',{shading:'solid',focus:cube.hash});check('Solid combinations complete within 15000 ms',performance.now()-started<15000,{wallMs:performance.now()-started});
+  await call('view.set',{shading:'solid',focus:cube.hash});check('Solid combinations complete within 25000 ms',performance.now()-started<25000,{wallMs:performance.now()-started});
  });
  await test('Solid modes retain native instances, picking and camera navigation',async()=>{
   const started=performance.now(),source=await call('scene.create',{type:'cube'}),copy=await call('scene.create',{type:'instance',params:{object:source.hash}});
