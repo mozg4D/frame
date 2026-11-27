@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 27 nov 10:56",
+  "version": "2026 27 nov 12:39",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -536,11 +536,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5186,
-      "sha256": "5f8ec00e52f47a77fbd8e5849691c9ff2925d55802d0a25aebbcfc96994010d3"
+      "sha256": "63dfc1b08345bec632561e939a72a93946e4977adcf9c748542679e69cdc3a0d"
     },
     "index.html": {
-      "bytes": 4161920,
-      "sha256": "bbb68b2f0cf41296a339f27288b3dcbafc7f9c4e9d008052fb9cc2509368ab37"
+      "bytes": 4162643,
+      "sha256": "856956160c6d35ea5b3ece1d8e5d1d256e8b96aecfd981b04c3b69f41b992c19"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1195,8 +1195,8 @@
       "sha256": "62ad52a0bbc4125c5086854db77b263286678c50f361d1e5e01cfec39a867a30"
     },
     "tests/spline-patch-normals.mjs": {
-      "bytes": 20360,
-      "sha256": "611efe2cb179f5a45ecdbf45c0e20c4b2fff6f85c7fb0cd5436d8fd79baebc7d"
+      "bytes": 20722,
+      "sha256": "eaa78e9b241593e64dff3a3dca76beeb72ebc1901e1e343126dd198243eaab57"
     },
     "tests/scenes/hgr15-normal-bug.hash": {
       "bytes": 14130,

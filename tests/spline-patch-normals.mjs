@@ -77,11 +77,17 @@ try{
  // Two open neighboring authored cells: shallow planar kink versus two
  // strips of the same translated cubic surface. Neither oracle reads the
  // worker seam flags, generated topology metadata, or classifier settings.
- for(const kind of ['shallow','ribbon']){
+ for(const kind of ['shallow','ribbon','pentagon']){
   await call('scene.new');
   const sample=await call('scene.create',{type:'spline_patch',name:'Analytic '+kind});
   const cage=await page.evaluate(kind=>{
    const K=FrameSpline.K(),d=K.createSplineData({angle:kind==='ribbon'?32:10}),z=kind==='ribbon'?0:1;
+   if(kind==='pentagon'){
+    const points=[[0,0,0],[100,0,0],[115,60,15],[50,100,20],[-15,60,10],[0,-70,65],[100,-70,65]];
+    const vertices=points.map(point=>K.addSplineVertex(d,point));
+    for(const [a,b] of [[0,1],[1,2],[2,3],[3,4],[4,0],[0,5],[5,6],[6,1]])K.addSplineSegment(d,K.addSplineSequence(d),vertices[a],vertices[b]);
+    return d;
+   }
    const v=[[0,0,0],[100,0,0],[0,70,0],[0,-70,z],[100,70,0],[100,-70,z]].map(p=>K.addSplineVertex(d,p));
    const add=(a,b)=>K.addSplineSegment(d,K.addSplineSequence(d),v[a],v[b]);
    const seam=add(0,1),a=[add(1,4),add(4,2),add(2,0)],b=[add(0,3),add(3,5),add(5,1)];
@@ -93,7 +99,7 @@ try{
   await call('spline.replace',{id:sample.hash,data:cage});
   const evaluated=(await call('scene.inspect')).objects.find(n=>n.hash===sample.hash);
   check(kind+' has two resolved cells',evaluated?.evaluation?.report?.cells===2&&evaluated.mesh?.triangles>=4,{mesh:evaluated?.mesh,report:evaluated?.evaluation?.report,error:evaluated?.buildError});
-  await normals(sample.hash,kind,{expectedSeam:kind==='shallow'?'hard':'smooth'});
+  await normals(sample.hash,kind,{expectedSeam:kind==='ribbon'?'smooth':'hard'});
   if(kind==='shallow'){
    const converted=await call('scene.convert',{id:sample.hash});
    check('To Editable changes the shallow Patch into a polygon object',converted.type==='mesh',converted.type);

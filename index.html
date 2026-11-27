@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 27 nov 10:56">
+<meta name="frame-version" content="2026 27 nov 12:39">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -1167,24 +1167,33 @@ function patchCellTangents(data,build,boundary,wanted){
   if(!wanted?.size)return result;
   const prepared=build.prepared;
   const plane=prepared?null:patchPlane(build.loops.flatMap(loop=>loop.samples.map(sample=>sample.p)));
-  const sideSamples=prepared?.sides.map(side=>new Map(side.map(sample=>[sample.key,sample.t])));
+  const sideSamples=prepared?.sides.map(side=>new Map(side.map(sample=>[sample.key,sample])));
   for(const loop of build.loops)for(const side of loop.sideRanges){
     const {edge,reversed}=side.refs[0];if(!wanted.has(edge))continue;
     const cp=p(data,edge),values=new Float64Array((side.samples.length-1)*patchProbeWords);
     for(let i=1;i<side.samples.length;i++){
       const a=side.samples[i-1],b=side.samples[i],interval=Math.min(a.index,b.index);
+      const k=side.patchSide,param=sideSamples?.[k];
+      const A=param?.get(boundary.get(side.keys[i-1])),B=param?.get(boundary.get(side.keys[i]));
       for(let probe=0;probe<patchProbeCount;probe++){
         const fraction=(probe+1)/(patchProbeCount+1),t=(1-fraction)*Math.min(a.t,b.t)+fraction*Math.max(a.t,b.t);
         const seam=d(cp,reversed?1-t:t);
         let transverse;
         if(!prepared)transverse=patchUnit(patchCross(plane,patchUnit(seam)));
         else{
-          const k=side.patchSide,param=sideSamples[k],A=param.get(boundary.get(side.keys[i-1])),B=param.get(boundary.get(side.keys[i]));
-          const x=A+(B-A)*(reversed?1-fraction:fraction);
-          let differential;
-          if(prepared.n===2)differential=prepared.surface.parametricDifferential(k?1-x:x,k);
-          else{const from=prepared.domain[k],to=prepared.domain[(k+1)%prepared.n];differential=prepared.surface.differential(from[0]+(to[0]-from[0])*x,from[1]+(to[1]-from[1])*x);}
-          transverse=patchTransverse(differential.du,differential.dv,seam);
+          const along=reversed?1-fraction:fraction;
+          if(prepared.n>4){
+            // On an N-sided boundary, the ribbon spans the cubic tangent and its
+            // authored cross field. The inverse-distance blend is singular on the edge.
+            const nativeT=A.bezierT+(B.bezierT-A.bezierT)*along;
+            transverse=patchTransverse(seam,prepared.surface.kernel.field(k,nativeT),seam);
+          }else{
+            const x=A.t+(B.t-A.t)*along;
+            let differential;
+            if(prepared.n===2)differential=prepared.surface.parametricDifferential(k?1-x:x,k);
+            else{const from=prepared.domain[k],to=prepared.domain[(k+1)%prepared.n];differential=prepared.surface.differential(from[0]+(to[0]-from[0])*x,from[1]+(to[1]-from[1])*x);}
+            transverse=patchTransverse(differential.du,differential.dv,seam);
+          }
         }
         values.set(transverse,interval*patchProbeWords+probe*3);
       }
@@ -19882,7 +19891,7 @@ window.FrameSpline=(()=>{
   let buildSerial=Promise.resolve(),coldBuilds=null;
   function build(data,key='preview',baseToken,construction=null,changed=null){
     if(construction)return buildNow(data,key,baseToken,construction.group).then(result=>{construction.clean=true;return result;});
-    if(coldBuilds&&key.endsWith(':spline_patch')&&Object.keys(data.segments).length<512&&!resolvedCages.get(data)?.generation)return withColdConstruction(construction=>build(data,key,baseToken,construction));
+    if(coldBuilds&&key.endsWith(':spline_patch')&&Object.keys(data.segments).length<coldBuilds.patchGroupLimit&&!resolvedCages.get(data)?.generation)return withColdConstruction(construction=>build(data,key,baseToken,construction));
     if(coldBuilds&&!directSurfaces.has(data)){const result=Promise.all([buildSerial,coldBuilds.globalFence,...coldBuilds.groups.map(g=>g.tail)]).then(()=>buildNow(data,key,baseToken));buildSerial=result.then(()=>{},()=>{});coldBuilds.globalFence=buildSerial;return result;}
     const result=buildSerial.then(()=>buildNow(data,key,baseToken,null,changed));buildSerial=result.then(()=>{},()=>{});return result;
   }
@@ -19895,7 +19904,11 @@ window.FrameSpline=(()=>{
     finally{await Promise.allSettled([ready,fence,prior]);await construction.finish();}
   }
   // Lane 0 retains the editable Patch plans; temporary cold lanes retire after HASH loading.
-  function beginColdBuilds(){const threads=Math.max(1,(navigator.hardwareConcurrency||2)-1),count=Math.min(3,Math.max(1,Math.floor(threads/2)));coldBuilds={ready:call(0,'resetPlans'),globalFence:Promise.resolve(),next:0,cacheLimit:32*1024*1024,groups:Array.from({length:count},(_,i)=>({id:i,cacheLimit:Math.floor(32*1024*1024/count),threads:Math.max(1,Math.floor(threads/(count+1))),tail:Promise.resolve()}))};}
+  function beginColdBuilds(){const threads=Math.max(1,(navigator.hardwareConcurrency||2)-1),count=Math.min(3,Math.max(1,Math.floor(threads/2)));
+    // Let independent assembly patches share the bounded construction groups.
+    // A large standalone cage still gets the full worker pool.
+    const patchGroupLimit=nodes.filter(n=>n.enabled&&n.type==='spline_patch').length>1?8192:512;
+    coldBuilds={patchGroupLimit,ready:call(0,'resetPlans'),globalFence:Promise.resolve(),next:0,cacheLimit:32*1024*1024,groups:Array.from({length:count},(_,i)=>({id:i,cacheLimit:Math.floor(32*1024*1024/count),threads:Math.max(1,Math.floor(threads/(count+1))),tail:Promise.resolve()}))};}
   function endColdBuilds(){if(!coldBuilds)return;for(const [id,l]of lanes)if(typeof id==='string'&&id.startsWith('cold:')){for(const p of l.pending.values())p.reject(new DOMException('Scene build ended','AbortError'));l.pending.clear();l.worker.terminate();lanes.delete(id);}coldBuilds=null;}
 
   // Only borrow samples from an already refreshed native display of this exact cage.
