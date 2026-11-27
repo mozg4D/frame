@@ -1,17 +1,41 @@
 {
-  "id": "cut", "name": "Cut (authoring preview)",
-  "description": "Native flat cutting/marking authoring. Toolpath generation and machine output are unavailable.",
-  "module": "plugin.js", "icon": "icon.svg", "color": "#c6a377",
-  "objects": [{"type": "cut", "name": "Cut",
-    "fields": {"Mode": ["Cut", "Mark"], "Speed": 1000, "Passes": 1, "Line width": 0.2, "Lead-in": 1, "Start G-code": "", "Finish G-code": "", "Tool on G-code": "", "Tool off G-code": ""},
-    "textFields": ["Start G-code", "Finish G-code", "Tool on G-code", "Tool off G-code"],
-    "fieldOptions": {
-      "Mode": {"access": "read-write"}, "Speed": {"unit": "mm/min", "minimum": 0.001, "access": "read-write"},
-      "Passes": {"minimum": 1, "integer": true, "access": "read-write"},
-      "Line width": {"unit": "mm", "minimum": 0, "access": "read-write"}, "Lead-in": {"unit": "mm", "minimum": 0, "access": "read-write"},
-      "Start G-code": {"access": "read-write"}, "Finish G-code": {"access": "read-write"},
-      "Tool on G-code": {"access": "read-write"}, "Tool off G-code": {"access": "read-write"}
+  "id": "cut",
+  "name": "Cut",
+  "description": "2D flat cutting and marking CAM with kerf offset, lead-in, Avoid/No-cut clipping and routing, smart path ordering, preview scrubbing and G0/G1 G-code export.",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "color": "#c6a377",
+  "objects": [
+    {
+      "type": "cut",
+      "name": "Cut",
+      "fields": {
+        "Mode": ["Cut", "Mark"],
+        "Speed": 1000,
+        "Passes": 1,
+        "Line width": 0.2,
+        "Lead-in": 1,
+        "Start G-code": "",
+        "Finish G-code": "",
+        "Tool on G-code": "",
+        "Tool off G-code": ""
+      },
+      "textFields": ["Start G-code", "Finish G-code", "Tool on G-code", "Tool off G-code"],
+      "fieldOptions": {
+        "Mode": {"access": "read-write"},
+        "Speed": {"unit": "mm/min", "minimum": 0.001, "access": "read-write"},
+        "Passes": {"minimum": 1, "integer": true, "access": "read-write"},
+        "Line width": {"unit": "mm", "minimum": 0, "access": "read-write"},
+        "Lead-in": {"unit": "mm", "minimum": 0, "access": "read-write"},
+        "Start G-code": {"access": "read-write"},
+        "Finish G-code": {"access": "read-write"},
+        "Tool on G-code": {"access": "read-write"},
+        "Tool off G-code": {"access": "read-write"}
+      }
     }
-  }],
-  "tags": [{"kind": "cut_avoid", "name": "Avoid", "text": "A"}, {"kind": "cut_no_cut", "name": "No-cut", "text": "N"}]
+  ],
+  "tags": [
+    {"kind": "cut_avoid", "name": "Avoid", "text": "A", "inherit": "nearest"},
+    {"kind": "cut_no_cut", "name": "No-cut", "text": "N", "inherit": "nearest"}
+  ]
 }
