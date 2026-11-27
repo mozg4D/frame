@@ -1,22 +1,92 @@
 {
   "id": "structural",
   "name": "Structural",
-  "description": "Under-construction authoring preview. No scene solver, voxel field or topology result is available.",
+  "description": "GPU matrix-free Hex8 structural finite-element analysis and SIMP topology optimization.",
   "module": "plugin.js",
   "icon": "icon.svg",
   "color": "#dfaa68",
   "objects": [{
     "type": "structural",
     "name": "Structural",
-    "fields": {"Voxel size": 1, "Material (%)": 30, "Displacement": 1},
+    "breakAfter": ["Material (%)"],
+    "fields": {
+      "Auto size": false,
+      "Voxel size": 2,
+      "Material (%)": 30
+    },
     "fieldOptions": {
+      "Auto size": {"access": "read-write"},
       "Voxel size": {"unit": "mm", "minimum": 0.000001, "access": "read-write"},
-      "Material (%)": {"minimum": 0.000001, "maximum": 100, "access": "read-write"},
-      "Displacement": {"minimum": 0, "access": "read-write"}
+      "Material (%)": {"minimum": 0.000001, "maximum": 100, "access": "read-write"}
     }
   }],
   "tags": [
-    {"kind": "structural_fixture", "name": "Fixture", "text": "X"},
-    {"kind": "structural_preserve", "name": "Preserve", "text": "P"}
+    {
+      "kind": "structural_material",
+      "name": "Material",
+      "text": "M",
+      "inherit": "nearest",
+      "fields": {
+        "Material": [
+          "Steel",
+          "Stainless Steel",
+          "Aluminium 6061",
+          "Titanium Ti-6Al-4V",
+          "Brass",
+          "Copper",
+          "PLA",
+          "PETG",
+          "ABS",
+          "Nylon PA12",
+          "Carbon Fiber",
+          "Concrete"
+        ]
+      }
+    },
+    {
+      "kind": "structural_fixture",
+      "name": "Fixture",
+      "text": "X",
+      "inherit": "nearest"
+    },
+    {
+      "kind": "structural_force",
+      "name": "Force",
+      "text": "F",
+      "multiple": true,
+      "inherit": "additive",
+      "fields": {
+        "Force X": 0,
+        "Force Y": 0,
+        "Force Z": 0,
+        "Torque X": 0,
+        "Torque Y": 0,
+        "Torque Z": 0
+      },
+      "fieldOptions": {
+        "Force X": {"unit": "N"},
+        "Force Y": {"unit": "N"},
+        "Force Z": {"unit": "N"},
+        "Torque X": {"unit": "Nm"},
+        "Torque Y": {"unit": "Nm"},
+        "Torque Z": {"unit": "Nm"}
+      },
+      "vectors": [
+        {"label": "Force", "unit": "N", "fields": ["Force X", "Force Y", "Force Z"]},
+        {"label": "Torque", "unit": "Nm", "fields": ["Torque X", "Torque Y", "Torque Z"]}
+      ]
+    },
+    {
+      "kind": "structural_optimize_space",
+      "name": "Optimize Space",
+      "text": "O",
+      "inherit": "nearest"
+    },
+    {
+      "kind": "structural_preserve",
+      "name": "Preserve",
+      "text": "P",
+      "inherit": "nearest"
+    }
   ]
 }
