@@ -39,6 +39,20 @@ export async function animationTransactionBrowserChecks(page){
   const current=await page.evaluate(({hash,uid})=>{const n=nodes.find(n=>n.nativeHash===hash),owner='mat:'+uid;frameWriteAttribute(n.id,'param:size x',999);frameWriteAttribute(owner,'material:rough',99);frameEngine.animationTransform(hash,'position',[9,8,7]);const affine=frameEngine.pluginLocal(hash);affine[4]+=.125;frameEngine.pluginSetLocal(hash,affine);const before={frame:JSON.stringify(frameEngine.uiFrames().find(f=>f.hash===hash)),size:n.params['size x'],rough:frameTarget(owner).rough,channels:JSON.stringify(frameSerializeChannels())};let error;try{frameAnimationTransaction([{h:n.id,path:'position'}],()=>{frameInsertCurveKey(frameGetTrack(n.id,'position'),13,0);n.params['size x']=123;throw Error('current-value regression fault');});}catch(e){error=e.message;}return {error,before,after:{frame:JSON.stringify(frameEngine.uiFrames().find(f=>f.hash===hash)),size:node(n.id).params['size x'],rough:frameTarget(owner).rough,channels:JSON.stringify(frameSerializeChannels())}};},{hash:object.hash,uid:material.uid});
   await call('scene.inspect');check('Native failed edit preserves exact unkeyed affine matrix, parameter and material instead of sampled values',current.error==='current-value regression fault'&&JSON.stringify(current.before)===JSON.stringify(current.after),current);
   const frame=await call('diagnostics.frame',{frames:6});timings.push({operation:'Native animation frame sample',frames:frame.frames});check('Native motion paths retain bounded CPU/GPU frame times',frame.timestampQueries&&frame.frames.every(f=>f.cpuMs<50&&f.gpuMs<100),frame);
+  await call('scene.new');const sphere=await call('scene.create',{type:'sphere'});
+  for(const [path,value] of [['param:diameter',80],['param:angle approximation',20],['position',[2,4,6]]])await call('animation.key',{id:sphere.hash,path,frame:0,value});
+  await call('scene.select',{ids:[sphere.hash]});await page.locator('#tabAttributes').click();
+  const field=key=>page.locator('#attrContent input[data-field="'+key+'"]'),label=key=>field(key).locator('xpath=ancestor::*[contains(@class,"attr-row")][1]').locator('.attr-lab');
+  const visible=()=>page.evaluate(()=>frameCurvesChannels().map(c=>c.path+'|'+c.axis));
+  const appendStart=performance.now();
+  await label('diameter').click();check('Plain attribute opens its own curve',(await visible()).join()==='param:diameter|0');
+  await label('angle approximation').click({modifiers:['Shift']});await label('angle approximation').click({modifiers:['Shift']});
+  check('Shift-click appends an attribute once',(await visible()).join()==='param:diameter|0,param:angle approximation|0');
+  await label('diameter').click();await field('angle approximation').click({modifiers:['Shift']});
+  check('Shift-click of an unfocused numeric field preserves the previous channel',(await visible()).length===2);
+  await page.locator('[data-curves-toggle="position"]').click({modifiers:['Shift']});
+  check('Shift-click of a transform label adds its three animated axes',(await visible()).length===5);
+  check('Attribute gestures complete within 3 seconds',performance.now()-appendStart<3000);
   return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}finally{await page.keyboard.up('Control');await page.mouse.up();}
 }

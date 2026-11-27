@@ -74,6 +74,13 @@ try{
  await call('spline.rebuild',{id:patch.hash});check('Rebuild keeps cell materials',same(await masks(),beforeUndo));
  const saved=await call('scene.export',{includeData:true});await call('scene.open',{name:'painted-patch.hash',base64:saved.base64});
  check('HASH reload keeps cell materials',same(await masks(),beforeUndo));
+ const cage=(await call('spline.inspect',{id:sources[0].hash})).data,edge=Object.values(cage.segments)[0];
+ edge.ha=[20,0,28];edge.hb=[-20,0,28];
+ const editStart=performance.now();await call('spline.replace',{id:sources[0].hash,data:cage});const changedPaint=await masks();
+ check('Cage edit changes the face ranges of painted cells',!same(changedPaint[0].cells.map(bits=>bits.length),beforeUndo[0].cells.map(bits=>bits.length)));
+ await call('edit.history',{action:'undo'});check('Cage Undo restores every original paint mask bit',same(await masks(),beforeUndo));
+ await call('edit.history',{action:'redo'});check('Cage Redo restores the edited face masks',same(await masks(),changedPaint));
+ await call('edit.history',{action:'undo'});check('Repeated cage history stays exact',same(await masks(),beforeUndo)&&performance.now()-editStart<5000);
  await call('view.set',{index:2,single:true,shading:'solid',mode:'object',focus:patch.hash});await call('scene.select',{ids:[]});
  await call('diagnostics.frame',{frames:2});
  const points=[];for(const [id,point]of [[sources[0].hash,[85,27,0]],[sources[1].hash,[205,27,0]]])points.push((await call('view.project',{id,point})).screen);

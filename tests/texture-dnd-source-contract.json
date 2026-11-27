@@ -183,17 +183,17 @@
     {
       "prefix": "    function syncMaterials(){",
       "nextPrefix": "    function refreshMaterialOwners(",
-      "bytes": 3301,
-      "sha256": "78313ecb5ba592e1044ca441f60f0b3e3596a8e48876c8043fdaeed04de81484",
+      "bytes": 3423,
+      "sha256": "138e5159ca80eb5c5936ca2278f03c3da2576111d2eeb797adfc7736dff1640a",
       "change": {
         "reason": "Current native material synchronization retains explicit library and owner identities.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
       },
       "sourceBindingUpdate": {
-        "reason": "Material synchronization invalidates the synchronous metadata read scope after publication. Source identity only; historical change metadata and native qualifications remain separate.",
-        "previousBytes": 3273,
-        "previousSHA256": "b7a618d0e716d06a299cf02be7960ee7de794a055f07ad3d208e1b207096c1eb",
-        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "reason": "Track the source cell layout of painted Spline Patch face masks across history restores.",
+        "previousBytes": 3301,
+        "previousSHA256": "78313ecb5ba592e1044ca441f60f0b3e3596a8e48876c8043fdaeed04de81484",
+        "sourceSHA256": "c9f7ba7d4d60daafaa55ab376b895965d02e3b22c68f43810e533d53be6e1399",
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
@@ -288,8 +288,8 @@
     {
       "prefix": "async function saveSceneFile(",
       "nextPrefix": "function showSaveFormats(focus=false){",
-      "bytes": 4318,
-      "sha256": "f6784ef27fc57baa23d69fcdaba479b82dc520571a026f52a8255dcc7f722c8f",
+      "bytes": 4528,
+      "sha256": "41eeae361369a09c5cc8d8f3e525cbc09e4df805fd8f55e9402034eed01d69bd",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 3101,
@@ -305,6 +305,15 @@
       "reviewedSource": {
         "commit": "f2d7c7dc4e1bb341802e67d3fb942a3707d0e1d8",
         "reason": "Save As supports the self-contained HTML player and its MIME type."
+      },
+      "sourceBindingUpdate": {
+        "reason": "Keep the current document alive while a native or browser file picker is open.",
+        "previousBytes": 4318,
+        "previousSHA256": "f6784ef27fc57baa23d69fcdaba479b82dc520571a026f52a8255dcc7f722c8f",
+        "sourceSHA256": "c9f7ba7d4d60daafaa55ab376b895965d02e3b22c68f43810e533d53be6e1399",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {

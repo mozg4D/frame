@@ -322,18 +322,6 @@ fn beadLocalSupport(tangent:vec3f,delta:vec2f,position:vec3f,rotation:mat4x4f,ma
 }
 fn beadViewOffset(local:vec3f,rotation:mat4x4f,matrix:mat4x4f,scale:f32)->vec3f{return (rotation*vec4f((matrix*vec4f(local,0)).xyz*scale,0)).xyz;}
 fn beadOffset(a:vec3f,b:vec3f,delta:vec2f,rotation:mat4x4f,matrix:mat4x4f,scale:f32,pan:vec2f,ortho:bool,width:f32,height:f32)->vec3f{return beadViewOffset(beadLocalSupport(b-a,delta,(a+b)*.5,rotation,matrix,scale,pan,ortho,width,height),rotation,matrix,scale);}
-fn beadJoin(previous:vec3f,position:vec3f,next:vec3f,incoming:vec2f,outgoing:vec2f,rotation:mat4x4f,matrix:mat4x4f,scale:f32,pan:vec2f,ortho:bool,width:f32,height:f32)->vec3f{
- let a=beadLocalSupport(position-previous,incoming,position,rotation,matrix,scale,pan,ortho,width,height);let b=beadLocalSupport(next-position,outgoing,position,rotation,matrix,scale,pan,ortho,width,height);
- let n=vec2f(-incoming.y,incoming.x)*inverseSqrt(max(dot(incoming,incoming),1e-20));let m=vec2f(-outgoing.y,outgoing.x)*inverseSqrt(max(dot(outgoing,outgoing),1e-20));let cosine=dot(n,m);let denominator=1.-cosine*cosine;var joined=(a.xz+b.xz)*.5;
- if(denominator>1e-5){let first=dot(a.xz,n);let second=dot(b.xz,m);joined=(n*(first-cosine*second)+m*(second-cosine*first))/denominator;let limit=2.*max(length(a.xz),length(b.xz));joined*=min(1.,limit/max(length(joined),1e-20));}
- return beadViewOffset(vec3f(joined.x,select(a.y,b.y,abs(b.y)>abs(a.y)),joined.y),rotation,matrix,scale);
-}
-// A changing neighbour can move a miter. Keep its influence within one bead
-// width of the joint, so a long straight wall retains its own cross-section.
-fn beadInset(delta:vec2f,width:f32)->f32{return min(.5,width/max(length(delta),1e-10));}
-fn straightSupport(a:vec3f,b:vec3f,delta:vec2f,p:vec3f,rotation:mat4x4f,matrix:mat4x4f,scale:f32,pan:vec2f,ortho:bool,width:f32,height:f32)->vec3f{
- return beadViewOffset(beadLocalSupport(b-a,delta,p,rotation,matrix,scale,pan,ortho,width,height),rotation,matrix,scale);
-}
 fn beadTriangleDepth(eye:vec3f,direction:vec3f,a:vec3f,b:vec3f,c:vec3f)->f32{let first=b-a;let second=c-a;let p=cross(direction,second);let determinant=dot(first,p);if(abs(determinant)<1e-20){return 1e30;}let inverse=1./determinant;let relative=eye-a;let u=dot(relative,p)*inverse;let q=cross(relative,first);let v=dot(direction,q)*inverse;if(u<0.||v<0.||u+v>1.){return 1e30;}let depth=dot(second,q)*inverse;return select(1e30,depth,depth>0.);}
 `;
 
@@ -348,18 +336,17 @@ fn screen(p:vec3f)->vec2f{let xy=p.xy+query.viewport.zw;var ndc=vec2f(xy.x*query
 @compute @workgroup_size(64) fn pick(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*64u;if(i>=query.range.z){return;}let layer=layers[i];if(layer+1u<query.range.x||layer+1u>query.range.y){return;}
  let segment=paths[i*2u];let a=view(segment.xy,layer);let b=view(segment.zw,layer);let za=-a.z;let zb=-b.z;let dz=zb-za;var low=0.;var high=1.;if(abs(dz)<1e-20){if(za<query.clip.x||za>query.clip.y){return;}}else{let near=(query.clip.x-za)/dz;let far=(query.clip.y-za)/dz;low=max(low,min(near,far));high=min(high,max(near,far));if(high<low){return;}}
  let first=mix(a,b,low);let last=mix(a,b,high);let sa=screen(first);let sb=screen(last);let delta=sb-sa;let t=clamp(dot(query.pointer.xy-sa,delta)/max(dot(delta,delta),1e-20),0.,1.);var u=t;if(query.range.w==0u){u=t*(-first.z)/max(1e-20,(1.-t)*(-last.z)+t*(-first.z));}let point=mix(first,last,u);
- var centres:array<vec3f,4>;var widths:array<vec3f,4>;var spans=1u;var offset=vec3f(0);var offsetA=vec3f(0);var offsetB=vec3f(0);var radius=8.;if(query.heights.w!=1.){let height=select(query.heights.y,query.heights.x,layer==0u);let record=bitcast<vec4u>(paths[i*2u+1u]);let base=i-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;offsetA=beadJoin(view(before,layer),a,b,segment.xy-before,segment.zw-segment.xy,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);offsetB=beadJoin(a,b,view(after,layer),segment.zw-segment.xy,after-segment.zw,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);let t=mix(low,high,u);offset=mix(offsetA,offsetB,t);
- if(query.heights.w==2.){
-  let delta=segment.zw-segment.xy;let inset=beadInset(delta,query.heights.z);
-  let left=mix(a,b,inset);let right=mix(a,b,1.-inset);
-  let leftOffset=straightSupport(a,b,delta,left,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);
-  let rightOffset=straightSupport(a,b,delta,right,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);
-  if(t<inset){offset=mix(offsetA,leftOffset,t/inset);}else if(t>1.-inset){offset=mix(rightOffset,offsetB,(t+inset-1.)/inset);}else{offset=mix(leftOffset,rightOffset,(t-inset)/max(1.-2.*inset,1e-10));}
-  centres=array<vec3f,4>(a,left,right,b);widths=array<vec3f,4>(offsetA,leftOffset,rightOffset,offsetB);spans=3u;
- }else{centres[0]=a;centres[1]=b;widths[0]=offsetA;widths[1]=offsetB;}let projected=screen(point+offset)-screen(point);radius=max(radius,length(projected));}if(distance(query.pointer.xy,sa+t*delta)>radius){return;}
+ var offset=vec3f(0);var radius=8.;
+ if(query.heights.w==0.){
+  let height=select(query.heights.y,query.heights.x,layer==0u);
+  offset=beadOffset(a,b,segment.zw-segment.xy,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);
+  radius=max(radius,max(length(screen(point+offset)-screen(point)),length(screen(point-offset)-screen(point))));
+ }
+ if(distance(query.pointer.xy,sa+t*delta)>radius){return;}
  let cursor=query.pointer.xy/query.pointer.zw*vec2f(2,-2)+vec2f(-1,1);var eye=vec3f(-query.viewport.zw,0);var direction=vec3f(cursor.x*query.viewport.x/query.clip.w,cursor.y/query.clip.w,-1);if(query.range.w!=0u){eye=vec3f(cursor.x*query.viewport.x/query.viewport.y-query.viewport.z,cursor.y/query.viewport.y-query.viewport.w,-query.clip.x);direction=vec3f(0,0,-1);}
- var exactHit=true;var depth=dot(point-eye,direction)/dot(direction,direction);if(query.heights.w!=1.){var exact=1e30;
- for(var j=0u;j<spans;j++){let p=centres[j];let q=centres[j+1u];let m=widths[j];let n=widths[j+1u];exact=min(exact,min(beadTriangleDepth(eye,direction,p-m,p+m,q-n),beadTriangleDepth(eye,direction,q-n,p+m,q+n)));}exactHit=exact<1e29;if(exactHit){depth=exact;}else{let normal=cross(b-a,offset);let denominator=dot(direction,normal);if(abs(denominator)>1e-20){depth=dot(a-eye,normal)/denominator;}}}if(depth>0.){atomicMin(&hit[0],bitcast<u32>(depth)|select(0x80000000u,0u,exactHit));}
+ var exactHit=true;var depth=dot(point-eye,direction)/dot(direction,direction);if(query.heights.w==0.){
+  let exact=min(beadTriangleDepth(eye,direction,a-offset,a+offset,b-offset),beadTriangleDepth(eye,direction,b-offset,a+offset,b+offset));
+  exactHit=exact<1e29;if(exactHit){depth=exact;}else{let normal=cross(b-a,offset);let denominator=dot(direction,normal);if(abs(denominator)>1e-20){depth=dot(a-eye,normal)/denominator;}}}if(depth>0.){atomicMin(&hit[0],bitcast<u32>(depth)|select(0x80000000u,0u,exactHit));}
 }`;
 
 const previewShader=beadShader+`
@@ -387,15 +374,9 @@ fn pathPoint(p:vec2f,i:u32,color:vec3f)->Output{let y=select(cfg.heights.x+(f32(
 @vertex fn bead(@builtin(vertex_index) vertex:u32,@builtin(instance_index) instance:u32)->Output{
  let upward=(camera.rotation*vec4f((frame.matrix*vec4f(0,1,0,0)).xyz,0)).z>0.;let index=select(drawRange.x+instance,drawRange.y-1u-instance,upward);
  let s=paths[index*2u];let layer=layers[index];let y=select(cfg.heights.x+(f32(layer)-.5)*cfg.heights.y,cfg.heights.x*.5,layer==0u);let height=select(cfg.heights.y,cfg.heights.x,layer==0u);
- let record=bitcast<vec4u>(paths[index*2u+1u]);let base=index-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;let station=vertex/2u;let detailed=drawRange.z!=0u;
- let end=station==select(1u,3u,detailed);let interior=detailed&&(station==1u||station==2u);
- let delta=s.zw-s.xy;let inset=beadInset(delta,frame.settings.y);
  let a=cameraPoint(vec3f(s.x,y,s.y));let b=cameraPoint(vec3f(s.z,y,s.w));
- let previous=select(before,s.xy,end);let position=select(s.xy,s.zw,end);let next=select(s.zw,after,end);
- var p=select(a,b,end);if(interior){p=mix(a,b,select(inset,1.-inset,station==2u));}
- let tangent=b-a;
- let support=straightSupport(a,b,delta,p,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);
- var offset=support;if(!interior){offset=beadJoin(cameraPoint(vec3f(previous.x,y,previous.y)),p,cameraPoint(vec3f(next.x,y,next.y)),position-previous,next-position,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);}
+ let p=select(a,b,vertex>=2u);let tangent=b-a;
+ let offset=beadOffset(a,b,s.zw-s.xy,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);
  let side=select(-1.,1.,(vertex&1u)!=0u);
  let localStep=beadViewOffset(vec3f(0,height,0),camera.rotation,frame.matrix,camera.centerScale.w);
  // Project both supports on the same screen normal; their ratio is in bead half-widths.
@@ -403,16 +384,14 @@ fn pathPoint(p:vec2f,i:u32,color:vec3f)->Output{let y=select(cfg.heights.x+(f32(
  let depth=max(-p.z,camera.clip.x);
  let screenTangent=tangent.xy+eye*(tangent.z/depth);
  let normal=vec2f(-screenTangent.y,screenTangent.x)*inverseSqrt(max(dot(screenTangent,screenTangent),1e-30));
- let width=dot(normal,support.xy+eye*(support.z/depth));
- let joinedWidth=dot(normal,offset.xy+eye*(offset.z/depth));
+ let width=dot(normal,offset.xy+eye*(offset.z/depth));
  let plane=cross(tangent,offset);
  let upperNear=dot(plane,localStep)*dot(plane,vec3f(-eye,depth))>0.;
  var spacing=3.;
  if(abs(width)>1e-12&&select(f32(layer+1u)>cfg.heights.z,f32(layer+1u)<cfg.heights.w,upperNear)){
   spacing=clamp(dot(normal,localStep.xy+eye*(localStep.z/depth))/width*select(-1.,1.,upperNear),-2.,2.);
  }
- let u=side*select(1.,clamp(joinedWidth/width,-4.,4.),abs(width)>1e-12);
- return projectView(p+offset*side,vec3f(1),vec2f(spacing,u));
+ return projectView(p+offset*side,vec3f(1),vec2f(spacing,side));
 }
 @vertex fn control(@builtin(vertex_index) vertex:u32,@builtin(instance_index) instance:u32)->Output{let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(-1,1),vec2f(-1,1),vec2f(1,-1),vec2f(1,1));var out=pathPoint(paths[instance*2u].xy,layers[instance],vec3f(.35,.8,1));out.position=vec4f(out.position.xy+corners[vertex]*3./camera.frame.xy*out.position.w,out.position.zw);return out;}
 @vertex fn map(@builtin(vertex_index) vertex:u32)->Output{let corners=array<vec2f,6>(vec2f(0,0),vec2f(1,0),vec2f(0,1),vec2f(0,1),vec2f(1,0),vec2f(1,1));let uv=corners[vertex];let xz=cfg.domain.xy+uv*cfg.domain.zw*vec2f(cfg.size.xy);let i=cfg.size.w;let y=select(cfg.heights.x+(f32(i)-.5)*cfg.heights.y,cfg.heights.x*.5,i==0u);return project(vec3f(xz.x,y,xz.y),vec3f(1),uv);}
@@ -446,23 +425,25 @@ async function createPreview(context,slicer){
  const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='map'?'coverage':entryPoint==='bead'?'beadColor':'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),...entryPoint==='bead'?{}:{blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}}]},primitive:{topology:entryPoint==='bead'?'triangle-strip':entryPoint==='perimeter'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:entryPoint==='bead',depthCompare:'less-equal'}});
  const [lines,points,beads]=await Promise.all(['perimeter','control','bead'].map(entry=>Promise.all([false,true].map(o=>pipeline(entry,o)))));
  const groups=new WeakMap(),group=(buffer,layout)=>{let cache=groups.get(buffer);if(!cache)groups.set(buffer,cache=new Map());if(!cache.has(layout))cache.set(layout,d.createBindGroup({layout,entries:[{binding:0,resource:{buffer}}]}));return cache.get(layout);};
- return ({pass,camera,frame,orthographic,hash,params})=>{
+ return ({pass,camera,frame,orthographic,hash,params,shading})=>{
+  if(!slicer.previewVisible(hash,shading))return;
   const job=slicer.jobs.get(hash);if(!job||job.state!=='complete')return;if(job.result&&!slicer.matches(job))slicer.invalidate(job);if(!job.result)return;
   slicer.reconstruct(job,Math.round(params['Finish layer']),params);slicer.ensurePreview(job,params);const r=job.result,v=r.preview;
   if(!v?.segments||v.error)return;
   if(!v.group){v.drawRange=d.createBuffer({label:'Printer preview draw range',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});v.resources.push(v.drawRange);v.bytes+=16;v.group=d.createBindGroup({layout:imageLayout,entries:[{binding:0,resource:r.image.createView()},{binding:1,resource:{buffer:r.config}},{binding:2,resource:{buffer:v.output}},{binding:3,resource:{buffer:v.layers}},{binding:4,resource:{buffer:v.drawRange}}]});}
   const first=v.ranges.find(a=>a.last>=r.previewStart),last=v.ranges.findLast(a=>a.first<=r.previewLayer);if(!first||!last)return;
   const offset=first.offset+Math.max(0,r.previewStart-first.first)*first.count,end=last.offset+(Math.min(r.previewLayer,last.last)-last.first+1)*last.count,n=Math.max(0,end-offset);if(!n)return;
-  if(v.firstDraw!==offset||v.endDraw!==end){d.queue.writeBuffer(v.drawRange,0,new Uint32Array([offset,end,r.sections.length>1?1:0,0]));v.firstDraw=offset;v.endDraw=end;}
+  if(v.firstDraw!==offset||v.endDraw!==end){d.queue.writeBuffer(v.drawRange,0,new Uint32Array([offset,end,0,0]));v.firstDraw=offset;v.endDraw=end;}
   pass.setBindGroup(0,group(camera,cameraLayout));pass.setBindGroup(1,group(frame,frameLayout));pass.setBindGroup(2,v.group);
   if(slicer.polyline(hash)){pass.setPipeline(lines[orthographic?1:0]);pass.draw(n*2,1,offset*2);pass.setPipeline(points[orthographic?1:0]);pass.draw(6,n,0,offset);}
-  else{pass.setPipeline(beads[orthographic?1:0]);pass.draw(r.sections.length>1?8:4,n);}
+  else{pass.setPipeline(beads[orthographic?1:0]);pass.draw(4,n);}
  };
 }
 
 class LDISlicer{
  constructor(context){this.context=context;this.jobs=new Map();this.initialized=new Map();this.polylineModes=new Map();this.serial=0;this.pipelines=new WeakMap();this.navigationQueue=Promise.resolve();this.navigationSerial=0;}
  polyline(hash){return this.polylineModes.get(hash)===true;}
+ previewVisible(hash,shading){return this.polyline(hash)||!['wireframe','isoparms','off'].includes(shading);}
  setPolyline(hash,enabled=!this.polyline(hash)){this.polylineModes.set(hash,enabled);this.navigationSerial++;this.context.requestAttributes();this.context.requestDraw();return {polyline:enabled};}
  capture(hash){return this.context.scene.capture(hash,KEYS,{bounds:BUILD_BOUNDS,includeHidden:true});}
  signature(hash,includeHidden=true){try{return this.context.scene.signature(hash,KEYS,{includeHidden,bounds:BUILD_BOUNDS});}catch{return null;}}
@@ -482,8 +463,8 @@ class LDISlicer{
  progress(job,completed,total=job.total){if(job.state!=='running')return;job.completed=completed;job.total=total;if(!job.progressFrame)job.progressFrame=requestAnimationFrame(()=>{job.progressFrame=0;if(this.jobs.get(job.hash)===job&&job.state==='running')this.context.requestAttributes();});}
  navigation(x,y){if(![...this.jobs.values()].some(job=>job.state==='complete'&&job.result?.preview?.segments&&this.context.viewport.isVisible(job.hash)))return null;const request=++this.navigationSerial,run=()=>request===this.navigationSerial?this.pickNavigation(x,y,request):null;return this.navigationQueue=this.navigationQueue.catch(()=>null).then(run);}
  async pickNavigation(x,y,request){const context=this.context,d=context.device;await context.requestDraw();if(request!==this.navigationSerial||context.device!==d)return null;const view=context.editor.view(),{rect}=view;if(x<rect.left||y<rect.top||x>rect.left+rect.width||y>rect.top+rect.height)return null;
-  const pipeline=(await this.kernels(d)).navigation;if(request!==this.navigationSerial||context.device!==d)return null;const jobs=[...this.jobs.values()].filter(job=>job.state==='complete'&&job.result?.preview?.segments&&!job.result.retired&&context.viewport.isVisible(job.hash)&&this.matches(job));if(!jobs.length)return null;const records=[],uniform=d.createBuffer({label:'Printer navigation query',size:256,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),out=d.createBuffer({label:'Printer navigation winner',size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),read=d.createBuffer({label:'Printer navigation depth',size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-  try{d.queue.writeBuffer(out,0,new Uint32Array([0xffffffff,0,0,0]));for(const job of jobs){const r=job.result,v=r.preview,data=new Float32Array(64),world=Array.from(context.document.world(job.hash));data.set(view.camera);data.set(world,36);data.set([x-rect.left,y-rect.top,rect.width,rect.height],52);new Uint32Array(data.buffer).set([r.previewStart,r.previewLayer,v.segments,view.index?1:0],56);data.set([job.options.initial,job.options.height,job.options.width,this.polyline(job.hash)?1:r.sections.length>1?2:0],60);d.queue.writeBuffer(uniform,0,data);const group=d.createBindGroup({layout:pipeline.layout,entries:[v.output,v.layers,uniform,out].map((buffer,binding)=>({binding,resource:{buffer}}))});this.dispatch(d,pipeline.pick,group,v.segments,64);records.push({job,r,v,world,first:r.previewStart,last:r.previewLayer,polyline:this.polyline(job.hash)});}
+  const pipeline=(await this.kernels(d)).navigation;if(request!==this.navigationSerial||context.device!==d)return null;const jobs=[...this.jobs.values()].filter(job=>job.state==='complete'&&job.result?.preview?.segments&&!job.result.retired&&context.viewport.isVisible(job.hash)&&this.previewVisible(job.hash,view.shading)&&this.matches(job));if(!jobs.length)return null;const records=[],uniform=d.createBuffer({label:'Printer navigation query',size:256,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),out=d.createBuffer({label:'Printer navigation winner',size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),read=d.createBuffer({label:'Printer navigation depth',size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  try{d.queue.writeBuffer(out,0,new Uint32Array([0xffffffff,0,0,0]));for(const job of jobs){const r=job.result,v=r.preview,data=new Float32Array(64),world=Array.from(context.document.world(job.hash));data.set(view.camera);data.set(world,36);data.set([x-rect.left,y-rect.top,rect.width,rect.height],52);new Uint32Array(data.buffer).set([r.previewStart,r.previewLayer,v.segments,view.index?1:0],56);data.set([job.options.initial,job.options.height,job.options.width,this.polyline(job.hash)?1:0],60);d.queue.writeBuffer(uniform,0,data);const group=d.createBindGroup({layout:pipeline.layout,entries:[v.output,v.layers,uniform,out].map((buffer,binding)=>({binding,resource:{buffer}}))});this.dispatch(d,pipeline.pick,group,v.segments,64);records.push({job,r,v,world,first:r.previewStart,last:r.previewLayer,polyline:this.polyline(job.hash)});}
    const copy=d.createCommandEncoder();copy.copyBufferToBuffer(out,0,read,0,16);d.queue.submit([copy.finish()]);await read.mapAsync(GPUMapMode.READ);const bits=new Uint32Array(read.getMappedRange())[0],depth=new Float32Array(new Uint32Array([bits&0x7fffffff]).buffer)[0];read.unmap();if(request!==this.navigationSerial||context.device!==d||!Number.isFinite(depth)||depth<=0)return null;const current=context.editor.view();if(current.instance!==view.instance||current.rect.left!==rect.left||current.rect.top!==rect.top||current.rect.width!==rect.width||current.rect.height!==rect.height||current.camera.some((v,i)=>v!==view.camera[i]))return null;
    for(const {job,r,v,world,first,last,polyline}of records){const n=context.document.nodes.find(n=>n.nativeHash===job.hash);if(!n||job.result!==r||r.retired||r.preview!==v||r.previewStart!==first||r.previewLayer!==last||this.polyline(job.hash)!==polyline||!context.viewport.isVisible(job.hash)||!this.matches(job))return null;const finish=Math.max(1,Math.min(r.lastLayer,Math.round(n.params['Finish layer']))),start=Math.max(1,Math.min(finish,Math.round(n.params['Start layer']))),currentWorld=context.document.world(job.hash);if(start!==first||finish!==last||world.some((v,i)=>v!==currentWorld[i]))return null;}return {depth};
   }finally{if(read.mapState==='mapped')read.unmap();uniform.destroy();out.destroy();read.destroy();}
