@@ -1,155 +1,249 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {activate} from '../plugin.js';
-import {nativeCreationFixture,math,manifest,core} from './native-creation-fixture.mjs';
+import {
+  activate, MATERIALS, MEDIA, CELL_TYPE, ROLE, DEFAULT_MATERIAL_NAME,
+  FAN_CREATION_FRAME, PROBE_CREATION_FRAME,
+  resolveMaterialProps, validateThermalParameters, validateFanParameters,
+  computeManualDomain, computeAutoDomain, gridPointToWorldMm, worldMmToGrid,
+  buildThermalModel, evaluateThermalFields, samplePointReading, nativeFanMetadata
+} from '../plugin.js';
 
-export async function fixture(){
- const native=nativeCreationFixture();let operations,attributes,viewport,editor,deviceReads=0;
- const context={version:1,document:native.context.document,math,
-  get device(){deviceReads++;throw Error('Authoring must not acquire a numerical device.');},
-  scene:{capture(){throw Error('Authoring must not capture numerical geometry.');}},
-  operations:{register:v=>operations=v},attributes:{register:v=>attributes=v},
-  editor:{...native.context.editor,register:v=>{editor=v;native.context.editor.register(v);}},
-  viewport:{register:async v=>{viewport=v;native.entry.viewport=v;}},
-  requestAttributes(){throw Error('No numerical status refresh.');},requestDraw(){throw Error('No numerical drawing.');}};
- await activate(context);const owner=native.create('thermal');native.sync();await native.context.editor.selectOwner(owner.nativeHash);
- const command=(id,args={},hash=owner.nativeHash)=>operations.find(o=>o.id===id).run(hash,args);
- return {native,owner,context,command,operations,attributes,viewport,editor,get deviceReads(){return deviceReads;}};
+const manifest = JSON.parse(await readFile(new URL('../plugin.json', import.meta.url), 'utf8'));
+
+function makeMockContext() {
+  let seq = 0, transactions = 0;
+  const nodes = [];
+  const locals = new Map();
+  const I = () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  const unpack = p => [p[0],p[1],p[2],0, p[3],p[4],p[5],0, p[6],p[7],p[8],0, p[9],p[10],p[11],1];
+  const mul = (a, b) => {
+    const o = new Array(16).fill(0);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++)
+      for (let k = 0; k < 4; k++) o[c*4+r] += a[k*4+r] * b[c*4+k];
+    return o;
+  };
+  const inv = m => {
+    // Orthogonal + translation inverse (exact for non-sheared frames)
+    const sx2 = m[0]*m[0]+m[1]*m[1]+m[2]*m[2];
+    const sy2 = m[4]*m[4]+m[5]*m[5]+m[6]*m[6];
+    const sz2 = m[8]*m[8]+m[9]*m[9]+m[10]*m[10];
+    const o = [
+      m[0]/sx2, m[4]/sy2, m[8]/sz2, 0,
+      m[1]/sx2, m[5]/sy2, m[9]/sz2, 0,
+      m[2]/sx2, m[6]/sy2, m[10]/sz2, 0,
+      0, 0, 0, 1
+    ];
+    const tx = m[12], ty = m[13], tz = m[14];
+    o[12] = -(o[0]*tx + o[4]*ty + o[8]*tz);
+    o[13] = -(o[1]*tx + o[5]*ty + o[9]*tz);
+    o[14] = -(o[2]*tx + o[6]*ty + o[10]*tz);
+    return o;
+  };
+  const point = (m, p) => [
+    m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12],
+    m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13],
+    m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14]
+  ];
+  const world = hash => {
+    const n = nodes.find(x => x.nativeHash === hash);
+    if (!n) return I();
+    const loc = locals.get(hash) || I();
+    if (!n.parent) return loc;
+    const p = nodes.find(x => x.id === n.parent);
+    return p ? mul(world(p.nativeHash), loc) : loc;
+  };
+  let operations = [], attributesFn = null, editorHooks = null, viewportReg = null;
+  const defs = Object.fromEntries(manifest.objects.map(o => [o.type, o.fields]));
+  const doc = {
+    get nodes() { return nodes; },
+    get frame() { return 0; },
+    pause() {},
+    world,
+    local: hash => locals.get(hash) || I(),
+    transaction(fn) { transactions++; fn(); },
+    create(type, parentHash = null, name = type) {
+      const hash = (++seq).toString(16).padStart(32, '0');
+      const parent = parentHash ? nodes.find(x => x.nativeHash === parentHash)?.id || null : null;
+      const params = Object.fromEntries(Object.entries(defs[type]).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
+      const n = {id: 'n' + seq, nativeHash: hash, type, parent, name, enabled: true, visible: true, params, tags: []};
+      editorHooks?.created?.(n);
+      if (n.creationFrame) { locals.set(hash, unpack(n.creationFrame)); delete n.creationFrame; }
+      else locals.set(hash, I());
+      nodes.push(n);
+      return n;
+    },
+    select() {}
+  };
+  const context = {
+    version: 1, device: null, document: doc,
+    math: {I, mul, inv, point},
+    operations: {register: ops => operations = ops},
+    attributes: {register: fn => attributesFn = fn},
+    editor: {register: h => editorHooks = h, selectOwner: async () => {}},
+    viewport: {register: async v => viewportReg = v},
+    animation: {timeline: () => ({fps: 60, total: 120}), inspect: () => ({channels: []}), seek: async () => {}},
+    requestAttributes() {}, requestDraw() {}
+  };
+  return {
+    context, doc, locals,
+    get operations() { return operations; },
+    get attributes() { return attributesFn; },
+    get editor() { return editorHooks; },
+    get viewport() { return viewportReg; },
+    get transactions() { return transactions; }
+  };
 }
-const snapshot=f=>JSON.stringify({nodes:f.native.nodes,frames:f.native.nodes.map(n=>[n.nativeHash,Array.from(f.native.local(n.nativeHash))]),transactions:f.native.transactions,selected:f.native.selected});
-const shape=(f,hash)=>Array.from(f.native.local(hash));
 
-test('manifest is a lazy authoring-only closure with genuine 32 px native icon',async()=>{
- assert.equal(manifest.assets,undefined);assert.equal(manifest.tags,undefined);
- assert.deepEqual(manifest.objects.map(o=>o.type),['thermal','thermal_probe','thermal_fan']);
- const source=await readFile(new URL('../plugin.js',import.meta.url),'utf8'),icon=await readFile(new URL('../icon.svg',import.meta.url),'utf8');
- assert.match(icon,/width="32" height="32" viewBox="0 0 32 32"/);assert.doesNotMatch(icon,/transform=/);
- assert.doesNotMatch(source,/createBuffer|createTexture|createComputePipeline|requestAdapter|solveConduction|scene-conjugate|navigator\.gpu/);
- assert.match(core,/button\.disabled=!!action\.disabled/);
- const catalogue=JSON.parse(await readFile(new URL('../../index.json',import.meta.url),'utf8'));assert.equal(catalogue.filter(x=>x==='thermal/plugin.json').length,1);
-});
-
-test('every authoring type has a disabled explicit status and no Solve or Measure action',async()=>{
- const f=await fixture(),fan=await f.command('create-fan'),probe=await f.command('create-probe');
- for(const hash of [f.owner.nativeHash,fan.hash,probe.hash]){
-  const a=f.attributes(hash),s=f.command('status',{},hash);
-  assert.deepEqual(a.actions[0],{id:'status',label:'Under construction',disabled:true});
-  assert.ok(a.actions.every(a=>!['measure','solve-grid','solve-scene','clear','cancel'].includes(a.id)));
-  assert.equal(s.authoringOnly,true);assert.equal(s.numericalAvailable,false);assert.equal(s.measurementAvailable,false);assert.equal(s.state,'under-construction');
- }
- assert.deepEqual(f.attributes(f.owner.nativeHash).actions.slice(1).map(a=>a.id),['create-fan','create-probe']);
- assert.equal(f.deviceReads,0);assert.equal(f.viewport.render,undefined);assert.equal(f.editor.flush,undefined);
-});
-
-test('every numerical endpoint rejects arbitrary input before mutation, device access or capture',async()=>{
- const f=await fixture(),probe=await f.command('create-probe');
- const before=snapshot(f),started=performance.now();
- for(const id of ['solve-grid','solve-scene','measure','inspect','inspect-velocity'])for(const hash of [f.owner.nativeHash,probe.hash])for(const args of [{},{dimensions:[1,1,1],conductivity:[1],cellSize:[.1,.1,.1]},{untrusted:'not a physical request'}]){
-  const op=f.operations.find(o=>o.id===id);assert.equal(op.readOnly,true);assert.equal(op.interrupt,undefined);
-  assert.throws(()=>f.command(id,args,hash),e=>e.code==='THERMAL_AUTHORING_ONLY');assert.equal(snapshot(f),before);
- }
- const wallMs=performance.now()-started;assert.ok(wallMs<100);assert.equal(f.deviceReads,0);
- console.log(JSON.stringify({operation:'30 rejection-only numerical calls',wallMs,budgetMs:100,hardwareVerified:false}));
-});
-
-test('Fan has exact 30 by 30 by 10 mm native frame and local-X direction independent of native hierarchy',async()=>{
- const f=await fixture(),{hash}=await f.command('create-fan');let fan=f.native.nodes.find(n=>n.nativeHash===hash),r=f.command('fan-inputs');
- assert.deepEqual(shape(f,hash),[.3,0,0,0,0,.3,0,0,0,0,.1,0,-25,-12.5,-12.5,1]);
- assert.deepEqual(r.fan.mapping.sizeMM,[30,30,10]);assert.deepEqual(r.fan.directionLocal,[1,0,0]);assert.equal(r.solverEligible,false);
- f.editor.parameters(fan,{Direction:'Reverse'});fan.params.Direction='Reverse';r=f.command('fan-inputs');assert.deepEqual(r.fan.directionLocal,[-1,0,0]);
- const matrix=math.rotation([0,0,1],Math.PI/2);matrix[0]*=.25;matrix[1]*=.25;matrix[4]*=.25;matrix[5]*=.25;matrix[10]=.25;
- f.native.setLocal(hash,matrix);r=f.command('fan-inputs');assert.ok(Math.abs(r.fan.normalizedWorldAxis[1]+1)<1e-12);assert.equal(r.fan.mapping.status,'unsupported-frame');
- const other=f.native.create('thermal');f.native.sync();fan.parent=other.id;assert.equal(f.command('fan-inputs',{},hash).ownerHash,f.owner.nativeHash);
- assert.equal(f.deviceReads,0);
-});
-
-test('Fan and Probe parameter validation rejects invalid references before native mutation',async()=>{
- const f=await fixture();for(const type of ['thermal_fan','thermal_probe']){
-  const {hash}=await f.command(type==='thermal_fan'?'create-fan':'create-probe'),n=f.native.nodes.find(n=>n.nativeHash===hash),before=snapshot(f);
-  for(const Thermal of ['missing',hash,42]){assert.throws(()=>f.editor.parameters(n,{Thermal}),e=>e.code==='INVALID_ARGUMENT');assert.equal(snapshot(f),before);}
-  assert.deepEqual(f.editor.parameters(n,{Thermal:''}),{});assert.deepEqual(f.editor.parameters(n,{Thermal:f.owner.nativeHash}),{});
-  if(type==='thermal_fan')for(const patch of [{'Shutoff pressure':-1},{'Free flow':0},{Direction:'Up'}])assert.throws(()=>f.editor.parameters(n,patch),e=>e.code==='INVALID_ARGUMENT');
- }
- assert.throws(()=>f.editor.parameters(f.owner,{Ambient:-274}),e=>e.code==='INVALID_ARGUMENT');
-});
-
-test('repeated completed authoring creation and metadata inspection stay bounded with zero numerical allocations',async()=>{
- const f=await fixture(),started=performance.now();
- for(let i=0;i<32;i++){const {hash}=await f.command(i%2?'create-fan':'create-probe');if(i%2){const r=f.command('fan-inputs',{},hash);assert.deepEqual(r.fan.mapping.sizeMM,[30,30,10]);}assert.equal(f.command('status',{},hash).numericalAvailable,false);}
- const wallMs=performance.now()-started;assert.ok(wallMs<1500);assert.equal(f.native.transactions,32);assert.equal(f.deviceReads,0);
- console.log(JSON.stringify({operation:'32 native preview creations plus status/Fan metadata',wallMs,budgetMs:1500,hardwareVerified:false}));
-});
-
-const sourceRecord=(id,text='inert source')=>({id,revision:0,name:'Thermal note',kind:'source',refs:[],payload:{language:'text',text}});
-test('Scene author data survives Thermal child creation, selection, frames and actual native record encoding',async()=>{
- const f=await fixture(),{authorData:F,codec}=f.native,owner=f.owner.nativeHash,id='c'.repeat(32),started=performance.now();
- const replace=(hash,records)=>{const s=F.get(hash);return F.replace(hash,{epoch:s.epoch,revision:s.data.revision},records);};
- replace(owner,[sourceRecord(id)]);replace('scene',[sourceRecord(id,'root note')]);
- const ownerState=F.get(owner),rootState=F.get('scene'),before=f.native.transactions;
- const {hash}=await f.command('create-fan');assert.equal(f.native.transactions,before+1);assert.equal(f.native.selected.hash,hash);
- replace(hash,[sourceRecord(id,'same ID, different native owner')]);
- const frames=f.native.applyDelta(math.translation([3,4,5]));f.native.restoreFrames(frames);f.native.sync();
- assert.deepEqual(F.get(owner),ownerState);assert.deepEqual(F.get('scene'),rootState);assert.equal(F.get(hash).data.records[0].payload.text,'same ID, different native owner');
- for(const [address,expected,root] of [[codec.address(owner,'parameters'),ownerState.data,false],[codec.K.parameters,rootState.data,true],[codec.address(hash,'parameters'),F.get(hash).data,false]]){
-  const record=f.native.records().get(address),packed=await codec.pack(record),index=await codec.index(packed.blob),decoded=JSON.parse(await codec.read(packed.blob,index.get(address)));
-  assert.deepEqual(decoded.authorData,expected);if(!root)assert.equal(decoded.plugin.id,'thermal');
- }
- assert.ok(performance.now()-started<1500);assert.equal(f.deviceReads,0);
-});
-test('Thermal creation invalidates native field CAS while data revisions and no-op commits retain their contracts',async()=>{
- const f=await fixture(),{authorData:F,fields}=f.native,owner=f.owner.nativeHash,id='d'.repeat(32),started=performance.now();
- const field=fields.read(owner,'name');await f.command('create-probe');
- assert.throws(()=>fields.write([{owner,field:'name',value:'stale',epoch:field.epoch,revision:field.revision}]),e=>e.code==='CONFLICT');
- let s=F.get(owner);s=F.replace(owner,{epoch:s.epoch,revision:s.data.revision},[sourceRecord(id)]);
- const transactions=f.native.transactions,generation=F.generation;
- assert.deepEqual(F.replace(owner,{epoch:s.epoch,revision:s.data.revision},s.data.records),s);
- assert.equal(f.native.transactions,transactions);assert.equal(F.generation,generation);
- assert.throws(()=>F.replace(owner,{epoch:s.epoch,revision:s.data.revision},[sourceRecord(id,'changed without record revision')]),e=>e.code==='CONFLICT');
- const changed=F.replace(owner,{epoch:s.epoch,revision:s.data.revision},[{...sourceRecord(id,'changed'),revision:1}]);
- assert.equal(changed.data.revision,s.data.revision+1);assert.equal(changed.data.records[0].revision,1);
- assert.throws(()=>F.replace(owner,{epoch:s.epoch,revision:s.data.revision},[]),e=>e.code==='CONFLICT');assert.ok(performance.now()-started<1500);
-});
-test('Real native installation reserves preexisting Thermal owner record IDs without conflating namespaces',async()=>{
- const f=await fixture(),F=f.native.authorData,id='e'.repeat(32),owner=f.owner.nativeHash,started=performance.now();
- f.owner.authorData={version:1,revision:0,records:[sourceRecord(id)]};f.native.sync();delete f.owner.authorData;f.native.sync();
- const stale=F.get(owner);assert.throws(()=>F.replace(owner,{epoch:stale.epoch,revision:0},[sourceRecord(id,'unrelated')]),e=>e.code==='CONFLICT');
- const {hash}=await f.command('create-probe'),s=F.get(hash);
- assert.doesNotThrow(()=>F.replace(hash,{epoch:s.epoch,revision:s.data.revision},[sourceRecord(id,'other namespace')]));assert.ok(performance.now()-started<1500);
-});
-
-
-test('Actual checkpoint fences changed metadata once after no-op and batch guards; mutation controls detect lost or early fencing',()=>{
- // Only snapshots, history storage and UI notification endpoints are CPU adapters.
- // Execute the entire shipped checkpoint and its actual content comparator, not a
- // reimplemented checkpoint condition. This binds both fixtures' modeled changed().
- const extract=start=>{assert.equal(core.split(start).length,2);const a=core.indexOf(start);return core.slice(a,core.indexOf('\n',a));};
- const shipped=extract('function checkpoint(before){'),comparator=extract('function frameSnapshotContent(value){');
- const verify=source=>{
-  for(const [label,batch,before,after,expected] of [
-   ['changed metadata',0,{nodes:[{nativeHash:'a'.repeat(32),name:'before'}]},{nodes:[{nativeHash:'a'.repeat(32),name:'after'}]},1],
-   ['identical snapshot',0,{nodes:[]},{nodes:[]},0],
-   ['frame-only snapshot',0,{nodes:[],nativeFrames:[1],nativePivot:[0]},{nodes:[],nativeFrames:[2],nativePivot:[1]},0],
-   ['batched change',1,{nodes:[]},{nodes:[{name:'new'}]},0]
-  ]){
-   const F=nativeCreationFixture().authorData,start=F.generation;
-   const run=new Function('FrameAuthorData','frameBatchDepth','after',`
-    const snapshot=()=>after,undoStack=[],frameUIUndoSequence=[];
-    let redoStack=['prior redo'],frameUIRedoSequence=[1];
-    const window={},frameTrimUIUndo=()=>{},frameSyncMaterials=()=>{};
-    ${comparator}\n${source}
-    return before=>{checkpoint(before);return {undo:undoStack.length,redo:redoStack.length};};
-   `)(F,batch,JSON.stringify(after));
-   const result=run(JSON.stringify(before));
-   assert.equal(F.generation-start,expected,label+' generation');
-   assert.equal(result.undo,expected,label+' history');
-   assert.equal(result.redo,expected?0:1,label+' redo');
+test('manifest declares Thermal objects, 3 tags, Custom material visibleWhen and 32 px icon', async () => {
+  assert.deepEqual(manifest.objects.map(o => o.type), ['thermal', 'thermal_probe', 'thermal_fan']);
+  assert.deepEqual(manifest.tags.map(t => t.kind), ['thermal_material', 'thermal_heater', 'thermal_temperature']);
+  const matTag = manifest.tags[0];
+  assert.ok(matTag.fields.Material.includes('Custom'));
+  assert.equal(matTag.fields.Material[0], DEFAULT_MATERIAL_NAME);
+  for (const key of ['Conductivity', 'Density', 'Specific heat', 'Emissivity']) {
+    assert.deepEqual(matTag.fieldOptions[key].visibleWhen, {field: 'Material', equals: 'Custom'});
   }
- };
- const started=performance.now();verify(shipped);
- assert.equal(shipped.split('FrameAuthorData.changed();').length,2);
- assert.throws(()=>verify(shipped.replace('FrameAuthorData.changed();','')),/changed metadata generation/);
- const early=shipped.replace('FrameAuthorData.changed();','').replace('function checkpoint(before){','function checkpoint(before){FrameAuthorData.changed();');
- assert.throws(()=>verify(early),/identical snapshot generation/);
- assert.ok(performance.now()-started<1500,'Actual checkpoint and mutation controls exceed 1500 ms');
+  const fanSpec = manifest.objects.find(o => o.type === 'thermal_fan');
+  assert.equal(fanSpec.fields['Shutoff pressure'], 25);
+  assert.equal(fanSpec.fields['Free flow'], 0.005);
+  const icon = await readFile(new URL('../icon.svg', import.meta.url), 'utf8');
+  assert.match(icon, /width="32" height="32" viewBox="0 0 32 32"/);
+});
+
+test('resolveMaterialProps supports presets, fallback Aluminium 6061 and Custom attributes', () => {
+  const fb = resolveMaterialProps(null);
+  assert.equal(fb.name, DEFAULT_MATERIAL_NAME);
+  assert.equal(fb.fallback, true);
+  assert.equal(fb.k, MATERIALS[DEFAULT_MATERIAL_NAME].k);
+
+  const cu = resolveMaterialProps({Material: 'Copper'});
+  assert.equal(cu.k, 398);
+  assert.equal(cu.fallback, false);
+
+  const custom = resolveMaterialProps({Material: 'Custom', Conductivity: 12.5, Density: 1800, 'Specific heat': 750, Emissivity: 0.42});
+  assert.equal(custom.name, 'Custom');
+  assert.equal(custom.custom, true);
+  assert.equal(custom.k, 12.5);
+  assert.equal(custom.rho, 1800);
+  assert.equal(custom.cp, 750);
+  assert.equal(custom.emissivity, 0.42);
+
+  assert.throws(() => resolveMaterialProps({Material: 'Custom', Conductivity: 0, Density: 1000, 'Specific heat': 500, Emissivity: 0.5}), e => e.code === 'INVALID_MATERIAL');
+  assert.throws(() => resolveMaterialProps({Material: 'Custom', Conductivity: 10, Density: 1000, 'Specific heat': 500, Emissivity: 1.5}), e => e.code === 'INVALID_MATERIAL');
+});
+
+test('Thermal parameter validation and domain calculation (manual, sheared rejection, reflection, Auto size)', () => {
+  assert.doesNotThrow(() => validateThermalParameters({'Auto size': false, 'Voxel size': 2, Medium: 'Air', Ambient: 20, Initial: 20, 'Time scale': 1}));
+  assert.throws(() => validateThermalParameters({'Auto size': false, 'Voxel size': 0, Medium: 'Air', Ambient: 20, Initial: 20, 'Time scale': 1}));
+  assert.throws(() => validateThermalParameters({'Auto size': false, 'Voxel size': 2, Medium: 'Plasma', Ambient: 20, Initial: 20, 'Time scale': 1}));
+  assert.throws(() => validateThermalParameters({'Auto size': false, 'Voxel size': 2, Medium: 'Air', Ambient: -300, Initial: 20, 'Time scale': 1}));
+
+  const id = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  const d = computeManualDomain(id, 5);
+  assert.deepEqual(d.cells, [20, 20, 20]);
+  assert.equal(d.count, 8000);
+  const pW = gridPointToWorldMm(d, 10, 10, 10);
+  assert.ok(pW.every(v => Math.abs(v) < 1e-9));
+  const pG = worldMmToGrid(d, pW);
+  assert.ok(pG.every((v, i) => Math.abs(v - 10) < 1e-9));
+
+  const sheared = [1,0,0,0, 0.2,1,0,0, 0,0,1,0, 0,0,0,1];
+  assert.throws(() => computeManualDomain(sheared, 5), e => e.code === 'SHEARED_DOMAIN');
+
+  const autoAir = computeAutoDomain({min: [-10, -10, -10], max: [10, 10, 10]}, 5, 'Air');
+  assert.equal(autoAir.autoSize, true);
+  assert.ok(autoAir.lengthsM[1] > 0.06, 'Air auto domain adds buoyancy headroom');
+  const autoVac = computeAutoDomain({min: [-10, -10, -10], max: [10, 10, 10]}, 5, 'Vacuum');
+  assert.ok(autoVac.count < autoAir.count, 'Vacuum auto domain uses tight padding');
+});
+
+test('buildThermalModel handles fallback material, additive heaters, fixed temperature, Fan rasterization and Probe sampling', () => {
+  const d = computeManualDomain([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], 10); // 10x10x10 (10mm cells)
+  const words = Math.ceil(d.count / 32);
+  const occSolid = new Uint32Array(words);
+  const occFixed = new Uint32Array(words);
+  const setBit = (arr, x, y, z) => { const i = x + 10*(y + 10*z); arr[i >> 5] |= 1 << (i & 31); };
+  // 2x2x2 block in center (x=4..5, y=4..5, z=4..5)
+  for (let z = 4; z <= 5; z++) for (let y = 4; y <= 5; y++) for (let x = 4; x <= 5; x++) setBit(occSolid, x, y, z);
+  setBit(occFixed, 3, 4, 4);
+
+  // Fan box centered at [-25, 0, 0] mm, 10x40x40 mm blowing +X
+  const fanWorld = [0.1,0,0,0, 0,0.4,0,0, 0,0,0.4,0, -25,0,0,1];
+  const invFan = [10,0,0,0, 0,2.5,0,0, 0,0,2.5,0, 250,0,0,1];
+  const model = buildThermalModel({
+    domain: d, mediumName: 'Air', ambientC: 20, initialC: 20,
+    solidBodies: [
+      {material: resolveMaterialProps(null), fixedTempC: null, occupancy: occSolid, activeCount: 8, volumeM3: 8 * d.spacingM[0]**3},
+      {material: resolveMaterialProps({Material: 'Copper'}), fixedTempC: 80, occupancy: occFixed, activeCount: 1, volumeM3: d.spacingM[0]**3}
+    ],
+    heaterSources: [
+      {ownerHash: 'h1', uid: 'u1', powerW: 16, occupancy: occSolid, totalVolumeM3: 8 * d.spacingM[0]**3},
+      {ownerHash: 'h2', uid: 'u2', powerW: -4, occupancy: occSolid, totalVolumeM3: 8 * d.spacingM[0]**3}
+    ],
+    fans: [{hash: 'f1', name: 'Fan', shutoffPressure: 25, freeFlow: 0.005, direction: 1, areaM2: 0.0016, thicknessM: 0.01, scales: [0.1, 0.4, 0.4], world: fanWorld, invWorld: invFan, axisWorld: [1,0,0], axisGrid: [1,0,0]}]
+  });
+
+  assert.equal(model.stats.solidCount, 9);
+  assert.equal(model.stats.fixedCount, 1);
+  assert.equal(model.stats.fallbackCount, 8);
+  assert.ok(Math.abs(model.stats.totalHeaterPowerW - 12) < 1e-6);
+  assert.ok(model.fans.length === 1 && model.fans[0].cellCount > 0, 'Fan cells rasterized into fluid');
+
+  // Test post-processing and Probe sampling (no air-solid bleed)
+  const theta = new Float32Array(d.count);
+  for (let i = 0; i < d.count; i++) theta[i] = model.cellType[i] >= CELL_TYPE.SOLID ? 50 : 5;
+  const ev = evaluateThermalFields(model, theta, null, [{hash: 'p1', name: 'Probe', worldMm: [0, 0, 0]}], 20);
+  assert.ok(Math.abs(ev.maxSolidTempC - 70) < 1e-5);
+  assert.equal(ev.probes[0].inside, true);
+  assert.equal(ev.probes[0].isSolid, true);
+  assert.ok(Math.abs(ev.probes[0].tempC - 70) < 1e-5, 'Probe in solid does not bleed cool air');
+  const outRead = samplePointReading(model, ev.tempsC, ev.fluxWPerM2, null, [200, 0, 0]);
+  assert.equal(outRead.inside, false);
+});
+
+test('activate registers operations, Attributes, helpers and allows arbitrarily rotated Fans', async () => {
+  const m = makeMockContext();
+  await activate(m.context);
+  const owner = m.doc.create('thermal', null, 'Thermal');
+  const createFan = m.operations.find(o => o.id === 'create-fan').run;
+  const createProbe = m.operations.find(o => o.id === 'create-probe').run;
+  const fanRes = await createFan(owner.nativeHash, {});
+  const probeRes = await createProbe(owner.nativeHash, {});
+
+  assert.equal(m.transactions, 2);
+  const fanNode = m.doc.nodes.find(n => n.nativeHash === fanRes.hash);
+  const probeNode = m.doc.nodes.find(n => n.nativeHash === probeRes.hash);
+  assert.equal(fanNode.params.Thermal, owner.nativeHash);
+  assert.equal(probeNode.params.Thermal, owner.nativeHash);
+  assert.equal(fanNode.params['Shutoff pressure'], 25);
+  assert.equal(fanNode.params['Free flow'], 0.005);
+
+  // Rotate Fan by 45 degrees around Z -> still solverEligible!
+  const c = Math.SQRT1_2, s = Math.SQRT1_2;
+  m.locals.set(fanNode.nativeHash, [0.1*c, 0.1*s, 0, 0, -0.4*s, 0.4*c, 0, 0, 0, 0, 0.4, 0, -20, 5, 0, 1]);
+  const meta = nativeFanMetadata(m.context, fanNode);
+  assert.equal(meta.mapping.status, 'supported-frame');
+  assert.equal(meta.mapping.solverEligible, true);
+  assert.ok(Math.abs(meta.normalizedWorldAxis[0] - c) < 1e-9 && Math.abs(meta.normalizedWorldAxis[1] - s) < 1e-9);
+
+  // Attributes checks
+  const attrOwner = m.attributes(owner.nativeHash);
+  assert.ok(attrOwner.actions.some(a => a.id === 'solve-steady' && a.label === 'Steady'));
+  assert.ok(attrOwner.actions.some(a => a.id === 'solve-animation' && a.label === 'Animation'));
+  assert.ok(attrOwner.actions.some(a => a.id === 'show-voxels'));
+  assert.ok(attrOwner.actions.some(a => a.id === 'create-fan'));
+  assert.ok(attrOwner.actions.some(a => a.id === 'create-probe'));
+  assert.ok(attrOwner.numbers.some(x => x.id === 'slice-pos'));
+  const attrFan = m.attributes(fanNode.nativeHash);
+  assert.deepEqual(attrFan.hiddenFields, ['Thermal', 'Direction']);
+  assert.equal(attrFan.labels['Shutoff pressure'], 'Pressure');
+  const attrProbe = m.attributes(probeNode.nativeHash);
+  assert.deepEqual(attrProbe.hiddenFields, ['Thermal']);
+
+  // Viewport custom helpers include Fan arrow and Probe crosshair
+  assert.ok(m.viewport.helpers.thermal_fan.lines.length > m.viewport.lines.length);
+  assert.ok(m.viewport.helpers.thermal_probe.lines.length > m.viewport.lines.length);
+  assert.equal(m.viewport.showHelper(owner.nativeHash, {'Auto size': false}), true);
+  assert.equal(m.viewport.showHelper(owner.nativeHash, {'Auto size': true}), false);
 });

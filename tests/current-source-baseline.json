@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 28 nov 00:30",
+  "version": "2026 28 nov 21:05",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -536,35 +536,35 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5186,
-      "sha256": "23c08e894ec033159906dd256b076df5c854f0ee4266803999193340ec23eb5e"
+      "sha256": "9baa7fe6f01983c65d2624f0053b06f0fe57a038bf3738517e866abf45237420"
     },
     "index.html": {
-      "bytes": 4202724,
-      "sha256": "5d9b17c93abe24af5c2d9662daf180bf7dbe1075d287a4318f92e06a4dd9d2a5"
+      "bytes": 4203685,
+      "sha256": "4164d37e565b104746de198d9cf8772fadf21c15fe3e3f6b46150d4d0f820e54"
     },
     "plugins/index.json": {
       "bytes": 266,
       "sha256": "5f699acc28d7deaeaf177bbfd24e5617a372182478b35c42369bf25113c88331"
     },
     "plugins/thermal/plugin.js": {
-      "bytes": 12955,
-      "sha256": "0e6bf2d4b41cc06b01be3eb8da22c5bf73ea9744a0056db246075c67166d7d0c"
+      "bytes": 183881,
+      "sha256": "4b71743af25196ea052abc20350dbdcec88cbfb809457b08814b84591b0ef6e9"
     },
     "plugins/thermal/plugin.json": {
-      "bytes": 623,
-      "sha256": "4bc70d6a8f8d95f8a22b68fcd8b2babe1ce4bcf4e97fa1c6786723c6dc6ecf68"
+      "bytes": 4107,
+      "sha256": "84afa8e02f3aa52365eec5a5034b30f5fd304a603e7091f63938ca3884bf2ce5"
     },
     "plugins/thermal/tests/authoring-browser.mjs": {
-      "bytes": 16501,
-      "sha256": "bf877f36b285133e3ac78b7f88c5222bb1f794a5e3b8184522d9736e6d553121"
+      "bytes": 19430,
+      "sha256": "dd75e024c84b42e435e650c9070b8e23f4c618f1c4018594d13731ab5af56224"
     },
     "plugins/thermal/tests/browser-gate-contract.mjs": {
       "bytes": 16419,
       "sha256": "005810886bda7ea5526f5b689325ad353b8192c030c43ef6c609488a77a8b558"
     },
     "plugins/thermal/tests/fan-ui.mjs": {
-      "bytes": 7682,
-      "sha256": "02d2b87119bcd82c1a2baa97f2d4504a818c093af76ff37bf67d53fdcee59552"
+      "bytes": 5249,
+      "sha256": "38dec197a2efdd67b28be29d4e4d8ec784feff893c61331b9515807a1e59c5d1"
     },
     "plugins/thermal/tests/native-history-contract.mjs": {
       "bytes": 5421,
@@ -699,8 +699,8 @@
       "sha256": "54c1c1eebdfeaf231b77f8e5e3c34a28304d2512e9739e14a41de1160b4768be"
     },
     "tests/plugin-tag-fields.mjs": {
-      "bytes": 14998,
-      "sha256": "1d50cd85fdb42cb0c5049c7dffc5979f91c15ba47d238842d6fdf9ed6ca13075"
+      "bytes": 15882,
+      "sha256": "0d5f1aae66fd59d19c35486e607613625123157e2b0e949f8723412779cf8514"
     },
     "tests/plugin-tag-fields-browser.mjs": {
       "bytes": 4942,
@@ -1087,8 +1087,8 @@
       "sha256": "2a91716d4ad04e4ed56cb9196bab217b586bb0b2d7d7b168d324f9b38a317dd8"
     },
     "plugins/thermal/AGENTS.md": {
-      "bytes": 2271,
-      "sha256": "dd49bc591ac19510dc9cbd7aae76350ecc5fb57a90d0e8533ab71bbc9b6269cc"
+      "bytes": 3294,
+      "sha256": "a094dcfd9802fa12058d98048fc9e89d4e525b3036cfb6e32fd59be3890ef0d9"
     },
     "plugins/cfd/AGENTS.md": {
       "bytes": 46959,

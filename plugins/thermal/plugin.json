@@ -1,6 +1,7 @@
 {
   "id": "thermal",
   "name": "Thermal",
+  "description": "GPU conjugate heat transfer: solid conduction, fluid buoyancy and fan airflow, surface radiation, probes, slices and transient animation.",
   "color": "#dc9c76",
   "module": "plugin.js",
   "icon": "icon.svg",
@@ -8,9 +9,49 @@
     {
       "type": "thermal",
       "name": "Thermal",
+      "breakAfter": [
+        "Voxel size",
+        "Initial"
+      ],
       "fields": {
+        "Auto size": false,
+        "Voxel size": 2,
+        "Medium": [
+          "Air",
+          "Water",
+          "Vacuum"
+        ],
         "Ambient": 20,
-        "Initial": 20
+        "Initial": 20,
+        "Time scale": 1
+      },
+      "fieldOptions": {
+        "Auto size": {
+          "access": "read-write"
+        },
+        "Voxel size": {
+          "unit": "mm",
+          "minimum": 0.000001,
+          "access": "read-write"
+        },
+        "Medium": {
+          "access": "read-write"
+        },
+        "Ambient": {
+          "unit": "°C",
+          "minimum": -273.15,
+          "access": "read-write"
+        },
+        "Initial": {
+          "unit": "°C",
+          "minimum": -273.15,
+          "access": "read-write"
+        },
+        "Time scale": {
+          "unit": "s/s",
+          "minimum": 0.000001,
+          "access": "read-write"
+        }
       }
     },
     {
@@ -25,12 +66,125 @@
       "name": "Fan",
       "fields": {
         "Thermal": "",
-        "Shutoff pressure": 0,
-        "Free flow": 0.1,
+        "Shutoff pressure": 25,
+        "Free flow": 0.005,
         "Direction": [
           "Forward",
           "Reverse"
         ]
+      },
+      "fieldOptions": {
+        "Shutoff pressure": {
+          "unit": "Pa",
+          "minimum": 0,
+          "access": "read-write"
+        },
+        "Free flow": {
+          "unit": "m³/s",
+          "minimum": 0.000001,
+          "access": "read-write"
+        },
+        "Direction": {
+          "access": "read-write"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "kind": "thermal_material",
+      "name": "Material",
+      "text": "M",
+      "inherit": "nearest",
+      "fields": {
+        "Material": [
+          "Aluminium 6061",
+          "Anodized Aluminium",
+          "Copper",
+          "Steel",
+          "Stainless Steel",
+          "Brass",
+          "Titanium Ti-6Al-4V",
+          "Silicon",
+          "FR-4 (PCB)",
+          "Thermal Paste",
+          "Heat Pipe",
+          "Glass",
+          "PLA",
+          "ABS",
+          "Nylon PA12",
+          "Wood",
+          "Foam Insulation",
+          "Custom"
+        ],
+        "Conductivity": 50,
+        "Density": 2700,
+        "Specific heat": 900,
+        "Emissivity": 0.5
+      },
+      "fieldOptions": {
+        "Conductivity": {
+          "unit": "W/m·K",
+          "minimum": 0.0001,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Density": {
+          "unit": "kg/m³",
+          "minimum": 0.001,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Specific heat": {
+          "unit": "J/kg·K",
+          "minimum": 1,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Emissivity": {
+          "minimum": 0,
+          "maximum": 1,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        }
+      }
+    },
+    {
+      "kind": "thermal_heater",
+      "name": "Heater",
+      "text": "H",
+      "multiple": true,
+      "inherit": "additive",
+      "fields": {
+        "Power": 10
+      },
+      "fieldOptions": {
+        "Power": {
+          "unit": "W"
+        }
+      }
+    },
+    {
+      "kind": "thermal_temperature",
+      "name": "Temperature",
+      "text": "T",
+      "inherit": "nearest",
+      "fields": {
+        "Temperature": 80
+      },
+      "fieldOptions": {
+        "Temperature": {
+          "unit": "°C",
+          "minimum": -273.15
+        }
       }
     }
   ]
