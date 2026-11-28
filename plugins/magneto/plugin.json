@@ -1,23 +1,143 @@
 {
   "id": "magneto",
-  "name": "Magneto (unfinished)",
-  "description": "Unfinished native authoring preview. No magnetic solver, material physics, current-conductor solve or field/results are available.",
+  "name": "Magneto",
+  "description": "GPU 3D nonlinear magnetostatics: ferromagnetic saturation, remagnetizable permanent magnets, 3D conductor currents, forces, torques, probes, slices and Curves.",
   "module": "plugin.js",
   "icon": "icon.svg",
   "color": "#bd95d6",
-  "objects": [{
-    "type": "magneto",
-    "name": "Magneto",
-    "fields": {
-      "Mode": ["Solve", "Current Density"],
-      "Quantity": ["B", "H", "Magnetization", "Saturation"],
-      "Presentation": ["Strokes", "Section"],
-      "Current Density": 0
+  "objects": [
+    {
+      "type": "magneto",
+      "name": "Magneto",
+      "breakAfter": [
+        "Voxel size"
+      ],
+      "fields": {
+        "Auto size": false,
+        "Voxel size": 2
+      },
+      "fieldOptions": {
+        "Auto size": {
+          "access": "read-write"
+        },
+        "Voxel size": {
+          "unit": "mm",
+          "minimum": 0.000001,
+          "access": "read-write"
+        }
+      }
     },
-    "fieldOptions": {"Current Density": {"unit": "A/mm²", "access": "read-write"}}
-  }],
-  "tags": [{
-    "kind": "magneto", "name": "Magneto", "text": "M",
-    "fields": {"Material": ["Electrical Steel M19", "Electrical Steel M27", "Pure Iron", "NdFeB N35", "NdFeB N42", "NdFeB N52"]}
-  }]
+    {
+      "type": "magneto_current",
+      "name": "Current",
+      "fields": {
+        "Magneto": "",
+        "Current Density": 0
+      },
+      "fieldOptions": {
+        "Current Density": {
+          "unit": "A/mm²",
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "magneto_probe",
+      "name": "Probe",
+      "fields": {
+        "Magneto": ""
+      }
+    }
+  ],
+  "tags": [
+    {
+      "kind": "magneto",
+      "name": "Magneto",
+      "text": "M",
+      "inherit": "nearest",
+      "fields": {
+        "Material": [
+          "Electrical Steel M19",
+          "Electrical Steel M27",
+          "Pure Iron",
+          "NdFeB N35",
+          "NdFeB N42",
+          "NdFeB N52",
+          "Ferrite Y30",
+          "Alnico 5",
+          "Copper",
+          "Aluminium",
+          "Custom"
+        ],
+        "Magnetization": [
+          "+Z",
+          "-Z",
+          "+X",
+          "-X",
+          "+Y",
+          "-Y",
+          "Unmagnetized"
+        ],
+        "Permeability": 1000,
+        "Saturation": 2,
+        "Remanence": 0,
+        "Coercivity": 0,
+        "Conductivity": 0
+      },
+      "fieldOptions": {
+        "Magnetization": {
+          "visibleWhen": {
+            "field": "Material",
+            "in": [
+              "NdFeB N35",
+              "NdFeB N42",
+              "NdFeB N52",
+              "Ferrite Y30",
+              "Alnico 5",
+              "Custom"
+            ]
+          }
+        },
+        "Permeability": {
+          "minimum": 1,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Saturation": {
+          "unit": "T",
+          "minimum": 0,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Remanence": {
+          "unit": "T",
+          "minimum": 0,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Coercivity": {
+          "unit": "kA/m",
+          "minimum": 0,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        },
+        "Conductivity": {
+          "unit": "MS/m",
+          "minimum": 0,
+          "visibleWhen": {
+            "field": "Material",
+            "equals": "Custom"
+          }
+        }
+      }
+    }
+  ]
 }

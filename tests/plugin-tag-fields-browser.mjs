@@ -12,7 +12,7 @@ export async function tagFieldBrowserChecks(page,ids){
  const initial=await call('scene.inspect'),before=initial.objects.filter(n=>ids.includes(n.hash)),appearance=before.map(n=>({hash:n.hash,tags:materialTags(n,initial.materials)}));
  check('ordinary polygon owners',before.length===2&&before.every(n=>n.type==='mesh'));
  const options=(await call('tag.list')).find(t=>t.kind==='magneto')?.fields?.Material;
- check('declared six choices',options?.length===6);
+ check('declared 11 material choices with preserved first six',options?.length===11&&options[0]==='Electrical Steel M19'&&options[4]==='NdFeB N42'&&options[5]==='NdFeB N52');
  await timed('multi-owner tag defaults',()=>call('tag.set',{ids,kind:'magneto',enabled:true}));
  let rows=await read();check('default Material',rows.every(n=>n.tags[0].params.Material===options[0]));const uids=rows.map(n=>n.tags[0].uid);
  await timed('multi-owner native parameter edit',()=>call('tag.set',{ids,kind:'magneto',enabled:true,params:{Material:options[4]}}));
@@ -20,11 +20,19 @@ export async function tagFieldBrowserChecks(page,ids){
  await call('edit.history',{action:'undo'});check('one Undo restores both values',(await read()).every(n=>n.tags[0].params.Material===options[0]));await call('edit.history',{action:'redo'});
  for(const args of [{params:{Material:'not a preset'}},{params:{Material:3}},{params:{Unexpected:true}},{enabled:false,params:{}}]){const snapshot=JSON.stringify(await read());let rejected=false;try{await call('tag.set',{ids,kind:'magneto',enabled:true,...args});}catch{rejected=true;}check('invalid edit rejects before mutation '+JSON.stringify(args),rejected&&JSON.stringify(await read())===snapshot);}
  const target=(await inspect()).find(n=>n.hash===ids[0]);await page.locator('#tabObjects').click();await page.locator(`[data-id="${target.id}"] .ob-tag.magneto`).click();await page.locator('#tabAttributes').click();
- check('Material is the sole native tag row',JSON.stringify(await page.locator('#attrContent .attr-lab').allTextContents())===JSON.stringify(['Material']));
+ check('NdFeB shows Material and conditional Magnetization rows',JSON.stringify(await page.locator('#attrContent .attr-lab').allTextContents())===JSON.stringify(['Material','Magnetization']));
  const field=page.locator('#attrContent [data-field="Material"][data-cycle]');await timed('native tag choice ArrowRight',async()=>{await field.press('ArrowRight');await call('scene.inspect');});
  check('native choice ArrowRight updates exact tag',(await read())[0].tags[0].params.Material===options[5]);
  await call('edit.history',{action:'undo'});check('native choice Undo',(await read())[0].tags[0].params.Material===options[4]);
  await field.press('ArrowRight');await call('scene.inspect');check('native choice keyboard',(await read())[0].tags[0].params.Material===options[5]);await call('edit.history',{action:'undo'});
+ // Switching back to soft steel hides Magnetization via visibleWhen.in
+ await call('tag.set',{ids:[ids[0]],kind:'magneto',enabled:true,params:{Material:'Electrical Steel M19'}});
+ check('Soft steel hides Magnetization leaving sole Material row',JSON.stringify(await page.locator('#attrContent .attr-lab').allTextContents())===JSON.stringify(['Material']));
+ // Switching to Custom reveals Permeability, Saturation, Remanence, Coercivity, Conductivity via visibleWhen.equals
+ await call('tag.set',{ids:[ids[0]],kind:'magneto',enabled:true,params:{Material:'Custom'}});
+ const customLabs=await page.locator('#attrContent .attr-lab').allTextContents();
+ check('Custom material reveals all custom parameters',customLabs.includes('Material')&&customLabs.includes('Magnetization')&&customLabs.some(l=>l.startsWith('Permeability'))&&customLabs.some(l=>l.startsWith('Saturation'))&&customLabs.some(l=>l.startsWith('Remanence'))&&customLabs.some(l=>l.startsWith('Coercivity'))&&customLabs.some(l=>l.startsWith('Conductivity')));
+ await call('tag.set',{ids:[ids[0]],kind:'magneto',enabled:true,params:{Material:options[4]}});
  const path='tag:'+uids[0]+':Material';await call('animation.key',{id:ids[0],path,frame:0,value:0});await call('animation.key',{id:ids[0],path,frame:10,value:5});await call('animation.seek',{frame:10});check('native discrete animation',(await read())[0].tags[0].params.Material===options[5]);
  const saved=await read(),data=await call('scene.export',{includeData:true});await call('scene.open',{name:'plugin-tag-fields.hash',base64:data.base64});
  const after=await read();check('HASH stable identities and values',after.every((n,i)=>JSON.stringify(n.tags)===JSON.stringify(saved[i].tags)));

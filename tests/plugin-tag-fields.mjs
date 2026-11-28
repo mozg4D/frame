@@ -15,11 +15,15 @@ for(const fields of [null,[],{X:''},{X:{}},{X:[]},{X:[1,'2']},{X:[NaN]},{X:['a',
 for(const options of [{ranges:{}},{fieldOptions:{Unknown:{unit:'N'}}},{fieldOptions:{Count:{minimum:10,maximum:5}},fields:{Count:7}},{vectors:[{label:'Bad',fields:['X','Y']}],fields:{X:0,Y:0}},{multiple:'yes'},{inherit:'invalid'}])check('unsupported or malformed tag options reject explicitly '+JSON.stringify(options),()=>assert.throws(()=>tags.declaration(options)));
 const forceMeta=tags.meta({fields:{'Force X':0,'Force Y':0,'Force Z':0,'Torque X':0,'Torque Y':0,'Torque Z':0},fieldOptions:{'Force X':{unit:'N'},'Force Y':{unit:'N'},'Force Z':{unit:'N'},'Torque X':{unit:'Nm'},'Torque Y':{unit:'Nm'},'Torque Z':{unit:'Nm'}},vectors:[{label:'Force',unit:'N',fields:['Force X','Force Y','Force Z']},{label:'Torque',unit:'Nm',fields:['Torque X','Torque Y','Torque Z']}],multiple:true,inherit:'additive'});
 check('tag fieldOptions, vectors, multiple and inherit validate cleanly',()=>{assert.equal(forceMeta.multiple,true);assert.equal(forceMeta.inherit,'additive');assert.equal(forceMeta.units['Force X'],'N');assert.equal(forceMeta.vectors.length,2);});
-const customMeta=tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{unit:'W/m·K',minimum:0.0001,visibleWhen:{field:'Material',equals:'Custom'}}},inherit:'nearest'});
+const customMeta=tags.meta({fields:{Material:['Aluminium','NdFeB','Custom'],Conductivity:50,Axis:['+Z','-Z']},fieldOptions:{Conductivity:{unit:'W/m·K',minimum:0.0001,visibleWhen:{field:'Material',equals:'Custom'}},Axis:{visibleWhen:{field:'Material',in:['NdFeB','Custom']}}},inherit:'nearest'});
 check('tag visibleWhen fieldOption validates cleanly and rejects malformed targets',()=>{
   assert.deepEqual(customMeta.fieldOptions.Conductivity.visibleWhen,{field:'Material',equals:'Custom'});
+  assert.deepEqual(customMeta.fieldOptions.Axis.visibleWhen,{field:'Material',in:['NdFeB','Custom']});
   assert.throws(()=>tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Missing',equals:'Custom'}}}}));
   assert.throws(()=>tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Material',equals:'Unknown'}}}}));
+  assert.throws(()=>tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Material',in:[]}}}}));
+  assert.throws(()=>tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Material',in:['Unknown']}}}}));
+  assert.throws(()=>tags.meta({fields:{Material:['Aluminium','Custom'],Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Material',equals:'Custom',in:['Custom']}}}}));
   assert.throws(()=>tags.meta({fields:{Conductivity:50},fieldOptions:{Conductivity:{visibleWhen:{field:'Conductivity',equals:50}}}}));
 });
 for(const params of [{Material:'unknown'},{Material:1},{Unknown:1},null,[]])check('invalid parameter rejects before commit '+JSON.stringify(params),()=>{const before=JSON.stringify(owners),count=commits;assert.throws(()=>runtime.setTags(owners,'magneto',true,params));assert.equal(JSON.stringify(owners),before);assert.equal(commits,count);});

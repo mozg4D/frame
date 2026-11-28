@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 28 nov 21:05",
+  "version": "2026 28 nov 21:55",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -536,11 +536,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5186,
-      "sha256": "9baa7fe6f01983c65d2624f0053b06f0fe57a038bf3738517e866abf45237420"
+      "sha256": "150c0b6605e54de4adeb715e1ab5bad6b19d05a07f8c70639de47b48607a85b6"
     },
     "index.html": {
-      "bytes": 4203685,
-      "sha256": "4164d37e565b104746de198d9cf8772fadf21c15fe3e3f6b46150d4d0f820e54"
+      "bytes": 4203981,
+      "sha256": "7864f7b42508d09fc3a3a9bc0dc5dea0b48fd0f9219910894abf8e90d1285fee"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -687,32 +687,32 @@
       "sha256": "be5add36ebd6a8203710a500beaaafa63dd6076629d021081fc275566ae81088"
     },
     "plugins/magneto/plugin.json": {
-      "bytes": 832,
-      "sha256": "708e9074c41e8d9e0780108043ae1b47675a78ac7b59b0966bf797c4d439285c"
+      "bytes": 3112,
+      "sha256": "d9e5516d53277b9a9adbfcbf61f6d41b5f4a4e9dec87d956998a5fd7a4434b6b"
     },
     "plugins/magneto/plugin.js": {
-      "bytes": 4886,
-      "sha256": "908c82a3cb527fc268932f39ed245079d2d35487d50d54c6d96e17728cc7e9ff"
+      "bytes": 208401,
+      "sha256": "ef58a8333f615216ba00701f92f7e3a719065c49c112dba51b95214772ffdbd1"
     },
     "plugins/magneto/icon.svg": {
       "bytes": 214,
       "sha256": "54c1c1eebdfeaf231b77f8e5e3c34a28304d2512e9739e14a41de1160b4768be"
     },
     "tests/plugin-tag-fields.mjs": {
-      "bytes": 15882,
-      "sha256": "0d5f1aae66fd59d19c35486e607613625123157e2b0e949f8723412779cf8514"
+      "bytes": 16580,
+      "sha256": "c5369989fc747caa0bba7feb3edf9b72ebc42f97ad33a1422a780200d3019b14"
     },
     "tests/plugin-tag-fields-browser.mjs": {
-      "bytes": 4942,
-      "sha256": "ea0e2867635135e85ac111e8d2fb4b13064d9161603bba7bdcb71d78edc4e852"
+      "bytes": 6218,
+      "sha256": "1f245bb3016d646bfec646a8f474de5d6b98adf8754e49de9aeaa851f17bfdef"
     },
     "plugins/magneto/tests/authoring.test.mjs": {
-      "bytes": 7322,
-      "sha256": "d7aeac88f459d7e8001fbb2e64133c4110c1be52779c5e1edbab964ed6a9fbac"
+      "bytes": 24321,
+      "sha256": "dd8f33cd98dcc600339962ae9fa3f524e816fe8e8ad6a6fe4fd619b07990741c"
     },
     "plugins/magneto/tests/authoring-browser.mjs": {
-      "bytes": 18113,
-      "sha256": "8f76d4f45f937dacef7ac2c0a06f77ec20e91440efe2560ef0a18a616fa87a8d"
+      "bytes": 18200,
+      "sha256": "6698c54206dbdb5a955cd842895faeca92cc061f9209e8f1c67c2577bd3126bb"
     },
     "plugins/magneto/tests/index.mjs": {
       "bytes": 54,
@@ -1083,8 +1083,8 @@
       "sha256": "185a0e4ccd801a5836b51cdb9bfcb7e282d02bbf4151e3fe101f9095ac7b73d8"
     },
     "plugins/magneto/AGENTS.md": {
-      "bytes": 1764,
-      "sha256": "2a91716d4ad04e4ed56cb9196bab217b586bb0b2d7d7b168d324f9b38a317dd8"
+      "bytes": 4105,
+      "sha256": "1d3ed0b1ab4ad75df57c050299574b304660793aa34b65b43b39ac12d9e614a1"
     },
     "plugins/thermal/AGENTS.md": {
       "bytes": 3294,

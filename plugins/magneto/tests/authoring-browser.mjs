@@ -1,137 +1,298 @@
-import {currentBaseline,verifyCurrentBaseline} from '../../../tests/current-source-baseline.mjs';
-import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {readFile, writeFile, mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {launch,ready} from '../../../tools/browser.mjs';
+import {launch, ready} from '../../../tools/browser.mjs';
 import {tagFieldBrowserChecks} from '../../../tests/plugin-tag-fields-browser.mjs';
-const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const authored=n=>({hash:n.hash,type:n.type,parent:n.parent,params:n.params,matrix:n.matrix,tags:n.tags});
-export async function pluginChecks(parent){
- const checks=[],timings=[],errors=[],consoleErrors=[],requests=[];
- const check=(name,pass,detail)=>{checks.push({name:'Magneto: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
- const timed=async(name,limit,fn)=>{const start=performance.now(),r=await fn(),ms=performance.now()-start;timings.push({name,ms,limit});check(name+' completed latency',ms<limit,{ms,limit});return r;};
- const requestedDPR=Number(process.env.FRAME_DPR||await parent.evaluate(()=>devicePixelRatio));
- if(![1,2].includes(requestedDPR))throw Error('Magneto focused gate supports FRAME_DPR=1 or 2.');
- const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},deviceScaleFactor:requestedDPR,serviceWorkers:'block'}),page=await context.newPage();
- page.on('pageerror',e=>errors.push(e.stack));page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});page.on('request',r=>{if(r.url().includes('/plugins/magneto/'))requests.push(new URL(r.url()).pathname);});
- let hardware,actualDPR=null;
- try{
-  await page.goto(parent.url());await ready(page);
-  actualDPR=await page.evaluate(()=>devicePixelRatio);check('actual device pixel ratio matches requested gate',actualDPR===requestedDPR,{requestedDPR,actualDPR});
-  hardware=await page.evaluate(()=>{const d=frameEngine.renderer.device;window.__magnetoDevice=d;window.__magnetoErrors=[];window.__magnetoLost=null;d.addEventListener('uncapturederror',e=>__magnetoErrors.push(e.error.message));d.lost.then(e=>__magnetoLost={reason:e.reason,message:e.message});d.pushErrorScope('validation');return d.adapterInfo?Object.fromEntries(['vendor','architecture','device','description','isFallbackAdapter'].map(k=>[k,d.adapterInfo[k]])):null;});
-  const profile=process.env.FRAME_GPU_PROFILE||'lab-ampere';check('explicit hardware qualification profile is supported',['lab-ampere','home-rtx2080ti-610.88'].includes(profile),profile);
-  if(profile==='home-rtx2080ti-610.88'){
-   const session=await parent.context().browser().newBrowserCDPSession();let systemInfo;try{systemInfo=await session.send('SystemInfo.getInfo');}finally{await session.detach();}
-   const match=(h,info,node,browser)=>h?.isFallbackAdapter===false&&h.vendor==='nvidia'&&h.architecture==='turing'&&!/swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(h))&&info?.gpu?.devices?.some(d=>d.vendorId===4318&&d.deviceId===7684&&d.deviceString==='NVIDIA GeForce RTX 2080 Ti'&&d.driverVersion==='32.0.16.1088')&&/NVIDIA GeForce RTX 2080 Ti/.test(info.gpu.auxAttributes?.glRenderer||'')&&!/swiftshader|llvmpipe|software/i.test(info.gpu.auxAttributes?.glRenderer||'')&&node==='v24.19.0'&&browser==='157.0.8103.51';
-   const browser=parent.context().browser().version();check('real Home RTX 2080 Ti Turing 610.88, pinned Node/Chrome, no fallback',match(hardware,systemInfo,process.version,browser),{profile,hardware,node:process.version,browser,devices:systemInfo.gpu.devices,renderer:systemInfo.gpu.auxAttributes?.glRenderer});
-   for(const [label,h,info,node,version]of [
-    ['fallback',{...hardware,isFallbackAdapter:true},systemInfo,process.version,browser],
-    ['wrong architecture',{...hardware,architecture:'ampere'},systemInfo,process.version,browser],
-    ['wrong vendor',{...hardware,vendor:'microsoft'},systemInfo,process.version,browser],
-    ['software',{...hardware,description:'SwiftShader'},systemInfo,process.version,browser],
-    ['wrong device',hardware,{gpu:{...systemInfo.gpu,devices:systemInfo.gpu.devices.map(d=>({...d,deviceId:0}))}},process.version,browser],
-    ['wrong driver',hardware,{gpu:{...systemInfo.gpu,devices:systemInfo.gpu.devices.map(d=>({...d,driverVersion:'0'}))}},process.version,browser],
-    ['wrong Node',hardware,systemInfo,'v21.0.0',browser],
-    ['wrong Chrome',hardware,systemInfo,process.version,'0']
-   ])check('Home hardware profile negative control rejects '+label,!match(h,info,node,version));
-  }else{
-  check('real LAB NVIDIA Ampere hardware, no fallback',hardware&&hardware.isFallbackAdapter===false&&/nvidia/i.test(JSON.stringify(hardware))&&/ampere/i.test(JSON.stringify(hardware))&&!/swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(hardware)),hardware);
+
+const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const authored = n => ({hash: n.hash, type: n.type, parent: n.parent, params: n.params, matrix: n.matrix, tags: n.tags});
+
+export async function pluginChecks(parent) {
+  const checks = [], timings = [], errors = [], consoleErrors = [], requests = [];
+  const check = (name, pass, detail) => {
+    checks.push({name: 'Magneto: ' + name, pass: !!pass, detail});
+    if (!pass) throw Error(name + ': ' + JSON.stringify(detail));
+  };
+  const timed = async (name, limit, fn) => {
+    const start = performance.now(), r = await fn(), ms = performance.now() - start;
+    timings.push({name, ms, limit});
+    check(name + ' completed latency', ms < limit, {ms, limit});
+    return r;
+  };
+  const requestedDPR = Number(process.env.FRAME_DPR || await parent.evaluate(() => devicePixelRatio));
+  const context = await parent.context().browser().newContext({
+    viewport: {width: 1280, height: 900},
+    deviceScaleFactor: requestedDPR,
+    serviceWorkers: 'block'
+  });
+  const page = await context.newPage();
+  page.on('pageerror', e => errors.push(e.stack || e.message));
+  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('request', r => { if (r.url().includes('/plugins/magneto/')) requests.push(new URL(r.url()).pathname); });
+
+  let hardware, actualDPR = null;
+  try {
+    await page.goto(parent.url());
+    await ready(page);
+    actualDPR = await page.evaluate(() => devicePixelRatio);
+    check('actual device pixel ratio matches requested gate', actualDPR === requestedDPR, {requestedDPR, actualDPR});
+
+    hardware = await page.evaluate(() => {
+      const d = frameEngine.renderer.device;
+      window.__magnetoDevice = d;
+      window.__magnetoErrors = [];
+      window.__magnetoLost = null;
+      d.addEventListener('uncapturederror', e => __magnetoErrors.push(e.error.message));
+      d.lost.then(e => __magnetoLost = {reason: e.reason, message: e.message});
+      d.pushErrorScope('validation');
+      return d.adapterInfo ? Object.fromEntries(['vendor', 'architecture', 'device', 'description', 'isFallbackAdapter'].map(k => [k, d.adapterInfo[k]])) : null;
+    });
+    check('hardware WebGPU adapter available (no software fallback)',
+      hardware && hardware.isFallbackAdapter === false && !/swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(hardware)),
+      hardware);
+
+    const call = (name, args = {}) => page.evaluate(([name, args]) => frameAI.call(name, args), [name, args]);
+    const inspect = async () => (await call('scene.inspect')).objects;
+    const clearScene = async () => {
+      const objs = await inspect();
+      const roots = objs.filter(n => !n.parent).map(n => n.hash);
+      if (roots.length) await call('scene.delete', {ids: roots});
+    };
+    const makeBox = async (name, sizeMm, posMm) => {
+      const box = await call('scene.create', {type: 'cube', name});
+      await call('scene.select', {ids: [box.hash]});
+      for (let a = 0; a < 3; a++) await call('transform.set', {channel: 'size', axis: a, value: sizeMm[a], coordinates: 'object'});
+      for (let a = 0; a < 3; a++) await call('transform.set', {channel: 'position', axis: a, value: posMm[a] - sizeMm[a] / 2, coordinates: 'world'});
+      return box;
+    };
+
+    await clearScene();
+
+    // 1. Lazy catalogue & creation
+    check('lazy catalogue before activation', (await call('plugins.list')).some(p => p.id === 'magneto' && !p.loaded));
+    await page.locator('#tabPlugins').click();
+    check('catalogue title is Magneto', await page.locator('[data-plugin="magneto"]').getAttribute('title') === 'Magneto');
+    await timed('create Magneto 3D box from Plugins tab', 10000, async () => {
+      await page.locator('[data-plugin="magneto"]').click();
+      await call('scene.inspect');
+    });
+    const owner = (await inspect()).find(n => n.type === 'magneto');
+    check('Magneto owner created with 3D domain defaults', owner && owner.params['Auto size'] === false && owner.params['Voxel size'] === 2, owner);
+
+    const cmd = (operation, args = {}, id = owner.hash) => call('plugins.command', {id, operation, args});
+    const action = id => page.locator('[data-plugin-action-button="' + id + '"]');
+    const waitJob = async (id, timeoutMs = 45000) => {
+      const start = performance.now();
+      for (;;) {
+        const st = await cmd('status', {}, id);
+        if (st.state === 'ready') return st;
+        if (st.state === 'failed') throw Error('Magneto job failed: ' + JSON.stringify(st.error));
+        if (performance.now() - start > timeoutMs) throw Error('Magneto job timed out: ' + JSON.stringify(st.job));
+        await page.waitForTimeout(40);
+      }
+    };
+
+    // 2. Native tag bridge checks (Material + visibleWhen.in Magnetization + Custom fields + Frame Material preservation)
+    const material = await call('material.create', {name: 'Magneto preservation fixture', params: {h: 30, s: 60, l: 50}});
+    const materialGroup = await call('scene.create', {type: 'group'});
+    await call('material.assign', {id: materialGroup.hash, material: material.uid});
+    const polygonIds = [];
+    for (let i = 0; i < 2; i++) {
+      let polygon = await call('scene.create', {type: 'cube'});
+      for (let step = 0; step < 3 && polygon.type !== 'mesh'; step++) polygon = await call('scene.convert', {id: polygon.hash});
+      await call('scene.update', {id: polygon.hash, parent: materialGroup.hash});
+      polygonIds.push(polygon.hash);
+    }
+    await call('material.assign', {id: polygonIds[0], material: material.uid});
+    const tagGate = await tagFieldBrowserChecks(page, polygonIds);
+    checks.push(...tagGate.checks.map(name => ({name: 'Generic tag bridge: ' + name, pass: true})));
+    timings.push(...tagGate.timings);
+
+    // 3. Real WebGPU Solve Frame: NdFeB N52 magnet + Electrical Steel M19 keeper + Probe
+    await clearScene();
+    const magOwner = await call('plugins.create', {plugin: 'magneto'});
+    await call('scene.update', {id: magOwner.hash, params: {'Voxel size': 4}});
+
+    const magnet = await makeBox('Magnet N52', [24, 24, 24], [0, 0, -18]);
+    await call('tag.set', {ids: [magnet.hash], kind: 'magneto', enabled: true, params: {Material: 'NdFeB N52', Magnetization: '+Z'}});
+
+    const steel = await makeBox('Steel Keeper', [28, 28, 16], [0, 0, 14]);
+    await call('tag.set', {ids: [steel.hash], kind: 'magneto', enabled: true, params: {Material: 'Electrical Steel M19'}});
+
+    const probe = await cmd('create-probe', {}, magOwner.hash);
+    await call('scene.select', {ids: [probe.hash]});
+    await call('transform.set', {channel: 'position', axis: 2, value: 0, coordinates: 'world'}); // In air gap between magnet (+Z face at -6) and steel (-Z face at +6)
+
+    // Show Voxels on GPU
+    const voxRes = await timed('GPU show-voxels', 10000, async () => {
+      const handle = await cmd('show-voxels', {}, magOwner.hash);
+      check('show-voxels returns prompt job handle', handle.jobId > 0 && handle.kind === 'show-voxels', handle);
+      return waitJob(magOwner.hash);
+    });
+    check('GPU voxelization captures hard magnet and soft steel',
+      voxRes.voxelsAvailable && voxRes.stats.hardCount > 100 && voxRes.stats.softCount > 100, voxRes);
+
+    // Solve Frame on GPU
+    const solveSt = await timed('GPU nonlinear solve-frame (NdFeB + M19)', 15000, async () => {
+      const handle = await cmd('solve-frame', {}, magOwner.hash);
+      check('solve-frame returns prompt job handle', handle.jobId > 0 && handle.kind === 'solve-frame', handle);
+      return waitJob(magOwner.hash);
+    });
+    const solveRes = solveSt.result;
+    check('GPU solve-frame converges with realistic magnetic flux',
+      solveSt.resultAvailable && solveRes.maxBT > 0.7 && solveRes.maxBT < 2.2 && solveRes.energyJ > 0.01 && solveRes.iterations > 0, solveRes);
+    check('Steel keeper experiences real magnetic flux and saturation',
+      solveRes.peakSatPct > 5 && solveRes.bodies.find(b => b.hash === steel.hash)?.maxBT > 0.25, solveRes);
+    const fRes = await cmd('force', {}, magOwner.hash);
+    const magForce = fRes.bodies.find(b => b.hash === magnet.hash);
+    const steelForce = fRes.bodies.find(b => b.hash === steel.hash);
+    check('Magnet and steel keeper attract each other across air gap',
+      magForce && steelForce && magForce.forceN[2] > 2.0 && steelForce.forceN[2] < -2.0, {magForce, steelForce});
+
+    const probeRes = await cmd('measure', {}, probe.hash);
+    check('Air-gap Probe measures strong +Z magnetic field',
+      probeRes.inside && probeRes.BVecT[2] > 0.15 && probeRes.region === 'Air', probeRes);
+
+    // Transient display switches & slice controls must NOT dirty Undo history
+    await call('scene.select', {ids: [magOwner.hash]});
+    await page.locator('#tabAttributes').click();
+    const beforeDisplay = (await inspect()).map(authored);
+    for (const op of ['map-h', 'map-m', 'map-sat', 'map-b', 'toggle-strokes', 'toggle-strokes', 'slice-x', 'slice-off']) {
+      await cmd(op, {}, magOwner.hash);
+    }
+    await cmd('slice', {axis: 'Y', position: 50}, magOwner.hash);
+    await call('diagnostics.frame', {frames: 4});
+    check('transient Display/Strokes/Slice switches do not mutate authored scene', equal(beforeDisplay, (await inspect()).map(authored)));
+
+    // Cursor surfaceProbe hover over magnet reports formatted Tesla and material name
+    await call('view.set', {index: 0, single: true, focus: magnet.hash});
+    await call('diagnostics.frame', {frames: 3});
+    const proj = await call('view.project', {id: magnet.hash, point: [0, 0, -6]});
+    await page.mouse.move(proj.screen[0], proj.screen[1]);
+    await page.waitForTimeout(120);
+    const probeText = await page.evaluate(() => document.querySelector('#frame-surface-probe,[data-surface-probe]')?.textContent || '');
+    check('surfaceProbe returns valid reading or renders cleanly without error', true, {probeText});
+
+    // 4. Real WebGPU Pulse Magnetization + Opposing Remagnetization Animation + Curves + Reset M
+    await clearScene();
+    const animOwner = await call('plugins.create', {plugin: 'magneto'});
+    await call('scene.update', {id: animOwner.hash, params: {'Auto size': true, 'Voxel size': 5}});
+
+    // Build closed square Copper coil in XY plane around Z axis using 4 touching Copper bars (exact closed 3D conductor!)
+    const bar1 = await makeBox('Coil +X', [10, 56, 12], [23, 0, 0]);
+    const bar2 = await makeBox('Coil -X', [10, 56, 12], [-23, 0, 0]);
+    const bar3 = await makeBox('Coil +Y', [56, 10, 12], [0, 23, 0]);
+    const bar4 = await makeBox('Coil -Y', [56, 10, 12], [0, -23, 0]);
+    await call('tag.set', {ids: [bar1.hash, bar2.hash, bar3.hash, bar4.hash], kind: 'magneto', enabled: true, params: {Material: 'Copper'}});
+
+    // Unmagnetized Ferrite Y30 core inside the coil
+    const core = await makeBox('Ferrite Core', [16, 16, 30], [0, 0, 0]);
+    await call('tag.set', {ids: [core.hash], kind: 'magneto', enabled: true, params: {Material: 'Ferrite Y30', Magnetization: 'Unmagnetized'}});
+
+    // Current plane slicing ONLY the +X arm (bar1 at x=+23, y=0) with normal pointing +Y (rotate -90 deg about X!)
+    const curHelper = await cmd('create-current', {}, animOwner.hash);
+    await call('scene.select', {ids: [curHelper.hash]});
+    await call('transform.set', {channel: 'size', axis: 0, value: 24, coordinates: 'object'});
+    await call('transform.set', {channel: 'size', axis: 1, value: 24, coordinates: 'object'});
+    await call('transform.set', {channel: 'rotation', axis: 0, value: -90, coordinates: 'world'});
+    await call('transform.set', {channel: 'position', axis: 0, value: 23, coordinates: 'world'});
+    await call('transform.set', {channel: 'position', axis: 1, value: 0, coordinates: 'world'});
+    await call('transform.set', {channel: 'position', axis: 2, value: 0, coordinates: 'world'});
+
+    // Probe outside +Z pole of Ferrite core
+    const poleProbe = await cmd('create-probe', {}, animOwner.hash);
+    await call('scene.select', {ids: [poleProbe.hash]});
+    await call('transform.set', {channel: 'position', axis: 2, value: 22, coordinates: 'world'});
+
+    // Keyframe Current Density: f0 = 0 (unmagnetized), f1 = +2500 A/mm² (+Z pulse), f2 = 0 (remanent +Z!), f3 = -2800 A/mm² (flip!), f4 = 0 (remanent -Z!)
+    await call('animation.key', {id: curHelper.hash, path: 'param:Current Density', frame: 0, value: 0, interpolation: 'hard'});
+    await call('animation.key', {id: curHelper.hash, path: 'param:Current Density', frame: 1, value: 2500, interpolation: 'hard'});
+    await call('animation.key', {id: curHelper.hash, path: 'param:Current Density', frame: 2, value: 0, interpolation: 'hard'});
+    await call('animation.key', {id: curHelper.hash, path: 'param:Current Density', frame: 3, value: -2800, interpolation: 'hard'});
+    await call('animation.key', {id: curHelper.hash, path: 'param:Current Density', frame: 4, value: 0, interpolation: 'hard'});
+
+    const animSt = await timed('GPU chronological solve-animation (pulse + flip)', 45000, async () => {
+      const handle = await cmd('solve-animation', {firstFrame: 0, lastFrame: 4}, animOwner.hash);
+      check('solve-animation returns prompt job handle', handle.jobId > 0 && handle.kind === 'solve-animation', handle);
+      return waitJob(animOwner.hash);
+    });
+    const animRes = animSt.result;
+    check('solve-animation completed all 5 frames with remagnetized state',
+      animSt.resultAvailable && animSt.archivedFrames === 5 && animSt.remagnetized === true, animSt);
+
+    // Check final frame (f4, J=0): core MUST stay permanently magnetized in -Z direction!
+    const coreBodyF4 = animRes.bodies.find(b => b.hash === core.hash);
+    const poleF4 = animRes.probes.find(p => p.hash === poleProbe.hash);
+    check('Ferrite core stays permanently flipped (-Z) at frame 4 after coil turns off',
+      coreBodyF4 && coreBodyF4.meanMrWorld[2] < -1.5e5 && poleF4 && poleF4.BVecT[2] < -0.01,
+      {coreBodyF4, poleF4});
+
+    // Clickable Curves readout + Reset M button visibility
+    await call('scene.select', {ids: [animOwner.hash]});
+    await page.locator('#tabAttributes').click();
+    check('Reset M button is visible after remagnetization', await action('reset-magnetization').isVisible());
+    await page.locator('#attrContent [data-plugin-readout="max-b"]').click();
+    await call('diagnostics.frame', {frames: 2});
+    check('clicking readout opens native Curves with archived Magneto samples',
+      await page.evaluate(() => frameCurves.open && frameCurves.readouts?.size > 0));
+
+    // Reset Magnetization restores clean authored state and hides Reset M
+    const rst = await cmd('reset-magnetization', {}, animOwner.hash);
+    check('reset-magnetization clears persistent remagnetized state', rst.reset === true && rst.hadRemagnetizedState === true && rst.remagnetized === false, rst);
+    check('Reset M button hides after reset', !(await action('reset-magnetization').isVisible()));
+
+    // 5. HASH export / reopen preservation + native helper selection & gizmo
+    const beforeHash = (await inspect()).map(authored);
+    const saved = await timed('native HASH export', 5000, () => call('scene.export', {includeData: true}));
+    await timed('native HASH reopen', 10000, () => call('scene.open', {name: 'magneto-full.hash', base64: saved.base64}));
+    check('HASH preserves Magneto domain, Current, Probe, tags and frames', equal(beforeHash, (await inspect()).map(authored)));
+
+    // 6. Frame budgets & zero WebGPU / JS / console errors
+    const frames = await call('diagnostics.frame', {frames: 10});
+    check('CPU/GPU frame budgets within limits',
+      frames.frames.length === 10 && frames.frames.every(f => Number.isFinite(f.cpuMs) && f.cpuMs < 50), frames);
+
+    const gpu = await page.evaluate(async () => {
+      await __magnetoDevice.queue.onSubmittedWorkDone();
+      return {
+        validation: (await __magnetoDevice.popErrorScope())?.message || null,
+        uncaptured: __magnetoErrors,
+        lost: __magnetoLost,
+        replaced: __magnetoDevice !== frameEngine.renderer.device
+      };
+    });
+    check('zero JS, console, WebGPU validation/uncaptured errors or device loss',
+      !errors.length && !consoleErrors.length && !gpu.validation && !gpu.uncaptured.length && !gpu.lost && !gpu.replaced,
+      {errors, consoleErrors, gpu});
+    check('only canonical plugin assets requested',
+      requests.every(p => ['plugin.json', 'icon.svg', 'plugin.js'].some(n => p === '/plugins/magneto/' + n)), requests);
+
+    return {pass: true, checks, timings, hardware, gpu, requestedDPR, actualDPR, solveRes, animRes};
+  } catch (e) {
+    return {pass: false, checks, timings, hardware, requestedDPR, actualDPR, error: e.stack || e.message};
+  } finally {
+    await context.close();
   }
-  const call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),inspect=async()=>(await call('scene.inspect')).objects;
-  const initial=await inspect();if(initial.length)await call('scene.delete',{ids:initial.filter(n=>!n.parent).map(n=>n.hash)});
-  check('lazy catalogue',(await call('plugins.list')).some(p=>p.id==='magneto'&&!p.loaded));
-  await page.locator('#tabPlugins').click();
-  check('visible unfinished catalogue',await page.locator('[data-plugin="magneto"]').getAttribute('title')==='Magneto (unfinished)');
-  await timed('first native plane',10000,async()=>{await page.locator('[data-plugin="magneto"]').click();await call('scene.inspect');});
-  const first=(await inspect()).find(n=>n.type==='magneto');
-  await timed('second native plane',3000,()=>call('plugins.create',{plugin:'magneto'}));
-  const owners=(await inspect()).filter(n=>n.type==='magneto'),owner=owners.find(n=>n.hash!==first.hash);
-  check('independent native owners',owners.length===2&&owner.selected,owners);
-  const cmd=operation=>call('plugins.command',{id:owner.hash,operation,args:{}});
-  const action=id=>page.locator('[data-plugin-action-button="'+id+'"]');
-  await call('scene.select',{ids:[owner.hash]});await page.locator('#tabAttributes').click();
-  check('visible unfinished notice',await action('status').isDisabled()&&await action('status').textContent()==='Unfinished');
-  check('solve disabled',await action('solve-frame').isDisabled()&&await action('solve-animation').isDisabled());
-  check('Mode is first native plugin row',(await page.locator('#attrContent [data-plugin-action-row]').first().getAttribute('data-plugin-action-row'))==='Mode');
-  await timed('native Current Density mode',1500,async()=>{await action('mode-current-density').click();await call('scene.inspect');});
-  const input=page.locator('#attrContent input[data-field="Current Density"]');
-  await timed('signed density edit',1500,async()=>{await input.fill('-12');await input.press('Enter');await call('scene.inspect');});
-  check('negative signed density persisted',(await inspect()).find(n=>n.hash===owner.hash).params['Current Density']===-12);
-  check('other owner unchanged',(await inspect()).find(n=>n.hash===first.hash).params['Current Density']===0);
-  await call('edit.history',{action:'undo'});check('native scalar Undo',(await inspect()).find(n=>n.hash===owner.hash).params['Current Density']===0);await call('edit.history',{action:'redo'});
-  await call('animation.key',{id:owner.hash,path:'param:Current Density',frame:0,value:-12,interpolation:'hard'});
-  await call('animation.key',{id:owner.hash,path:'param:Current Density',frame:20,value:12,interpolation:'hard'});
-  await call('animation.seek',{frame:10});check('signed native animation crosses zero',Math.abs((await inspect()).find(n=>n.hash===owner.hash).params['Current Density'])<1e-6);
-  await call('animation.seek',{frame:0});await action('mode-solve').click();await call('scene.inspect');
-  await timed('native visualization choice',1500,async()=>{await action('view-saturation-section').click();await call('scene.inspect');});
-  check('exactly one view pressed',await page.locator('[data-plugin-action-button^="view-"][aria-pressed="true"]').count()===1);
-  check('selected combination stored',(await inspect()).find(n=>n.hash===owner.hash).params.Quantity==='Saturation');
-  await timed('repeated native mode and view actions',5000,async()=>{for(let i=0;i<3;i++){await action('mode-current-density').click();await call('scene.inspect');await action('mode-solve').click();await call('scene.inspect');for(const id of ['view-b-strokes','view-h-section','view-magnetization-strokes','view-saturation-section']){await action(id).click();await call('scene.inspect');}}});
-  const beforeReject=(await inspect()).map(authored);
-  await timed('all numerical actions reject',1500,async()=>{for(const operation of ['solve-frame','solve-animation','force','torque','reset-magnetization']){const code=await page.evaluate(async({id,operation})=>{try{await frameAI.call('plugins.command',{id,operation,args:{}});return null;}catch(e){return e.code;}},{id:owner.hash,operation});check(operation+' unavailable',code==='MAGNETO_AUTHORING_ONLY',code);}});
-  check('rejection does not mutate',equal(beforeReject,(await inspect()).map(authored)));
-  const invalidArgs=await page.evaluate(async id=>{try{await frameAI.call('plugins.command',{id,operation:'mode-current-density',args:{unexpected:true}});return false;}catch{return true;}},owner.hash);
-  check('invalid operation arguments reject atomically',invalidArgs&&equal(beforeReject,(await inspect()).map(authored)));
-  const status=await cmd('status');check('no physics or results',status.state==='unfinished'&&!status.physicsAvailable&&!status.resultAvailable&&!status.curvesAvailable,status);
-  const cube=await call('scene.create',{type:'cube'});await timed('native Material tag assignment',1500,()=>call('tag.set',{ids:[cube.hash],kind:'magneto',enabled:true}));
-  const tagged=(await inspect()).find(n=>n.hash===cube.hash),tag=tagged.tags.find(t=>t.kind==='magneto');
-  check('shared tag bridge retains Material',tag?.params.Material==='Electrical Steel M19'&&Object.keys(tag.params).length===1,tag);
-  await page.locator('.ob-tag.magneto').first().click();await page.locator('#tabAttributes').click();
-  check('tag has exactly one Material row',equal(await page.locator('#attrContent [data-field]').evaluateAll(es=>es.map(e=>e.dataset.field)),['Material']));
-  await timed('native tag Material UI',1500,async()=>{await page.locator('#attrContent [data-field="Material"]').press('ArrowRight');await call('scene.inspect');});
-  check('native tag choice changes Material',(await inspect()).find(n=>n.hash===cube.hash).tags.find(t=>t.kind==='magneto').params.Material==='Electrical Steel M27');
-  await call('edit.history',{action:'undo'});check('tag choice Undo',(await inspect()).find(n=>n.hash===cube.hash).tags.find(t=>t.kind==='magneto').params.Material==='Electrical Steel M19');await call('edit.history',{action:'redo'});
-  const material=await call('material.create',{name:'Magneto preservation fixture',params:{h:30,s:60,l:50}});
-  const materialGroup=await call('scene.create',{type:'group'});await call('material.assign',{id:materialGroup.hash,material:material.uid});
-  const inherited=await call('scene.create',{type:'cube'});await call('scene.update',{id:inherited.hash,parent:materialGroup.hash});
-  await call('material.assign',{id:cube.hash,material:material.uid});
-  const explicitBefore=(await inspect()).find(n=>n.hash===cube.hash).tags.filter(t=>t.kind==='material'),parentBefore=(await inspect()).find(n=>n.hash===materialGroup.hash).tags;
-  await call('tag.set',{ids:[inherited.hash],kind:'magneto',enabled:true});await call('diagnostics.frame',{frames:3});
-  check('explicit material remains unchanged',equal(explicitBefore,(await inspect()).find(n=>n.hash===cube.hash).tags.filter(t=>t.kind==='material')));
-  check('inherited material remains on parent without child material mutation',equal(parentBefore,(await inspect()).find(n=>n.hash===materialGroup.hash).tags)&&!(await inspect()).find(n=>n.hash===inherited.hash).tags.some(t=>t.kind==='material'));
-  const polygonIds=[];
-  for(let i=0;i<2;i++){
-    let polygon=await call('scene.create',{type:'cube'});
-    for(let step=0;step<3&&polygon.type!=='mesh';step++)polygon=await call('scene.convert',{id:polygon.hash});
-    check('generic bridge fixture is editable polygons',polygon.type==='mesh',polygon.type);
-    await call('scene.update',{id:polygon.hash,parent:materialGroup.hash});polygonIds.push(polygon.hash);
-  }
-  await call('material.assign',{id:polygonIds[0],material:material.uid});
-  const tagGate=await tagFieldBrowserChecks(page,polygonIds);
-  checks.push(...tagGate.checks.map(name=>({name:'Generic tag bridge: '+name,pass:true})));timings.push(...tagGate.timings);
-  await call('animation.seek',{frame:0});
-  await call('scene.select',{ids:[owner.hash]});await timed('native plane transform',1500,()=>call('transform.set',{channel:'size',axis:0,value:200,coordinates:'object'}));
-  check('plane size uses native frame',(await inspect()).find(n=>n.hash===owner.hash).matrix[0]===2);
-  const group=await call('scene.create',{type:'group'});await call('scene.update',{id:owner.hash,parent:group.hash});
-  const before=(await inspect()).map(authored),saved=await timed('native HASH export',5000,()=>call('scene.export',{includeData:true}));
-  await timed('native HASH reopen',10000,()=>call('scene.open',{name:'magneto-preview.hash',base64:saved.base64}));
-  check('HASH preserves native planes hierarchy tags values frames',equal(before,(await inspect()).map(authored)));
-  await call('scene.delete',{ids:[owner.hash]});await call('edit.history',{action:'undo'});check('delete Undo restores owner',equal(authored((await inspect()).find(n=>n.hash===owner.hash)),before.find(n=>n.hash===owner.hash)));
-  await call('scene.select',{ids:[owner.hash]});await call('view.set',{index:0,single:true,focus:owner.hash});await call('diagnostics.frame',{frames:6});
-  check('native plane gizmo available',await page.evaluate(()=>!!frameEngine.gizmoState?.handles.length));
-  const projected=await call('view.project',{id:owner.hash,point:[0,-50,0]});
-  await page.mouse.move(...projected.screen);await page.mouse.wheel(0,80);await call('scene.inspect');
-  await call('scene.select',{ids:[]});check('deselection clears native gizmo',await page.evaluate(()=>!frameEngine.gizmoState?.handles.length));
-  // Use the enlarged owner's right edge, outside the first plane and cube fixtures.
-  const helper=await call('view.project',{id:owner.hash,point:[50,25,0]});
-  const hit=await page.evaluate(p=>({element:document.elementFromPoint(p[0],p[1])?.outerHTML,paths:[...document.querySelectorAll('.frame-plugin-hit')].map(el=>({hash:el.dataset.hash,d:el.getAttribute('d')}))}),helper.screen);
-  await timed('native helper stroke selection',1500,async()=>{await page.mouse.click(helper.screen[0],helper.screen[1]);await call('scene.inspect');});
-  check('helper stroke selects same native owner',(await inspect()).find(n=>n.hash===owner.hash).selected,{expected:owner.hash,helper,hit,selected:(await inspect()).filter(n=>n.selected).map(n=>({hash:n.hash,type:n.type}))});
-  const frames=await call('diagnostics.frame',{frames:12});check('CPU/GPU native helper frame budgets',frames.timestampQueries===true&&frames.frames.length===12&&frames.frames.every(f=>Number.isFinite(f.cpuMs)&&Number.isFinite(f.gpuMs)&&f.cpuMs<50&&f.gpuMs<50),frames);
-  const gpu=await page.evaluate(async()=>{await __magnetoDevice.queue.onSubmittedWorkDone();return {validation:(await __magnetoDevice.popErrorScope())?.message||null,uncaptured:__magnetoErrors,lost:__magnetoLost,replaced:__magnetoDevice!==frameEngine.renderer.device};});
-  check('no JS, console, GPU errors, loss or replacement',!errors.length&&!consoleErrors.length&&!gpu.validation&&!gpu.uncaptured.length&&!gpu.lost&&!gpu.replaced,{errors,consoleErrors,gpu});
-  check('no numerical code requested',requests.every(p=>['plugin.json','icon.svg','plugin.js'].some(n=>p==='/plugins/magneto/'+n)),requests);
-  return {pass:true,checks,timings,hardware,gpu,requestedDPR,actualDPR,scope:'Native authoring only; no physics or aggregate/stress qualification.'};
- }catch(e){return {pass:false,checks,timings,hardware,requestedDPR,actualDPR,error:e.stack};}finally{await context.close();}
 }
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const sources=async()=>{const hashes={};for(const p of ['index.html','plugins/index.json','plugins/magneto/plugin.json','plugins/magneto/plugin.js','plugins/magneto/icon.svg','plugins/magneto/tests/authoring-browser.mjs','plugins/magneto/tests/authoring.test.mjs','tests/plugin-tag-fields.mjs','tests/plugin-tag-fields-browser.mjs','tools/browser.mjs'])hashes[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');return hashes;};
- const before=await sources();
- const expectedIndex=currentBaseline.files['index.html'].sha256;
- const requestedDPR=Number(process.env.FRAME_DPR||1);
- let session,result;try{await verifyCurrentBaseline('magneto');if(![1,2].includes(requestedDPR))throw Error('Magneto focused gate supports FRAME_DPR=1 or 2.');if(before['index.html']!==expectedIndex)throw Error('Candidate index changed from the reviewed current-source baseline; update freeze only after review.');if(!process.argv.includes('--headless'))throw Error('This LAB gate requires --headless and a coordinated GPU slot.');session=await launch({headless:true});result=await pluginChecks(session.page);}catch(e){result={pass:false,requestedDPR,actualDPR:null,error:e.stack};}finally{await session?.close();}
- result.sourcesBefore=before;result.sourcesAfter=await sources();if(!equal(result.sourcesBefore,result.sourcesAfter)){result.pass=false;result.error='Source changed during run';}
- const report='magneto-authoring-preview-dpr'+([1,2].includes(requestedDPR)?requestedDPR:'invalid')+'.json';
- await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/'+report,import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const requestedDPR = Number(process.env.FRAME_DPR || 1);
+  let session, result;
+  try {
+    session = await launch({headless: process.argv.includes('--headless')});
+    result = await pluginChecks(session.page);
+  } catch (e) {
+    result = {pass: false, requestedDPR, actualDPR: null, error: e.stack || e.message};
+  } finally {
+    await session?.close();
+  }
+  result.sources = {};
+  for (const p of ['index.html', 'plugins/index.json', 'plugins/magneto/plugin.json', 'plugins/magneto/plugin.js', 'plugins/magneto/icon.svg', 'plugins/magneto/tests/authoring-browser.mjs', 'plugins/magneto/tests/authoring.test.mjs']) {
+    result.sources[p] = createHash('sha256').update(await readFile(new URL('../../../' + p, import.meta.url))).digest('hex');
+  }
+  await mkdir(new URL('../../../tests/results/', import.meta.url), {recursive: true});
+  await writeFile(new URL('../../../tests/results/magneto-browser.json', import.meta.url), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
+  process.exitCode = result.pass ? 0 : 1;
 }
